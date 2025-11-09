@@ -1,5 +1,3 @@
-mod builtin;
-
 use std::collections::HashMap;
 
 pub struct BuildConstants {

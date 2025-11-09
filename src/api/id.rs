@@ -270,21 +270,17 @@ impl FromStr for Id {
     type Err = IdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut iter = s.split('#');
+        let (qualified_artifact_id,name) =
+            s.rsplit_once('#')
+            .ok_or_else(|| IdError::BadFormat(s.to_string()))?;
 
-        let artifact = iter.next();
-        let name = iter.next();
-
-        if artifact.is_none() || name.is_none() || iter.next().is_some() {
-            return Err(Self::Err::BadFormat(s.to_string()));
-        }
-
-        let artifact = QualifiedArtifactId::from_str(artifact.unwrap())
+        let artifact =
+            QualifiedArtifactId::from_str(qualified_artifact_id)
             .map_err(|err| Self::Err::InvalidPart(err.into()))?;
 
         let mut idents = Vec::<Ident>::new();
 
-        for ident in name.unwrap().split('.') {
+        for ident in name.split('.') {
             let result =
                 Ident::from_str(ident).map_err(|err| Self::Err::InvalidPart(err.into()))?;
             idents.push(result);
@@ -318,12 +314,17 @@ pub enum IdError {
 }
 
 /// The type of target,like Build, Test or Install.
-struct TargetType(Id);
+#[derive(Debug,Clone,Eq, PartialEq)]
+pub struct TargetType(pub Id);
 /// The computer architecture, like arm64
-struct Architecture(Id);
+#[derive(Debug,Clone,Eq, PartialEq)]
+pub struct Architecture(pub Id);
 /// The operating system,like linux.
-struct Os(Id);
+#[derive(Debug,Clone,Eq, PartialEq)]
+pub struct Os(pub Id);
 /// The type of tool,like c compiler.
-struct ToolType(Id);
+#[derive(Debug,Clone,Eq, PartialEq)]
+pub struct ToolType(pub Id);
 /// The name of tool,like gcc or clang.
-struct ToolName(Id);
+#[derive(Debug,Clone,Eq, PartialEq)]
+pub struct ToolName(pub Id);

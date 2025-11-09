@@ -92,6 +92,7 @@ impl InformationArgs{
         println!("tag:{}", shadow_rs::tag());
         println!("git_clean:{}", shadow_rs::git_clean());
         println!("git_status_file:{}", shadow_rs::git_status_file());
+        println!();
 
         println!("version:{}", build_information::VERSION);
         println!("version:{}", build_information::CLAP_LONG_VERSION);
@@ -100,6 +101,7 @@ impl InformationArgs{
         println!("pkg_version_minor:{}", build_information::PKG_VERSION_MINOR);
         println!("pkg_version_patch:{}", build_information::PKG_VERSION_PATCH);
         println!("pkg_version_pre:{}", build_information::PKG_VERSION_PRE);
+        println!();
 
         println!("tag:{}", build_information::TAG);
         println!("branch:{}", build_information::BRANCH);
@@ -110,18 +112,49 @@ impl InformationArgs{
         println!("commit_date_3339:{}", build_information::COMMIT_DATE_3339);
         println!("commit_author:{}", build_information::COMMIT_AUTHOR);
         println!("commit_email:{}", build_information::COMMIT_EMAIL);
+        println!();
 
         println!("build_os:{}", build_information::BUILD_OS);
         println!("rust_version:{}", build_information::RUST_VERSION);
         println!("rust_channel:{}", build_information::RUST_CHANNEL);
         println!("cargo_version:{}", build_information::CARGO_VERSION);
         println!("cargo_tree:{}", build_information::CARGO_TREE);
+        println!();
 
         println!("project_name:{}", build_information::PROJECT_NAME);
         println!("build_time:{}", build_information::BUILD_TIME);
         println!("build_time_2822:{}", build_information::BUILD_TIME_2822);
         println!("build_time_3339:{}", build_information::BUILD_TIME_3339);
         println!("build_rust_channel:{}", build_information::BUILD_RUST_CHANNEL);
+        println!();
+
+        println!("=============== builtin constants ===============");
+        println!("KAWAYI_GROUP_ID:{}", *api::builtin::zmake::KAWAYI_GROUP_ID);
+        println!("ZMAKE_ARTIFACT_ID:{}", *api::builtin::zmake::ZMAKE_ARTIFACT_ID);
+        println!("ZMAKE_QUALIFIED_ARTIFACT_ID:{}", *api::builtin::zmake::ZMAKE_QUALIFIED_ARTIFACT_ID);
+        println!("ZMAKE_V1V0V0:{}", *api::builtin::zmake::ZMAKE_V1V0V0);
+        println!();
+
+        println!("LINUX:{}", (*api::builtin::os::LINUX).0);
+        println!("MACOS:{}", (*api::builtin::os::MACOS).0);
+        println!("WINDOWS:{}", (*api::builtin::os::WINDOWS).0);
+        println!();
+
+        println!("ARM64:{}", (*api::builtin::architecture::ARM64).0);
+        println!("X64:{}", (*api::builtin::architecture::X64).0);
+        println!();
+
+        println!("ARCHIVER:{}", (*api::builtin::tool_type::ARCHIVER).0);
+        println!();
+
+        println!("INITIALIZE:{}", (*api::builtin::target_type::INITIALIZE).0);
+        println!("BUILD:{}", (*api::builtin::target_type::BUILD).0);
+        println!("CLEAN:{}", (*api::builtin::target_type::CLEAN).0);
+        println!("TEST:{}", (*api::builtin::target_type::TEST).0);
+        println!("PACKAGE:{}", (*api::builtin::target_type::PACKAGE).0);
+        println!("INSTALL:{}", (*api::builtin::target_type::INSTALL).0);
+        println!("DEPLOY:{}", (*api::builtin::target_type::DEPLOY).0);
+        println!();
     }
 }
 
