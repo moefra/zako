@@ -1,0 +1,6 @@
+[submodule "libraries/deno"]
+	path = libraries/deno
+	url = https://github.com/denoland/deno
+[submodule "libraries/deno_core"]
+	path = libraries/deno_core
+	url = https://github.com/moegodot/deno_core

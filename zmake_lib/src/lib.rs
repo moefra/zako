@@ -1,24 +1,32 @@
-#![feature(inherent_associated_types)]
-#![feature(stmt_expr_attributes)]
-#![feature(trim_prefix_suffix)]
+pub mod api;
 
-mod api;
-
-use std::fs::File;
-use clap::{arg, command, Arg, ColorChoice, CommandFactory, Parser, Subcommand, ValueEnum};
+use crate::api::id::ToolType;
 use clap::builder::styling;
-use std::{env, io};
-use std::io::Write;
-use std::sync::LazyLock;
 use clap::builder::styling::AnsiColor;
 use clap::builder::styling::Color::Ansi;
+use clap::{Arg, ColorChoice, CommandFactory, Parser, Subcommand, ValueEnum, arg, command};
 use clap_complete::{generate, shells};
 use const_format::concatcp;
-use crate::api::id::ToolType;
+use std::fs::File;
+use std::io::Write;
+use std::sync::LazyLock;
+use std::thread::Builder;
+use std::{env, io};
+use tokio::runtime::Builder;
 
 const STYLES: styling::Styles = styling::Styles::styled()
-    .header(styling::AnsiColor::Green.on_default().bg_color(Some(Ansi(AnsiColor::BrightWhite))).bold())
-    .usage(styling::AnsiColor::Green.on_default().bg_color(Some(Ansi(AnsiColor::BrightWhite))).bold())
+    .header(
+        styling::AnsiColor::Green
+            .on_default()
+            .bg_color(Some(Ansi(AnsiColor::BrightWhite)))
+            .bold(),
+    )
+    .usage(
+        styling::AnsiColor::Green
+            .on_default()
+            .bg_color(Some(Ansi(AnsiColor::BrightWhite)))
+            .bold(),
+    )
     .literal(styling::AnsiColor::BrightWhite.on_default())
     .error(styling::AnsiColor::BrightRed.on_default())
     .context(styling::AnsiColor::Blue.on_default())
@@ -27,9 +35,18 @@ const STYLES: styling::Styles = styling::Styles::styled()
     .invalid(styling::AnsiColor::BrightYellow.on_default())
     .placeholder(styling::AnsiColor::Cyan.on_default().italic().bold());
 
-const ABOUT:&'static str = "The \x1b[35mpost-modern building tool\x1b[0m that your mom warned you about.";
-const BEFORE_HELP:&'static str = concatcp!("打碎旧世界,创立新世界.\n\x1B]8;;",env!("CARGO_PKG_HOMEPAGE"),"\x1B\\\x1b[34;47;4;1m[More Information]\x1B]8;;\x1B\\\x1b[0m");
-const AFTER_HELP:&'static str = concatcp!("早已森严壁垒,更加众志成城.\n\x1B]8;;",env!("CARGO_PKG_HOMEPAGE"),"\x1B\\\x1b[34;47;4;1m[Bug Report]\x1B]8;;\x1B\\\x1b[0m");
+const ABOUT: &'static str =
+    "The \x1b[35mpost-modern building tool\x1b[0m that your mom warned you about.";
+const BEFORE_HELP: &'static str = concatcp!(
+    "打碎旧世界,创立新世界.\n\x1B]8;;",
+    env!("CARGO_PKG_HOMEPAGE"),
+    "\x1B\\\x1b[34;47;4;1m[More Information]\x1B]8;;\x1B\\\x1b[0m"
+);
+const AFTER_HELP: &'static str = concatcp!(
+    "早已森严壁垒,更加众志成城.\n\x1B]8;;",
+    env!("CARGO_PKG_HOMEPAGE"),
+    "\x1B\\\x1b[34;47;4;1m[Bug Report]\x1B]8;;\x1B\\\x1b[0m"
+);
 
 #[derive(Parser, Debug)]
 #[command(
@@ -50,26 +67,66 @@ struct Args {
     #[command(subcommand)]
     command: SubCommands,
 
-    #[arg(global = true,group = "logging_level",long, help="logging the most detailed information",visible_alias = "verbose")]
+    #[arg(
+        global = true,
+        group = "logging_level",
+        long,
+        help = "logging the most detailed information",
+        visible_alias = "verbose"
+    )]
     log_trace: bool,
 
-    #[arg(global = true,group = "logging_level",long, help="logging more detailed information")]
+    #[arg(
+        global = true,
+        group = "logging_level",
+        long,
+        help = "logging more detailed information"
+    )]
     log_debug: bool,
 
-    #[arg(global = true,group = "logging_level",long, help="logging common information")]
+    #[arg(
+        global = true,
+        group = "logging_level",
+        long,
+        help = "logging common information"
+    )]
     log_information: bool,
 
-    #[arg(global = true,group = "logging_level",long, help="logging warnings only")]
+    #[arg(
+        global = true,
+        group = "logging_level",
+        long,
+        help = "logging warnings only"
+    )]
     log_warning: bool,
 
-    #[arg(global = true,group = "logging_level",long, help="logging errors only")]
+    #[arg(
+        global = true,
+        group = "logging_level",
+        long,
+        help = "logging errors only"
+    )]
     log_error: bool,
 
-    #[arg(global = true,group = "logging_level",long, help="no logging",visible_alias = "quiet")]
+    #[arg(
+        global = true,
+        group = "logging_level",
+        long,
+        help = "no logging",
+        visible_alias = "quiet"
+    )]
     log_off: bool,
 
-    #[arg(value_enum, global = true,group = "logging_level",long, help="set logging level", required=false,default_value = "info")]
-    log_level: Level
+    #[arg(
+        value_enum,
+        global = true,
+        group = "logging_level",
+        long,
+        help = "set logging level",
+        required = false,
+        default_value = "info"
+    )]
+    log_level: Level,
 }
 
 #[derive(Subcommand, Debug)]
@@ -79,24 +136,27 @@ enum SubCommands {
     Make(MakeArgs),
 }
 
-#[derive(clap::Args,Debug)]
-#[command(name = "make",about="Build the project")]
-struct MakeArgs{
+#[derive(clap::Args, Debug)]
+#[command(name = "make", about = "Build the project")]
+struct MakeArgs {
     #[arg(long,default_value = "zmakefile.ts", value_hint = clap::ValueHint::FilePath)]
-    projectFile:String,
+    projectFile: String,
 
-    #[arg(long,help = "Set the cpu counts that zmake use")]
-    concurrency:Option<usize>,
+    #[arg(long, help = "Set the cpu counts that zmake use")]
+    concurrency: Option<usize>,
 }
 
-impl MakeArgs{
-    pub fn invoke(self){
+impl MakeArgs {
+    pub fn invoke(self) {
         let concurrency = self.concurrency.unwrap_or(num_cpus::get());
-        info!("use concurrency {}",concurrency)
+
+        let builder = Builder::new_multi_thread();
+
+        info!("use concurrency {}", concurrency)
     }
 }
 
-#[derive(Debug,Clone,ValueEnum)]
+#[derive(Debug, Clone, ValueEnum)]
 enum Shell {
     Bash,
     Elvish,
@@ -105,52 +165,60 @@ enum Shell {
     Zsh,
 }
 
-#[derive(clap::Args,Debug)]
-#[command(name = "generate-complete",about="Generate shell completion file")]
+#[derive(clap::Args, Debug)]
+#[command(name = "generate-complete", about = "Generate shell completion file")]
 struct GenerateCompleteArgs {
     #[arg(long)]
-    shell:Shell,
+    shell: Shell,
 
-    #[arg(long,default_value = "zmake")]
-    bin_name:String,
+    #[arg(long, default_value = "zmake")]
+    bin_name: String,
 
     #[arg(long,default_value = None,help = "set this options to output to file,or it will output to stdout")]
-    output_file:Option<String>
+    output_file: Option<String>,
 }
-impl GenerateCompleteArgs{
-    pub fn invoke(self){
+impl GenerateCompleteArgs {
+    pub fn invoke(self) {
         let mut command = Args::command();
 
         let bin_name = self.bin_name;
 
-        let mut output : Box<dyn Write> =
-            if let Some(file) = self.output_file{
-                Box::new(File::open(file).unwrap())
-            }
-            else{
-                Box::new(io::stdout())
-            };
+        let mut output: Box<dyn Write> = if let Some(file) = self.output_file {
+            Box::new(File::open(file).unwrap())
+        } else {
+            Box::new(io::stdout())
+        };
 
         match self.shell {
-            Shell::Bash => {generate(shells::Bash, &mut command, bin_name, &mut output);}
-            Shell::Elvish => {generate(shells::Elvish, &mut command, bin_name, &mut output);}
-            Shell::Fish => {generate(shells::Fish, &mut command, bin_name, &mut output);}
-            Shell::PowerShell => {generate(shells::PowerShell, &mut command, bin_name, &mut output);}
-            Shell::Zsh => {generate(shells::Zsh, &mut command, bin_name, &mut output);}
+            Shell::Bash => {
+                generate(shells::Bash, &mut command, bin_name, &mut output);
+            }
+            Shell::Elvish => {
+                generate(shells::Elvish, &mut command, bin_name, &mut output);
+            }
+            Shell::Fish => {
+                generate(shells::Fish, &mut command, bin_name, &mut output);
+            }
+            Shell::PowerShell => {
+                generate(shells::PowerShell, &mut command, bin_name, &mut output);
+            }
+            Shell::Zsh => {
+                generate(shells::Zsh, &mut command, bin_name, &mut output);
+            }
         }
     }
 }
 
-use shadow_rs::{shadow, Format};
-use tracing::{info, Level};
+use shadow_rs::{Format, shadow};
+use tracing::{Level, info, trace_span};
 use tracing_subscriber::FmtSubscriber;
 
 shadow!(build_information);
-#[derive(clap::Args,Debug)]
-#[command(name = "information",about="Print (debug) information about zmake")]
+#[derive(clap::Args, Debug)]
+#[command(name = "information", about = "Print (debug) information about zmake")]
 struct InformationArgs {}
-impl InformationArgs{
-    pub fn invoke(self){
+impl InformationArgs {
+    pub fn invoke(self) {
         let local_time = shadow_rs::DateTime::now().human_format();
         println!("build local time:{local_time}");
         println!("is_debug:{}", shadow_rs::is_debug());
@@ -191,13 +259,19 @@ impl InformationArgs{
         println!("build_time:{}", build_information::BUILD_TIME);
         println!("build_time_2822:{}", build_information::BUILD_TIME_2822);
         println!("build_time_3339:{}", build_information::BUILD_TIME_3339);
-        println!("build_rust_channel:{}", build_information::BUILD_RUST_CHANNEL);
+        println!(
+            "build_rust_channel:{}",
+            build_information::BUILD_RUST_CHANNEL
+        );
         println!();
 
         println!("=============== builtin constants ===============");
         println!("KAWAYI_GROUP_ID:{}", *api::builtin::KAWAYI_GROUP_ID);
         println!("ZMAKE_ARTIFACT_ID:{}", *api::builtin::ZMAKE_ARTIFACT_ID);
-        println!("ZMAKE_QUALIFIED_ARTIFACT_ID:{}", *api::builtin::ZMAKE_QUALIFIED_ARTIFACT_ID);
+        println!(
+            "ZMAKE_QUALIFIED_ARTIFACT_ID:{}",
+            *api::builtin::ZMAKE_QUALIFIED_ARTIFACT_ID
+        );
         println!("ZMAKE_V1V0V0:{}", *api::builtin::ZMAKE_V1V0V0);
         println!();
 
@@ -224,35 +298,33 @@ impl InformationArgs{
 }
 
 fn main() {
+    let _span = trace_span!("zmake start", version = env!("CARGO_PKG_VERSION")).entered();
+
+    let _parseArgs = trace_span!("prase arguments").entered();
     let args = env::args_os();
 
-    let args =
-        argfile::expand_args_from(
-            args,
-            argfile::parse_fromfile,
-            argfile::PREFIX,
-        ).unwrap();
+    let args = argfile::expand_args_from(args, argfile::parse_fromfile, argfile::PREFIX).unwrap();
 
     let args = Args::parse_from(args);
+
+    _parseArgs.exit();
 
     if !args.log_off {
         let subscriber = FmtSubscriber::builder()
             .with_ansi(true)
-            .with_max_level(
-                if args.log_trace {
-                    Level::TRACE
-                } else if args.log_debug {
-                    Level::DEBUG
-                } else if args.log_information {
-                    Level::INFO
-                } else if args.log_warning {
-                    Level::WARN
-                } else if args.log_error {
-                    Level::ERROR
-                } else {
-                    args.log_level
-                }
-            )
+            .with_max_level(if args.log_trace {
+                Level::TRACE
+            } else if args.log_debug {
+                Level::DEBUG
+            } else if args.log_information {
+                Level::INFO
+            } else if args.log_warning {
+                Level::WARN
+            } else if args.log_error {
+                Level::ERROR
+            } else {
+                args.log_level
+            })
             .finish();
 
         tracing::subscriber::set_global_default(subscriber)

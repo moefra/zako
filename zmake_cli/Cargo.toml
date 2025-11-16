@@ -1,0 +1,48 @@
+[package]
+name = "zmake-cli"
+
+build = "build.rs"
+
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+documentation.workspace = true
+
+[[bin]]
+name = "zmake"
+path = "./src"
+
+[dependencies]
+clap.workspace = true
+semver.workspace = true
+unicode-ident.workspace = true
+thiserror.workspace = true
+shadow-rs.workspace = true
+clap_complete.workspace = true
+cfg-if.workspace = true
+num_cpus.workspace = true
+tracing.workspace = true
+tracing-core.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+const_format.workspace = true
+serde_json.workspace = true
+ahash.workspace = true
+argfile.workspace = true
+lenient_semver.workspace = true
+
+deno_core.workspace = true
+deno_fs.workspace = true
+tokio.workspace = true
+#deno_fetch.workspace = true
+
+glob.workspace = true
+anyhow.workspace = true
+
+[build-dependencies]
+shadow-rs.workspace = true
+clap_complete.workspace = true
+clap.workspace = true

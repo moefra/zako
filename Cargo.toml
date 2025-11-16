@@ -1,15 +1,18 @@
-[package]
-name = "zmake"
-version = "0.1.0"
-edition = "2024"
-build = "build.rs"
-repository = "https://github.com/moegodot/zmake-rust"
-homepage = "https://github.com/moegodot/zmake-rust"
-authors = ["MoeGodot <me@kawayi.moe>"]
+[workspace]
+members = ["zmake_lib", "zmake_cli"]
+resolver = "3"
 
-[dependencies]
-clap = { version = "4.5.51", features = ["derive","cargo","unicode","wrap_help"] }
-semver =  { version = "1.0", features = ["serde"] }
+[workspace.dependencies]
+deno_core = { version = "0.355.0", features = ["include_icu_data"] }
+deno_fs = "0.124.0"
+
+clap = { version = "4.5.51", features = [
+    "derive",
+    "cargo",
+    "unicode",
+    "wrap_help",
+] }
+semver = { version = "1.0", features = ["serde"] }
 unicode-ident = "1.0.22"
 thiserror = "2"
 shadow-rs = "1.4"
@@ -25,9 +28,18 @@ serde_json = "1.0"
 ahash = "0.8.12"
 argfile = "0.2"
 lenient_semver = "0.4.2"
-rustyscript = "0.12.3"
 
-[build-dependencies]
-shadow-rs = "1.4"
-clap_complete = "4.5.51"
-clap = { version = "4.5.51", features = ["derive","cargo","unicode","wrap_help"] }
+tokio = { version = "1.48.0", features = ["full"] }
+
+glob = "0.3.3"
+anyhow = "1.0.100"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["MoeGodot <me@kawayi.moe>"]
+description = "The post-modern building tool that your mom warned you about."
+documentation = "https://github.com/moegodot/zmake-rust"
+repository = "https://github.com/moegodot/zmake-rust"
+homepage = "https://github.com/moegodot/zmake-rust"
+edition = "2024"
+license = "GPL-3.0-or-later"

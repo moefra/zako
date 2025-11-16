@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
 use ahash::AHashMap;
-use rustyscript::Runtime;
 use thiserror::Error;
 use tracing::trace_span;
 use crate::api::engine::Engine;
@@ -43,7 +42,7 @@ impl ProjectResolver{
 
     pub fn resolve_project(&mut self,project_file_path:String)
         -> Result<(),ProjectResolveError>{
-        let _span = trace_span!("Resolve project",project_file_path);
+        let _span = trace_span!("Resolve project",project_file_path).entered();
 
         let file = fs::canonicalize(project_file_path)
             .map_err(|x| IOError(x.into()))?;
@@ -67,13 +66,6 @@ impl ProjectResolver{
         else{
             self.resolving.insert(file.clone(), true);
         }
-
-        let mut runtime = Runtime::new(Default::default()).unwrap();
-
-        let value: usize = runtime.eval_immediate("");
-
-        
-        assert_eq!(value, 2);
 
         Ok(())
     }
