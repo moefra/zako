@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use crate::id::Id;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ConfigurationValue {
@@ -12,7 +12,8 @@ pub enum ConfigurationValue {
     Identifiers(Vec<Id>),
 }
 
-pub type SimpleConfiguration = ::std::collections::HashMap<Id, ConfigurationValue, ::ahash::RandomState>;
+pub type SimpleConfiguration =
+    ::std::collections::HashMap<Id, ConfigurationValue, ::ahash::RandomState>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Configuration {
@@ -21,14 +22,14 @@ pub struct Configuration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Request{
-    input : Vec<String>,
-    output : Vec<String>,
-    configuration: SimpleConfiguration
+pub struct Request {
+    input: Vec<String>,
+    output: Vec<String>,
+    configuration: SimpleConfiguration,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ConfiguredId{
-    id : Id,
-    configuration: Configuration
+pub struct ConfiguredId {
+    id: Id,
+    configuration: Configuration,
 }

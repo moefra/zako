@@ -1,7 +1,7 @@
+use clap::builder::styling;
 use clap::builder::styling::AnsiColor;
 use clap::builder::styling::Color::Ansi;
-use clap::builder::{Styles, styling};
-use clap::{Arg, ColorChoice, CommandFactory, Parser, Subcommand, ValueEnum, arg, command};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum, arg, command};
 use clap_complete::{generate, shells};
 use color_eyre::owo_colors::OwoColorize;
 use const_format::concatcp;
@@ -9,7 +9,6 @@ use opentelemetry::trace::TracerProvider;
 use shadow_rs::{Format, shadow};
 use std::fs::File;
 use std::io::Write;
-use std::sync::LazyLock;
 use std::{env, io};
 use tokio::runtime::Builder;
 use tracing::{Level, info, trace_span};

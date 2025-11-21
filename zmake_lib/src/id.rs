@@ -251,6 +251,7 @@ pub enum IdType {
     Architecture,
     Os,
     Tool,
+    ToolProvider,
     ToolType,
     Property,
 }

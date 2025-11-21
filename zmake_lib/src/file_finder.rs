@@ -1,7 +1,7 @@
+use crate::builtin;
 use cfg_if::cfg_if;
 use std::{env, fs};
 use tracing::trace;
-use crate::builtin;
 
 pub struct FileFinder {
     pub paths: Vec<String>,

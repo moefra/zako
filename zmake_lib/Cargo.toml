@@ -44,7 +44,22 @@ v8.workspace = true
 
 convert_case.workspace = true
 
+xxhash-rust.workspace = true
+
+url.workspace = true
+
+sha2.workspace = true
+
+hex.workspace = true
+
+prost.workspace = true
+prost-types.workspace = true
+tonic-prost.workspace = true
+tonic.workspace = true
+
+uuid.workspace = true
+
+async-trait.workspace = true
+
 [build-dependencies]
-shadow-rs.workspace = true
-clap_complete.workspace = true
-clap.workspace = true
+tonic-prost-build.workspace = true

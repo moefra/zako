@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package zmake.v1.net;
+
+message IpAddress{
+  oneof ip_addr {
+    fixed32 v4 = 1;
+    bytes v6 = 2;
+  }
+}
+
+message SocketAddress{
+  IpAddress ip = 1;
+  uint32 port = 2;
+}
+
+enum Protocol{
+  Quic = 0;
+}

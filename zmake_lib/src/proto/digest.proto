@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package zmake.v1.digest;
+
+message Digest{
+  bytes fast_xxhash3_128 = 1;
+
+  optional bytes secure_sha256 = 2;
+
+  uint64 size_bytes = 3;
+}
