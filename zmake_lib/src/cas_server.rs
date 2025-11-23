@@ -116,15 +116,23 @@ impl ContentAddressableStorage for CasServer {
     ) -> Result<Response<TransportDetails>, Status> {
         let inner = request.into_inner();
 
+        let mut used_protocol:Option<crate::proto::net::Protocol> = None;
+
         for protocol in inner.supported_protocols {
-            if protocol == crate::proto::net::Protocol::Grpc.into() {
+            if protocol == crate::proto::net::Protocol::Grpc as i32 {
                 // Only GRpc is supported
-                break;
+                used_protocol = Some(crate::proto::net::Protocol::Grpc);
             } else {
                 return Err(Status::failed_precondition(
                     "No supported transport protocol found",
                 ));
             }
+        }
+
+        if used_protocol.is_none() {
+            return Err(Status::failed_precondition(
+                "No supported transport protocol found",
+            ));
         }
 
         let token = Uuid::new_v4().to_string();

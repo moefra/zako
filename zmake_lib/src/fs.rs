@@ -85,7 +85,7 @@ impl VirtualFsItem {
 }
 
 /// 辅助函数：将 PathBuf 转换为标准化的 Unix 风格 String
-fn normalize_path_to_string(path: &Path) -> Result<String, VirtualFileError> {
+pub fn normalize_path_to_string(path: &Path) -> Result<String, VirtualFileError> {
     let mut components = Vec::new();
 
     for component in path.components() {
@@ -119,17 +119,17 @@ fn normalize_path_to_string(path: &Path) -> Result<String, VirtualFileError> {
 /// - `link_path_str`: 符号链接文件本身的相对路径 (e.g., "include/my_lib.h"). It should be normalized,meaning not "\.\."
 ///
 /// - `target_str`: 符号链接指向的目标 (e.g., "../src/utils/internal.h")
-fn validate_symlink(link_path_str: &str, target_str: &str) -> Result<(), VirtualFileError> {
+pub fn validate_symlink(link_path_str: &str, target_str: &str) -> Result<(), VirtualFileError> {
     let target_path = Path::new(target_str);
 
-    // 规则 1: 绝对路径严禁使用
+    // 绝对路径严禁使用
     if target_path.is_absolute() {
         return Err(VirtualFileError::SymlinkTargetAbsolute);
     }
 
     let link_path = Path::new(link_path_str);
 
-    // 规则 2: 计算初始深度 (Base Depth)
+    // 计算初始深度
     let mut current_depth: i32 = 0;
 
     if let Some(parent) = link_path.parent() {
@@ -141,7 +141,7 @@ fn validate_symlink(link_path_str: &str, target_str: &str) -> Result<(), Virtual
         }
     }
 
-    // 规则 3: 模拟路径游走
+    // 模拟路径游走
     for component in target_path.components() {
         current_depth += match component {
             Component::Normal(_) => 1,

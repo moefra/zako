@@ -44,6 +44,7 @@ const BEFORE_HELP: &'static str = concatcp!(
     "\x1B\\\x1b[34;47;4;1m[More Information]\x1B]8;;\x1B\\\x1b[0m"
 );
 const AFTER_HELP: &'static str = concatcp!(
+    "Support argfile(namely @response_file), use @ARG_FILE to load arguments from file📄\n\n",
     "早已森严壁垒🧱更加众志成城💪\n\x1B]8;;",
     env!("CARGO_PKG_HOMEPAGE"),
     "\x1B\\\x1b[34;47;4;1m[Bug Report]\x1B]8;;\x1B\\\x1b[0m"

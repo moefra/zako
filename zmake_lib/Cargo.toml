@@ -46,6 +46,8 @@ strum_macros.workspace = true
 tracing-attributes.workspace = true
 
 v8.workspace = true
+serde_v8.workspace = true
+oxc.workspace = true
 
 convert_case.workspace = true
 
@@ -71,6 +73,8 @@ dashmap.workspace = true
 async-trait.workspace = true
 
 tokio-util.workspace = true
+
+smallvec.workspace = true
 
 [build-dependencies]
 tonic-prost-build.workspace = true
