@@ -6,12 +6,14 @@ use clap_complete::{generate, shells};
 use color_eyre::owo_colors::OwoColorize;
 use const_format::concatcp;
 use opentelemetry::trace::TracerProvider;
+use sha2::Digest;
 use shadow_rs::{Format, shadow};
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::Write;
 use std::{env, io};
 use tokio::runtime::Builder;
+use tracing::trace;
 use tracing::{Level, info, trace_span};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
@@ -150,6 +152,7 @@ enum SubCommands {
     ExportBuiltin(ExportBuiltinArgs),
     Make(MakeArgs),
     Deno(DenoArgs),
+    Check(CheckArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -159,10 +162,38 @@ enum SubCommands {
 )]
 struct DenoArgs {}
 
-static DENO_BINARY: &[u8] = include_bytes!("deno/deno");
+#[derive(Clone, strum::EnumString, strum::Display, Copy, Eq, PartialEq, Hash, Debug, ValueEnum)]
+enum Checks {}
+
+#[derive(clap::Args, Debug)]
+#[command(name = "check", about = "Execute check from zmake")]
+struct CheckArgs {
+    #[arg(value_enum)]
+    checks: Vec<Checks>,
+}
+
+impl CheckArgs {
+    pub fn invoke(self) -> eyre::Result<()> {
+        let mut check = self.checks;
+        while let Some(check) = check.pop() {
+            trace!("check -- {}", check);
+
+            let result = match check {
+                _ => false,
+            };
+
+            trace!("check -- {}", if result { "pass" } else { "failed" });
+        }
+
+        Ok(())
+    }
+}
+
+static DENO_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/deno"));
+static DENO_CHECKSUM: &'static str = include_str!(concat!(std::env!("OUT_DIR"), "/deno.sha256sum"));
 
 fn run_deno(args: &[std::ffi::OsString]) -> eyre::Result<()> {
-    let checksum = include_str!("deno/deno.sha256sum").trim();
+    let checksum = DENO_CHECKSUM.trim();
 
     let (checksum, _) = checksum
         .split_once(" ")
@@ -263,6 +294,7 @@ struct GenerateCompleteArgs {
     #[arg(long,default_value = None,help = "set this options to output to file,or it will output to stdout")]
     output_file: Option<String>,
 }
+
 impl GenerateCompleteArgs {
     pub fn invoke(self) -> eyre::Result<()> {
         let mut command = Args::command();
@@ -487,6 +519,7 @@ fn inner_main() -> eyre::Result<()> {
         SubCommands::Make(args) => args.invoke(),
         SubCommands::ExportBuiltin(args) => args.invoke(),
         SubCommands::Deno(_args) => unreachable!(),
+        SubCommands::Check(args) => args.invoke(),
     };
 }
 

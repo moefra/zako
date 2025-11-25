@@ -30,6 +30,8 @@ ahash = "0.8.12"
 argfile = "0.2"
 lenient_semver = "0.4.2"
 
+zip = "6.0.0"
+
 opentelemetry = "0.31.0"
 opentelemetry_sdk = "0.31.0"
 opentelemetry-stdout = "0.31.0"
@@ -44,8 +46,7 @@ tokio = { version = "1.48.0", features = ["full"] }
 tracing-attributes = "0.1.24"
 
 glob = "0.3.3"
-strum = "0.27"
-strum_macros = "0.27"
+strum = {version="0.27",features=["derive"]}
 
 colorchoice-clap = "1.0.7"
 
@@ -56,6 +57,7 @@ colorchoice = "1.0.4"
 url = "2.5.7"
 
 futures = "0.3.31"
+futures-util = "0.3.31"
 
 v8 = "142.1.0"
 serde_v8 = "=0.278.0"
@@ -80,6 +82,9 @@ async-trait = "0.1.89"
 
 shadow-rs = "1.4"
 clap_complete = "4.5.61"
+
+reqwest = { version = "0.12", features = ["json","blocking","json","gzip","brotli","zstd","deflate","stream"] }
+indicatif = "0.18.3"
 
 prost = "0.14"
 prost-types = "0.14"

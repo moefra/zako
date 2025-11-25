@@ -4,8 +4,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
-use strum_macros;
-use strum_macros::{EnumString, IntoStaticStr};
+use strum::{EnumString, IntoStaticStr};
 use thiserror::Error;
 use unicode_ident::{is_xid_continue, is_xid_start};
 
