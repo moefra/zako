@@ -22,13 +22,13 @@ const STYLES: styling::Styles = styling::Styles::styled()
     .header(
         styling::AnsiColor::Green
             .on_default()
-            .bg_color(Some(Ansi(AnsiColor::BrightWhite)))
+            .bg_color(Some(Ansi(AnsiColor::BrightRed)))
             .bold(),
     )
     .usage(
         styling::AnsiColor::Green
             .on_default()
-            .bg_color(Some(Ansi(AnsiColor::BrightWhite)))
+            .bg_color(Some(Ansi(AnsiColor::BrightRed)))
             .bold(),
     )
     .literal(styling::AnsiColor::BrightWhite.on_default())

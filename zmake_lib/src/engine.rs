@@ -66,7 +66,7 @@ impl Engine {
 
         let module_loader = loader.apply(&mut isolate);
 
-        let mut engine = Rc::from(Engine {
+        let engine = Rc::from(Engine {
             isolate: RefCell::from(isolate),
             context,
             tokio_handle: options.tokio_handle,

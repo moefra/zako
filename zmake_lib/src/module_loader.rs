@@ -57,9 +57,13 @@ pub enum ModuleLoadError {
     )]
     V8ObjectAllocationError(&'static str),
     #[error("Failed to compile module: {0}")]
-    V8CompileError(String),
+    V8CompileError(ModuleSpecifier),
     #[error("Failed to instantiate and evaluate module: {0:?}")]
     V8InstaniateAndEvaluateError(ModuleSpecifier),
+    #[error(
+        "Failed to set synthetic module export `{0}`(Note: it may because of duplicated export or unknown export)"
+    )]
+    V8SyntheticModuleBuildingError(&'static str),
     #[error("Failed to find resolved module specifier: {0:?}")]
     UnknownModuleSpecifier(ModuleSpecifier),
     #[error("Failed to find builtin module: {0}")]
@@ -138,14 +142,58 @@ impl ModuleLoader {
         let module = if let Some(global_mod) = self.module_cache.borrow().get(specifier) {
             Local::new(scope, global_mod)
         } else {
-            match specifier {
-                ModuleSpecifier::Builtin(builtin_name) => match builtin_name.as_str() {
-                    _ => {
+            let origin = ScriptOrigin::new(
+                scope,
+                v8::String::new(scope, specifier.clone().to_string().as_str())
+                    .ok_or(ModuleLoadError::V8ObjectAllocationError(
+                        "v8::String::new(scope,specifier.to_string())",
+                    ))?
+                    .into(),
+                0,
+                0,
+                false,
+                0,
+                None,
+                false,
+                false,
+                true,
+                None,
+            );
+
+            let module = match specifier {
+                ModuleSpecifier::Builtin(builtin_name) => {
+                    if specifier.eq(&crate::builtin::js::RT) {
+                        let v8_source = v8::String::new(scope, crate::builtin::js::RT_CODE).ok_or(
+                            ModuleLoadError::V8ObjectAllocationError(
+                                "v8::String::new(scope, &crate::builtin::js::RT_CODE)",
+                            ),
+                        )?;
+
+                        let module = v8::script_compiler::compile_module(
+                            scope,
+                            &mut Source::new(v8_source, Some(&origin)),
+                        )
+                        .ok_or_else(|| ModuleLoadError::V8CompileError(specifier.clone()))?;
+
+                        module
+                    } else if specifier.eq(&crate::builtin::js::SYSCALL) {
+                        // note: to modify syscall,see crate::builtin::js
+                        v8::Module::create_synthetic_module(
+                            scope,
+                            v8::String::new(scope, specifier.to_string().as_ref()).ok_or(
+                                ModuleLoadError::V8ObjectAllocationError(
+                                    "v8::String::new(scope, &crate::builtin::js::RT_CODE)",
+                                ),
+                            )?,
+                            &[],
+                            |_a, _b| None,
+                        )
+                    } else {
                         return Err(ModuleLoadError::UnknownBuiltinModuleSpecifier(
                             builtin_name.clone(),
                         ));
                     }
-                },
+                }
                 ModuleSpecifier::File(path_buf) => {
                     let source_code = std::fs::read_to_string(path_buf)?;
 
@@ -155,43 +203,27 @@ impl ModuleLoader {
                         ),
                     )?;
 
-                    let origin = ScriptOrigin::new(
-                        scope,
-                        v8::String::new(scope, path_buf.to_string_lossy().as_ref())
-                            .unwrap()
-                            .into(),
-                        0,
-                        0,
-                        false,
-                        0,
-                        None,
-                        false,
-                        false,
-                        true,
-                        None,
-                    );
-
                     let module = v8::script_compiler::compile_module(
                         scope,
                         &mut Source::new(v8_source, Some(&origin)),
                     )
-                    .ok_or_else(|| {
-                        ModuleLoadError::V8CompileError(path_buf.to_string_lossy().to_string())
-                    })?;
-
-                    let global_mod = v8::Global::new(scope, module);
-
-                    self.module_cache
-                        .borrow_mut()
-                        .insert(specifier.clone(), global_mod.clone());
-                    self.module_map
-                        .borrow_mut()
-                        .insert(global_mod.clone(), specifier.clone());
+                    .ok_or_else(|| ModuleLoadError::V8CompileError(specifier.clone()))?;
 
                     module
                 }
                 _ => return Err(ModuleLoadError::UnknownModuleSpecifier(specifier.clone())),
-            }
+            };
+
+            let global_mod = v8::Global::new(scope, module);
+
+            self.module_cache
+                .borrow_mut()
+                .insert(specifier.clone(), global_mod.clone());
+            self.module_map
+                .borrow_mut()
+                .insert(global_mod.clone(), specifier.clone());
+
+            module
         };
 
         let module = Local::new(scope, module);
