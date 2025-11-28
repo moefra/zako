@@ -116,7 +116,7 @@ impl ContentAddressableStorage for CasServer {
     ) -> Result<Response<TransportDetails>, Status> {
         let inner = request.into_inner();
 
-        let mut used_protocol:Option<crate::proto::net::Protocol> = None;
+        let mut used_protocol: Option<crate::proto::net::Protocol> = None;
 
         for protocol in inner.supported_protocols {
             if protocol == crate::proto::net::Protocol::Grpc as i32 {
