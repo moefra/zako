@@ -10,12 +10,16 @@ use sha2::Digest;
 use shadow_rs::{Format, shadow};
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::{env, io};
 use tokio::runtime::Builder;
 use tracing::trace;
 use tracing::{Level, info, trace_span};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
+use zmake_lib::engine::{Engine, EngineMode, EngineOptions};
+use zmake_lib::project_resolver::ProjectResolver;
+use zmake_lib::sandbox::Sandbox;
 
 const STYLES: styling::Styles = styling::Styles::styled()
     .header(
@@ -151,7 +155,6 @@ enum SubCommands {
     ExportBuiltin(ExportBuiltinArgs),
     Make(MakeArgs),
     Deno(DenoArgs),
-    Check(CheckArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -160,33 +163,6 @@ enum SubCommands {
     about = "Execute deno command, relay following arguments to deno"
 )]
 struct DenoArgs {}
-
-#[derive(Clone, strum::EnumString, strum::Display, Copy, Eq, PartialEq, Hash, Debug, ValueEnum)]
-enum Checks {}
-
-#[derive(clap::Args, Debug)]
-#[command(name = "check", about = "Execute check from zmake")]
-struct CheckArgs {
-    #[arg(value_enum)]
-    checks: Vec<Checks>,
-}
-
-impl CheckArgs {
-    pub fn invoke(self) -> eyre::Result<()> {
-        let mut check = self.checks;
-        while let Some(check) = check.pop() {
-            trace!("check -- {}", check);
-
-            let result = match check {
-                
-            };
-
-            trace!("check -- {}", if result { "pass" } else { "failed" });
-        }
-
-        Ok(())
-    }
-}
 
 static DENO_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/deno"));
 static DENO_CHECKSUM: &'static str = include_str!(concat!(std::env!("OUT_DIR"), "/deno.sha256sum"));
@@ -264,9 +240,32 @@ impl MakeArgs {
     pub fn invoke(self) -> eyre::Result<()> {
         let concurrency = self.concurrency.unwrap_or(num_cpus::get());
 
-        let builder = Builder::new_multi_thread().build()?;
+        let runtime = Builder::new_multi_thread().build()?;
+
+        let project_file = PathBuf::from(self.project_file);
+        let project_file = project_file
+            .canonicalize()
+            .expect("Project file path is invalid for it can not be canonicalized");
+        let project_dir = project_file
+            .parent()
+            .expect("the project file must be a file in a directory")
+            .to_path_buf();
 
         info!("use concurrency {}", concurrency);
+
+        let sandbox = std::sync::Arc::from(Sandbox::new(project_dir)?);
+
+        let engine = Engine::new(
+            sandbox,
+            EngineOptions {
+                tokio_handle: runtime.handle().clone(),
+                mode: EngineMode::Project,
+            },
+        )?;
+
+        let resolver = ProjectResolver::new(engine.clone());
+
+        resolver.resolve_project(project_file.to_string_lossy().to_string())?;
 
         Ok(())
     }
@@ -518,7 +517,6 @@ fn inner_main() -> eyre::Result<()> {
         SubCommands::Make(args) => args.invoke(),
         SubCommands::ExportBuiltin(args) => args.invoke(),
         SubCommands::Deno(_args) => unreachable!(),
-        SubCommands::Check(args) => args.invoke(),
     };
 }
 

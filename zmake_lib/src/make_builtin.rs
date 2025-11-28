@@ -158,7 +158,7 @@ macro_rules! make_builtin_js {
             Ok(())
         }
 
-        pub fn get_exports<'s,'i>(scope: &mut ::v8::PinScope<'s, 'i>) ->
+        pub fn get_exports<'s,'i>(scope: &::v8::PinScope<'s, 'i>) ->
                 ::std::result::Result<::std::vec::Vec<::v8::Local<'s, ::v8::String>>,$crate::module_loader::ModuleLoadError>{
             let mut exports = ::std::vec::Vec::<::v8::Local<'s, ::v8::String>>::new();
 

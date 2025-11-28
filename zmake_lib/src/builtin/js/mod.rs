@@ -1,3 +1,6 @@
+use tokio::sync::watch::error;
+use tracing::{debug, error, info, trace, warn};
+use tracing_subscriber::field::debug;
 
 use crate::{make_builtin_js, module_loader::ModuleLoadError, module_specifier::ModuleSpecifier};
 
@@ -14,24 +17,55 @@ pub static SYSCALL: ModuleSpecifier = ModuleSpecifier::Builtin("syscall".to_stri
  */
 make_builtin_js!(
     syscalls:{
-        get_zmake_version
+        log
     }
     accessors:
     {
-        zmake_version
+        version
     }
 );
 
-pub fn get_zmake_version<'s, 'i>(
+pub fn log<'s, 'i>(
     scope: &mut ::v8::PinScope<'s, 'i>,
-    _args: ::v8::FunctionCallbackArguments<'s>,
+    args: ::v8::FunctionCallbackArguments<'s>,
     mut return_value: ::v8::ReturnValue<'s, v8::Value>,
 ) {
-    let version = v8::String::new(scope, env!("CARGO_PKG_VERSION")).unwrap();
-    return_value.set(version.into());
+    let level = args
+        .get(0)
+        .to_string(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope);
+    let message = args
+        .get(1)
+        .to_string(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope);
+
+    match level.as_ref() {
+        "trace" => {
+            trace!("script log trace: {}", message);
+        }
+        "debug" => {
+            debug!("script log debug: {}", message);
+        }
+        "info" => {
+            info!("script log info: {}", message);
+        }
+        "warn" => {
+            warn!("script log warn: {}", message);
+        }
+        "error" => {
+            error!("script log error: {}", message);
+        }
+        _ => {
+            println!("script log unknown: {}", message);
+        }
+    }
+
+    return_value.set_undefined();
 }
 
-pub fn zmake_version<'s, 'i>(
+pub fn version<'s, 'i>(
     scope: &mut ::v8::PinScope<'s, 'i>,
 ) -> Result<v8::Local<'s, v8::Value>, ModuleLoadError> {
     Ok(v8::String::new(scope, env!("CARGO_PKG_VERSION"))

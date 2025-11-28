@@ -1,3 +1,4 @@
+use crate::builtin;
 use crate::module_loader::ModuleLoadError::NotSupported;
 use crate::module_specifier::ModuleSpecifier;
 use crate::path::NeutralPath;
@@ -8,12 +9,9 @@ use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
 use tracing::error;
-use v8::script_compiler::Source;
 use v8::callback_scope;
-use v8::{
-    Data, FixedArray, Local, PinScope, Promise, PromiseResolver, ScriptOrigin,
-    Value,
-};
+use v8::script_compiler::Source;
+use v8::{Data, FixedArray, Local, PinScope, Promise, PromiseResolver, ScriptOrigin, Value};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Options {
@@ -183,8 +181,8 @@ impl ModuleLoader {
                                     "v8::String::new(scope, &crate::builtin::js::RT_CODE)",
                                 ),
                             )?,
-                            &[],
-                            |_a, _b| None,
+                            builtin::js::get_exports(scope)?.as_slice(),
+                            builtin::js::evalution_callback,
                         )
                     } else {
                         return Err(ModuleLoadError::UnknownBuiltinModuleSpecifier(

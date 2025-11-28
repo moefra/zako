@@ -7,26 +7,20 @@ use std::rc::Rc;
 use std::sync::Arc;
 use v8::{Global, Local};
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum EngineMode {
+    Project,
+    Rule,
+}
+
 #[derive(Debug)]
 pub struct EngineOptions {
     pub tokio_handle: tokio::runtime::Handle,
+    pub mode: EngineMode,
 }
 
-impl Default for EngineOptions {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl EngineOptions {
-    pub fn new() -> Self {
-        EngineOptions {
-            tokio_handle: tokio::runtime::Handle::try_current().unwrap_or_else(|_| {
-                panic!("Engine must be initialized within a Tokio runtime context");
-            }),
-        }
-    }
-}
+//           tokio_handle: tokio::runtime::Handle::try_current().unwrap_or_else(|_| {
+//                panic!("Engine must be initialized within a Tokio runtime context");
 
 #[derive(Debug)]
 pub struct Engine {
@@ -37,10 +31,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new_resolve_engine(
-        sandbox: Arc<Sandbox>,
-        options: EngineOptions,
-    ) -> eyre::Result<Rc<Self>> {
+    pub fn new(sandbox: Arc<Sandbox>, options: EngineOptions) -> eyre::Result<Rc<Self>> {
         let _ = get_initialized_or_default();
 
         let mut isolate = v8::Isolate::new(v8::CreateParams::default());

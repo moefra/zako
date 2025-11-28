@@ -4,8 +4,10 @@ use crate::project_resolver::ProjectResolveError::{
     CircularDependency, FileNotExists, IOError, NotAFile,
 };
 use ahash::AHashMap;
-use std::fs;
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::{fs, io};
 use thiserror::Error;
 use tracing::instrument;
 
@@ -18,39 +20,31 @@ pub enum ProjectResolveError {
     #[error("detect circular dependency when resolving project {0}")]
     CircularDependency(PathBuf),
     #[error("get an io error")]
-    IOError(#[from] Box<dyn std::error::Error>),
+    IOError(#[from] io::Error),
 }
 
 #[derive(Debug)]
 pub struct ProjectResolver {
-    resolve_engine: Engine,
-    resolved_result: AHashMap<PathBuf, ProjectExported>,
+    engine: Rc<Engine>,
+    result: AHashMap<PathBuf, ProjectExported>,
     resolving: AHashMap<PathBuf, bool>,
 }
 
-impl Default for ProjectResolver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ProjectResolver {
-    pub fn new() -> Self {
-        todo!();
-        /*
-        ProjectResolver {
-            resolved_result: AHashMap::default(),
+    pub fn new(engine: Rc<Engine>) -> Rc<Self> {
+        Rc::from(ProjectResolver {
+            engine,
+            result: AHashMap::default(),
             resolving: AHashMap::default(),
-        }
-         */
+        })
     }
 
     #[instrument]
     pub fn resolve_project(
-        &mut self,
+        mut self: Rc<Self>,
         project_file_path: String,
     ) -> Result<(), ProjectResolveError> {
-        let file = fs::canonicalize(project_file_path).map_err(|x| IOError(x.into()))?;
+        let file = fs::canonicalize(project_file_path)?;
 
         if !file.exists() {
             return Err(FileNotExists(file));
@@ -67,7 +61,10 @@ impl ProjectResolver {
                 Ok(())
             };
         } else {
-            self.resolving.insert(file.clone(), true);
+            Rc::get_mut(&mut self)
+                .expect("unsafe to get mut")
+                .resolving
+                .insert(file.clone(), true);
         }
 
         Ok(())
