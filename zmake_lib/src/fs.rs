@@ -1,7 +1,4 @@
-use std::path::Component;
-use std::path::{Path, PathBuf};
 use thiserror::Error;
-use url::Url;
 
 use crate::digest::{Digest, DigestError};
 

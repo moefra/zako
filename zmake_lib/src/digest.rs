@@ -1,7 +1,5 @@
-use crate::fs::VirtualFsItem;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tonic::Status;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Digest {

@@ -1,10 +1,6 @@
-use crate::builtin;
-use cfg_if::cfg_if;
-use eyre::Context;
-use std::env::VarError;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::{env, fs, iter};
+use std::env;
 use tracing::{trace, warn};
 
 pub struct FileFinder {

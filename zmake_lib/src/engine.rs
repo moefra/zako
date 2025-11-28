@@ -2,12 +2,10 @@ use crate::module_loader::{ModuleLoader, Options};
 use crate::module_specifier::ModuleSpecifier;
 use crate::platform::get_initialized_or_default;
 use crate::sandbox::Sandbox;
-use std::cell::{Cell, RefCell};
-use std::ops::{Deref, DerefMut};
+use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, LazyLock};
-use tracing::{trace, trace_span};
-use v8::{Context, Global, Local};
+use std::sync::Arc;
+use v8::{Global, Local};
 
 #[derive(Debug)]
 pub struct EngineOptions {

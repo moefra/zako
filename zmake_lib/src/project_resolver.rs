@@ -7,7 +7,7 @@ use ahash::AHashMap;
 use std::fs;
 use std::path::PathBuf;
 use thiserror::Error;
-use tracing::{instrument, trace_span};
+use tracing::instrument;
 
 #[derive(Error, Debug)]
 pub enum ProjectResolveError {

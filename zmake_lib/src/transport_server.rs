@@ -1,8 +1,6 @@
 use crate::cas::{Cas, CasError};
-use crate::project_resolver::ProjectResolveError::IOError;
 use crate::proto::transport::upload_request::Payload::Metadata;
 use crate::proto::transport::{DownloadRequest, DownloadResponse, UploadRequest, UploadResponse};
-use lenient_semver::parser::ErrorKind;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;

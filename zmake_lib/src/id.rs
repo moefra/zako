@@ -1,9 +1,7 @@
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
 use strum::{EnumString, IntoStaticStr};
 use thiserror::Error;
 use unicode_ident::{is_xid_continue, is_xid_start};

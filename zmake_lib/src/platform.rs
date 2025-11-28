@@ -1,5 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{LazyLock, OnceLock};
+use std::sync::OnceLock;
 use tracing::error;
 
 static PLATFORM: OnceLock<v8::SharedRef<v8::Platform>> = OnceLock::new();

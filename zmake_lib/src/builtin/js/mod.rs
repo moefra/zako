@@ -1,4 +1,3 @@
-use v8::FunctionTemplate;
 
 use crate::{make_builtin_js, module_loader::ModuleLoadError, module_specifier::ModuleSpecifier};
 

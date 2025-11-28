@@ -1,19 +1,17 @@
 use crate::module_loader::ModuleLoadError::NotSupported;
-use crate::module_specifier::{BUILTIN_MODULE_PREFIX, ModuleSpecifier};
+use crate::module_specifier::ModuleSpecifier;
 use crate::path::NeutralPath;
 use crate::sandbox::{Sandbox, SandboxError};
 use ahash::AHashMap;
 use eyre::Result;
-use oxc::syntax::scope;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
 use thiserror::Error;
 use tracing::error;
 use v8::script_compiler::Source;
-use v8::{CallbackScope, ContextScope, FunctionCallback, callback_scope};
+use v8::callback_scope;
 use v8::{
-    Data, FixedArray, Global, Handle, Local, PinScope, Promise, PromiseResolver, ScriptOrigin,
+    Data, FixedArray, Local, PinScope, Promise, PromiseResolver, ScriptOrigin,
     Value,
 };
 

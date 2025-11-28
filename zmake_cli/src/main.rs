@@ -8,7 +8,6 @@ use const_format::concatcp;
 use opentelemetry::trace::TracerProvider;
 use sha2::Digest;
 use shadow_rs::{Format, shadow};
-use std::ffi::OsString;
 use std::fs::File;
 use std::io::Write;
 use std::{env, io};
@@ -179,7 +178,7 @@ impl CheckArgs {
             trace!("check -- {}", check);
 
             let result = match check {
-                _ => false,
+                
             };
 
             trace!("check -- {}", if result { "pass" } else { "failed" });

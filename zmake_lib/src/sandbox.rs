@@ -1,6 +1,6 @@
 use crate::path::NeutralPath;
 use std::ffi::OsStr;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

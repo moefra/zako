@@ -1,6 +1,5 @@
 use crate::digest::Digest;
 use async_trait::async_trait;
-use std::error::Error;
 use std::path::PathBuf;
 use thiserror::Error;
 use tokio::io::AsyncRead;

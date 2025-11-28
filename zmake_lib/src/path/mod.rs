@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::string::String;
 use thiserror::Error;
 
