@@ -107,25 +107,35 @@ enum SubCommands {
     ExportBuiltin(ExportBuiltinArgs),
     Make(MakeArgs),
     Deno(DenoArgs),
+    SafeDeno(SafeDenoArgs),
 }
 
 #[derive(clap::Args, Debug)]
 #[command(
     name = "deno",
-    about = "Execute deno command, relay following arguments to deno"
+    about = "Execute deno command with `--allow-all` inserted after the first argument, relay following arguments to deno"
 )]
 struct DenoArgs {}
+
+#[derive(clap::Args, Debug)]
+#[command(
+    name = "safe-deno",
+    about = "Execute deno command, relay following arguments to deno"
+)]
+struct SafeDenoArgs {}
 
 static DENO_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/deno"));
 static DENO_CHECKSUM: &'static str = include_str!(concat!(std::env!("OUT_DIR"), "/deno.sha256sum"));
 
 fn run_deno(args: &[std::ffi::OsString]) -> eyre::Result<()> {
+    let _span = trace_span!("run deno", args = format!("{:?}", args)).entered();
     let checksum = DENO_CHECKSUM.trim();
 
     let (checksum, _) = checksum
         .split_once(" ")
         .ok_or(eyre::eyre!("failed to split checksum of deno"))?;
 
+    // .exe do nothing in unix,but it is required in windows,so we always add it
     let deno_exe = env::temp_dir().join(format!("{}-{}-{}.exe", "zmake", "deno", checksum));
 
     if !std::fs::exists(&deno_exe)? {
@@ -401,21 +411,33 @@ fn inner_main() -> eyre::Result<()> {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let _span = trace_span!("zmake start", version = env!("CARGO_PKG_VERSION")).entered();
-
-    let parse_args_span: tracing::span::EnteredSpan = trace_span!("prase arguments").entered();
-
     let args = env::args_os();
 
+    let _span = trace_span!(
+        "zmake start",
+        version = env!("CARGO_PKG_VERSION"),
+        args = format!("{:?}", args)
+    )
+    .entered();
+
+    let parse_args_span: tracing::span::EnteredSpan =
+        trace_span!("prase arguments", args = format!("{:?}", args)).entered();
+
     let args = argfile::expand_args_from(args, argfile::parse_fromfile, argfile::PREFIX)?;
+
+    trace!("argfile parsed {args:?}");
 
     if let Some(cmd) = args.iter().nth(1)
         && cmd.to_str().unwrap_or("") == "deno"
     {
+        let mut args = Vec::from(&args[2..]);
+        args.insert(1, std::ffi::OsString::from("--allow-all"));
+        return run_deno(args.as_slice());
+    } else if let Some(cmd) = args.iter().nth(1)
+        && cmd.to_str().unwrap_or("") == "safe-deno"
+    {
         return run_deno(&args[2..]);
     }
-
-    trace!("get arguments: {:?}", args);
 
     let args = Args::parse_from(args);
 
@@ -452,6 +474,7 @@ fn inner_main() -> eyre::Result<()> {
         SubCommands::Make(args) => args.invoke(),
         SubCommands::ExportBuiltin(args) => args.invoke(),
         SubCommands::Deno(_args) => unreachable!(),
+        SubCommands::SafeDeno(_args) => unreachable!(),
     };
 }
 

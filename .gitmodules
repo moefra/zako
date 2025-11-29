@@ -1,0 +1,3 @@
+[submodule "zmake_js/semver"]
+	path = zmake_js/semver
+	url = https://github.com/moefra/semver

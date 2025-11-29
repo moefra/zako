@@ -11,6 +11,7 @@
         "typeRoots": ["../types/"],
         "types": [],
         "newLine": "lf",
-        "erasableSyntaxOnly": true
+        "erasableSyntaxOnly": true,
+        "isolatedModules": true
     }
 }

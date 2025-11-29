@@ -4,6 +4,7 @@ use crate::module_loader::ModuleLoadError::NotSupported;
 use crate::module_specifier::ModuleSpecifier;
 use crate::path::NeutralPath;
 use crate::sandbox::{Sandbox, SandboxError};
+use crate::transformer::transform_typescript;
 use ahash::AHashMap;
 use eyre::Result;
 use std::sync::Arc;
@@ -14,6 +15,8 @@ use tracing::trace_span;
 use v8::callback_scope;
 use v8::script_compiler::Source;
 use v8::{Data, FixedArray, Local, PinScope, Promise, PromiseResolver, ScriptOrigin, Value};
+
+pub static NEEDED_TRANSFORMED_FILE_EXTENSION: &[&'static str] = &["ts", "mts"];
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Options {
@@ -66,6 +69,8 @@ pub enum ModuleLoadError {
     UnknownModuleSpecifier(ModuleSpecifier),
     #[error("Failed to find builtin module: {0}")]
     UnknownBuiltinModuleSpecifier(String),
+    #[error("Failed to transform typescript module `{0:?}`:{1}")]
+    FailedToTransformTypescript(ModuleSpecifier, String),
 }
 
 impl ModuleLoader {
@@ -193,7 +198,28 @@ impl ModuleLoader {
                     }
                 }
                 ModuleSpecifier::File(path_buf) => {
-                    let source_code = std::fs::read_to_string(path_buf)?;
+                    let mut source_code = std::fs::read_to_string(path_buf)?;
+
+                    if {
+                        let mut need_transform = false;
+                        for need_transform_extension in NEEDED_TRANSFORMED_FILE_EXTENSION.iter() {
+                            if let Some(extension) = path_buf.extension()
+                                && extension.eq(std::ffi::OsStr::new(need_transform_extension))
+                            {
+                                need_transform = true;
+                                break;
+                            }
+                        }
+                        need_transform
+                    } {
+                        source_code = transform_typescript(
+                            source_code.as_str(),
+                            path_buf.to_string_lossy().to_string().as_str(),
+                        )
+                        .map_err(|err| {
+                            ModuleLoadError::FailedToTransformTypescript(specifier.clone(), err)
+                        })?;
+                    }
 
                     let v8_source = v8::String::new(scope, &source_code).ok_or(
                         ModuleLoadError::V8ObjectAllocationError(
