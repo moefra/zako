@@ -1,17 +1,26 @@
 {
     "compilerOptions": {
+        "paths": {
+            "zmake:semver": ["./dist/semver/index.d.ts"],
+            "zmake:*": ["./types/*.d.ts"]
+        },
+        "moduleResolution": "bundler",
         "allowJs": false,
         "checkJs": false,
         "strict": true,
-        "noEmit": true,
-        "allowImportingTsExtensions": true,
+        "allowImportingTsExtensions": false,
         "alwaysStrict": true,
-        "target": "ES2023",
-        "module": "ES2022",
-        "typeRoots": ["../types/"],
-        "types": [],
+        "target": "ESNext",
+        "module": "ESNext",
         "newLine": "lf",
+        "verbatimModuleSyntax": true,
         "erasableSyntaxOnly": true,
-        "isolatedModules": true
-    }
+        "isolatedModules": true,
+        "isolatedDeclarations": true,
+        "declaration": true,
+        "inlineSourceMap": true,
+        "inlineSources": true,
+        "esModuleInterop": false
+    },
+    "files": ["rt.ts", "core.ts"]
 }

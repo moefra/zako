@@ -9,13 +9,13 @@ use const_format::concatcp;
 use opentelemetry::trace::TracerProvider;
 use sha2::Digest;
 use shadow_rs::{Format, shadow};
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 use std::{env, io};
 use tokio::runtime::Builder;
-use tracing::trace;
 use tracing::{Level, info, trace_span};
+use tracing::{Span, trace};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_tree::HierarchicalLayer;
@@ -136,7 +136,25 @@ fn run_deno(args: &[std::ffi::OsString]) -> eyre::Result<()> {
         .ok_or(eyre::eyre!("failed to split checksum of deno"))?;
 
     // .exe do nothing in unix,but it is required in windows,so we always add it
-    let deno_exe = env::temp_dir().join(format!("{}-{}-{}.exe", "zmake", "deno", checksum));
+    let deno_home = env::temp_dir().join(format!("zmake-deno-bin-{}", checksum));
+
+    #[cfg(target_os = "windows")]
+    let deno_exe = deno_home.join("deno.exe");
+    #[cfg(not(target_os = "windows"))]
+    let deno_exe = deno_home.join("deno");
+
+    match fs::create_dir_all(&deno_home) {
+        Ok(_) => (),
+        Err(e) => {
+            if !e.kind().eq(&std::io::ErrorKind::AlreadyExists) {
+                return Err(eyre::eyre!(
+                    "failed to create deno home directory `{:?}`: {}",
+                    deno_home,
+                    e
+                ));
+            }
+        }
+    };
 
     if !std::fs::exists(&deno_exe)? {
         let mut file = std::fs::File::create(&deno_exe)?;
@@ -148,15 +166,37 @@ fn run_deno(args: &[std::ffi::OsString]) -> eyre::Result<()> {
         }
     }
 
-    let status = std::process::Command::new(&deno_exe).args(args).status()?;
+    let mut binding = std::process::Command::new(&deno_exe);
+    let deno = binding
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .current_dir(std::env::current_dir()?);
+
+    let path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
+
+    #[cfg(target_os = "windows")]
+    let separator = ";";
+    #[cfg(not(target_os = "windows"))]
+    let separator = ":";
+
+    deno.env(
+        "PATH",
+        format!(
+            "{}{}{}",
+            deno_home.display(),
+            separator,
+            path
+        ));
+
+    let status = deno.status()?;
 
     if !status.success() {
         return Err(eyre::eyre!(
-            "failed to execute deno command(exit code: {})",
-            status
-                .code()
-                .map(|x| x.to_string())
-                .unwrap_or("unknown".to_string())
+        "failed to execute deno command(exit code: {})",
+        status
+        .code()
+        .map(|x| x.to_string())
+        .unwrap_or("unknown".to_string())
         ));
     }
 

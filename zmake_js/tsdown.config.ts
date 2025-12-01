@@ -7,20 +7,30 @@ let base = {
     fixedExtension: true,
     minify: true,
     platform: "neutral",
-    target: "es2023",
-    tsconfig: "tsconfig.json",
+    target: "esnext",
+    tsconfig: "./tsconfig.json",
     format: "es",
+    clean: true,
+    hash: false,
+    shims: false,
+    external: ["zmake:syscall", "zmake:semver"],
 };
 
 export default defineConfig([
     {
-        entry: "semver.ts",
-        outDir: "dist/semver",
         ...base,
+        entry: "semver/index.js",
+        outDir: "dist/semver",
+        copy: [{ from: "semver.jsr.json", to: "dist/semver/jsr.json" }],
     },
     {
+        ...base,
         entry: "rt.ts",
         outDir: "dist/rt",
+    },
+    {
         ...base,
+        entry: "core.ts",
+        outDir: "dist/core",
     },
 ]);

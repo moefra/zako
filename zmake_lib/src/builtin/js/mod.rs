@@ -4,8 +4,10 @@ use tracing_subscriber::field::debug;
 
 use crate::{make_builtin_js, module_loader::ModuleLoadError, module_specifier::ModuleSpecifier};
 
-pub static RT_CODE: &'static str =
-    include_str!(concat!(std::env!("CARGO_MANIFEST_DIR"), "/../dist/rt.js"));
+pub static RT_CODE: &'static str = include_str!(concat!(
+    std::env!("CARGO_MANIFEST_DIR"),
+    "/../zmake_js/dist/rt/rt.mjs"
+));
 
 #[::static_init::dynamic(lazy)]
 pub static RT: ModuleSpecifier = ModuleSpecifier::Builtin("rt".to_string());
