@@ -15,11 +15,26 @@ documentation.workspace = true
 name = "zmake"
 path = "./src/main.rs"
 
+[lints]
+workspace = true
+[profile.dev]
+workspace = true
+[profile.dev.package."*"]
+workspace = true
+[profile.test]
+workspace = true
+[profile.release]
+workspace = true
+[profile.bench]
+workspace = true
+
 [dependencies]
 clap.workspace = true
 clap_complete.workspace = true
 argfile.workspace = true
 shadow-rs.workspace = true
+
+dirs.workspace = true
 
 tokio.workspace = true
 

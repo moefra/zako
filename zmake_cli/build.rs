@@ -17,8 +17,7 @@ async fn download(url: String, destination: std::path::PathBuf) -> eyre::Result<
     // the should not showed in cmdline because of cargo but I thought it was a good idea to show it
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()
-            .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")
-            .unwrap()
+            .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
             .progress_chars("#>-"));
     pb.set_message(format!(
         "Downloading file {}",

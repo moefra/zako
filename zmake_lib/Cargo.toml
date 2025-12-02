@@ -12,6 +12,16 @@ build = "build.rs"
 
 [lints]
 workspace = true
+[profile.dev]
+workspace = true
+[profile.dev.package."*"]
+workspace = true
+[profile.test]
+workspace = true
+[profile.release]
+workspace = true
+[profile.bench]
+workspace = true
 
 [dependencies]
 semver.workspace = true

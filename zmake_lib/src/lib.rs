@@ -28,6 +28,11 @@ mod transformer;
 mod transport_server;
 pub mod version_extractor;
 
+pub static PROJECT_FILE_NAME: &str = "ZProject.ts";
+pub static BUILD_FILE_NAME:&str = "ZBUILD.ts";
+pub static RULE_FILE_SUFFIX:&str = ".zmake.ts";
+pub static SCRIPT_FILE_SUFFIX:&str = ".zscript.ts";
+
 pub mod proto {
     pub mod digest {
         tonic::include_proto!("zmake.v1.digest");

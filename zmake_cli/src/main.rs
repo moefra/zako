@@ -13,8 +13,11 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 use std::{env, io};
+use std::env::temp_dir;
+use std::ffi::OsString;
+use eyre::eyre;
 use tokio::runtime::Builder;
-use tracing::{Level, info, trace_span};
+use tracing::{Level, info, trace_span, debug};
 use tracing::{Span, trace};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
@@ -107,27 +110,24 @@ enum SubCommands {
     ExportBuiltin(ExportBuiltinArgs),
     Make(MakeArgs),
     Deno(DenoArgs),
-    SafeDeno(SafeDenoArgs),
 }
 
 #[derive(clap::Args, Debug)]
 #[command(
     name = "deno",
-    about = "Execute deno command with `--allow-all` inserted after the first argument, relay following arguments to deno"
+    about = "Execute deno command,relay following arguments to deno",
+    disable_help_flag = true,
+    disable_version_flag = true,
 )]
-struct DenoArgs {}
-
-#[derive(clap::Args, Debug)]
-#[command(
-    name = "safe-deno",
-    about = "Execute deno command, relay following arguments to deno"
-)]
-struct SafeDenoArgs {}
+struct DenoArgs {
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    args: Vec<OsString>,
+}
 
 static DENO_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/deno"));
 static DENO_CHECKSUM: &'static str = include_str!(concat!(std::env!("OUT_DIR"), "/deno.sha256sum"));
 
-fn run_deno(args: &[std::ffi::OsString]) -> eyre::Result<()> {
+fn run_deno(args: &[std::ffi::OsString],inherit_stdin:bool) -> eyre::Result<()> {
     let _span = trace_span!("run deno", args = format!("{:?}", args)).entered();
     let checksum = DENO_CHECKSUM.trim();
 
@@ -135,9 +135,10 @@ fn run_deno(args: &[std::ffi::OsString]) -> eyre::Result<()> {
         .split_once(" ")
         .ok_or(eyre::eyre!("failed to split checksum of deno"))?;
 
-    // .exe do nothing in unix,but it is required in windows,so we always add it
-    let deno_home = env::temp_dir().join(format!("zmake-deno-bin-{}", checksum));
+    let deno_home = dirs::cache_dir().unwrap_or(temp_dir())
+        .join(format!("zmake-deno-bin-{}", checksum).as_str());
 
+    // .exe do nothing in unix,but it is required in windows,so we always add it
     #[cfg(target_os = "windows")]
     let deno_exe = deno_home.join("deno.exe");
     #[cfg(not(target_os = "windows"))]
@@ -146,47 +147,58 @@ fn run_deno(args: &[std::ffi::OsString]) -> eyre::Result<()> {
     match fs::create_dir_all(&deno_home) {
         Ok(_) => (),
         Err(e) => {
-            if !e.kind().eq(&std::io::ErrorKind::AlreadyExists) {
-                return Err(eyre::eyre!(
+            return Err(eyre::eyre!(
                     "failed to create deno home directory `{:?}`: {}",
                     deno_home,
                     e
                 ));
-            }
         }
     };
 
-    if !std::fs::exists(&deno_exe)? {
-        let mut file = std::fs::File::create(&deno_exe)?;
-        file.write_all(&DENO_BINARY)?;
-        #[cfg(unix)]
+    if !deno_exe.exists() {
+        debug!("Extracting embedded deno to {:?}", deno_exe);
+
+        let temp_exe = deno_home.join(format!(".tmp-deno-{}", std::process::id()));
+
         {
-            use std::{fs::Permissions, os::unix::fs::PermissionsExt};
-            file.set_permissions(Permissions::from_mode(0o755))?;
+            let mut file = fs::File::create(&temp_exe)?;
+            file.write_all(&DENO_BINARY)?;
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = file.metadata()?.permissions();
+                perms.set_mode(0o755);
+                fs::set_permissions(&temp_exe, perms)?;
+            }
+            file.sync_all()?;
+        }
+
+        match fs::rename(&temp_exe, &deno_exe) {
+            Ok(_) => {},
+            Err(e) => {
+                let _ = fs::remove_file(&temp_exe);
+                if !deno_exe.exists() {
+                    return Err(eyre::eyre!("Failed to rename deno binary: {}", e));
+                }
+            }
         }
     }
 
     let mut binding = std::process::Command::new(&deno_exe);
     let deno = binding
         .args(args)
-        .stdin(std::process::Stdio::null())
+        .stdin(if inherit_stdin { std::process::Stdio::inherit() } else { std::process::Stdio::null() })
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
         .current_dir(std::env::current_dir()?);
 
-    let path = std::env::var("PATH").unwrap_or_else(|_| "".to_string());
-
-    #[cfg(target_os = "windows")]
-    let separator = ";";
-    #[cfg(not(target_os = "windows"))]
-    let separator = ":";
-
+    let path = env::var("PATH").unwrap_or_else(|_| "".to_string());
+    let path = env::split_paths(&path).map(|x| OsString::from(x));
+    let path = std::env::join_paths([PathBuf::from(deno_home), path.collect()].iter())?;
     deno.env(
         "PATH",
-        format!(
-            "{}{}{}",
-            deno_home.display(),
-            separator,
-            path
-        ));
+        path);
 
     let status = deno.status()?;
 
@@ -447,7 +459,7 @@ fn inner_main() -> eyre::Result<()> {
 
     let subscriber = Registry::default()
         .with(telemetry)
-        .with(HierarchicalLayer::new(2));
+        .with(HierarchicalLayer::new(2).with_ansi(true).with_indent_lines(true));
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
@@ -467,18 +479,6 @@ fn inner_main() -> eyre::Result<()> {
 
     trace!("argfile parsed {args:?}");
 
-    if let Some(cmd) = args.iter().nth(1)
-        && cmd.to_str().unwrap_or("") == "deno"
-    {
-        let mut args = Vec::from(&args[2..]);
-        args.insert(1, std::ffi::OsString::from("--allow-all"));
-        return run_deno(args.as_slice());
-    } else if let Some(cmd) = args.iter().nth(1)
-        && cmd.to_str().unwrap_or("") == "safe-deno"
-    {
-        return run_deno(&args[2..]);
-    }
-
     let args = Args::parse_from(args);
 
     parse_args_span.exit();
@@ -493,7 +493,7 @@ fn inner_main() -> eyre::Result<()> {
 
     info!(
         "working directory: {}",
-        env::current_dir().unwrap().display()
+        env::current_dir()?.display()
     );
 
     args.color.write_global();
@@ -513,8 +513,7 @@ fn inner_main() -> eyre::Result<()> {
         SubCommands::GenerateComplete(args) => args.invoke(),
         SubCommands::Make(args) => args.invoke(),
         SubCommands::ExportBuiltin(args) => args.invoke(),
-        SubCommands::Deno(_args) => unreachable!(),
-        SubCommands::SafeDeno(_args) => unreachable!(),
+        SubCommands::Deno(args) => run_deno(args.args.as_slice(),true),
     };
 }
 

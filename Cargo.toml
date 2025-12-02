@@ -104,6 +104,34 @@ tokio-util = "0.7.17"
 
 tracing-tree = "0.4.1"
 
+dirs = "6.0.0"
+
+[profile.dev]
+opt-level = 1
+debug = true
+split-debuginfo = "unpacked"
+lto = false
+panic = "unwind"
+strip = "none"
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.test]
+inherits = "dev"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "unwind"
+strip = "none"
+debug = false
+
+[profile.bench]
+inherits = "release"
+
 [workspace.package]
 version = "0.1.0"
 authors = ["MoeGodot <me@kawayi.moe>"]
@@ -113,3 +141,4 @@ repository = "https://github.com/moegodot/zmake-rust"
 homepage = "https://github.com/moegodot/zmake-rust"
 edition = "2024"
 license = "GPL-3.0-or-later"
+
