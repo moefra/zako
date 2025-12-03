@@ -1,6 +1,6 @@
-[submodule "zmake_js/semver"]
-	path = zmake_js/semver
+[submodule "zako_js/semver"]
+	path = zako_js/semver
 	url = https://github.com/moefra/semver
-[submodule "zmake_js/DefinitelyTyped"]
-	path = zmake_js/DefinitelyTyped
+[submodule "zako_js/DefinitelyTyped"]
+	path = zako_js/DefinitelyTyped
 	url = https://github.com/moefra/DefinitelyTyped
