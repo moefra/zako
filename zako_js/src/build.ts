@@ -6,6 +6,8 @@ if(current == undefined){
     current = Deno.cwd();
 }
 
+const dist = `${current}/../../dist/`;
+
 await build({
     config: `${current}/tsdown.config.ts`,
 });
@@ -31,6 +33,14 @@ if((await command.output()).code !== 0){
     Deno.exit(1);
 }
 
-await Deno.copyFile(`${current}/../dist/semver/index.d.ts`, `${current}/../dist/types/semver.d.ts`);
-await Deno.copyFile(`${current}/../dist/rt/index.d.mts`, `${current}/../dist/types/rt.d.ts`);
-await Deno.copyFile(`${current}/../dist/core/index.d.mts`, `${current}/../dist/types/core.d.ts`);
+function makeDTs(input:string,output:string,module_name:string):void{
+    const decoder = new TextDecoder("utf-8");
+    let text = decoder.decode(await Deno.readFile(file));
+    let resultText = `declare module "${module_name}" {\n\n${text}\n\n} // end module ${module_name}`;
+    await Deno.writeTextFileSync(output,resultText);
+}
+
+await Deno.mkdir(`${dist}/types`, { recursive: true });
+makeDTs(`${dist}/semver/index.d.ts`,`${dist}/types/semver.d.ts`, "zako:semver");
+makeDTs(`${dist}/rt/index.d.ts`,`${dist}/types/rt.d.ts`, "zako:rt");
+makeDTs(`${dist}/core/index.d.ts`,`${dist}/types/core.d.ts`, "zako:core");

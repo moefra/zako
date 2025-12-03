@@ -1,9 +1,9 @@
 {
     "compilerOptions": {
         "paths": {
-            "zmake:semver": ["../dist/semver/index.d.ts"],
-            "zmake:rt": ["../dist/rt.d.mts"],
-            "zmake:core": ["../dist/core.d.mts"]
+            "zmake:semver": ["../../dist/semver/index.d.ts"],
+            "zmake:rt": ["../../dist/rt.d.mts"],
+            "zmake:core": ["../../dist/core.d.mts"]
         },
         "moduleResolution": "bundler",
         "allowJs": false,

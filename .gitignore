@@ -9,3 +9,4 @@ Thumbs.db
 *.user
 target/
 dist/
+node_modules/

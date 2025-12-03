@@ -139,9 +139,8 @@ inherits = "release"
 version = "0.1.0"
 authors = ["MoeGodot <me@kawayi.moe>"]
 description = "The post-modern building tool that your mom warned you about."
-documentation = "https://github.com/moegodot/zmake-rust"
-repository = "https://github.com/moegodot/zmake-rust"
-homepage = "https://github.com/moegodot/zmake-rust"
+documentation = "https://github.com/moefra/zako"
+repository = "https://github.com/moefra/zako"
+homepage = "https://github.com/moefra/zako"
 edition = "2024"
 license = "GPL-3.0-or-later"
-

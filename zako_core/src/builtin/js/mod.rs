@@ -6,7 +6,7 @@ use crate::{make_builtin_js, module_loader::ModuleLoadError, module_specifier::M
 
 pub static RT_CODE: &'static str = include_str!(concat!(
     std::env!("CARGO_MANIFEST_DIR"),
-    "/../zako_js/dist/rt/rt.mjs"
+    "/../dist/rt.js"
 ));
 
 #[::static_init::dynamic(lazy)]

@@ -458,15 +458,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "chrono"
-version = "0.4.42"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "cipher"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2075,17 +2066,6 @@ dependencies = [
  "pin-project-lite",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "opentelemetry-stdout"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc8887887e169414f637b18751487cce4e095be787d23fad13c454e2fb1b3811"
-dependencies = [
- "chrono",
- "opentelemetry",
- "opentelemetry_sdk",
 ]
 
 [[package]]
@@ -4549,17 +4529,14 @@ dependencies = [
  "exit-code",
  "eyre",
  "futures-util",
- "glob",
  "hex",
  "indicatif",
  "num_cpus",
  "opentelemetry",
- "opentelemetry-stdout",
  "opentelemetry_sdk",
  "reqwest",
  "sha2",
  "shadow-rs",
- "strum",
  "tokio",
  "tracing",
  "tracing-error",

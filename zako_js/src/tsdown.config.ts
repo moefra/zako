@@ -6,6 +6,8 @@ if(current == undefined){
     current = Deno.cwd();
 }
 
+const dist = `${current}/../../dist/`;
+
 let base = {
     dts: {
         sourcemap: false,
@@ -26,17 +28,17 @@ export default defineConfig([
     {
         ...base,
         entry: `${current}/../semver/index.js`,
-        outDir: `${current}/../dist/semver`,
-        copy: [{ from: `${current}/semver.jsr.json`, to: `${current}/../dist/semver/jsr.json` }],
+        outDir: `${dist}/semver`,
+        copy: [{ from: `${current}/semver.jsr.json`, to: `${dist}/semver/jsr.json` }],
     },
     {
         ...base,
         entry: `${current}/rt.ts`,
-        outDir: `${current}/../dist/rt`,
+        outDir: `${dist}/rt`,
     },
     {
         ...base,
         entry: `${current}/core.ts`,
-        outDir: `${current}/../dist/core`,
+        outDir: `${dist}/core`,
     },
 ]);
