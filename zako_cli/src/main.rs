@@ -1,3 +1,5 @@
+mod buffered_writer;
+
 use clap::builder::styling;
 use clap::builder::styling::AnsiColor;
 use clap::builder::styling::Color::Ansi;
@@ -15,6 +17,7 @@ use std::path::PathBuf;
 use std::{env, io};
 use std::env::temp_dir;
 use std::ffi::OsString;
+use std::sync::Mutex;
 use eyre::eyre;
 use tokio::runtime::Builder;
 use tracing::{Level, info, trace_span, debug};
@@ -25,6 +28,7 @@ use tracing_tree::HierarchicalLayer;
 use zako_core::engine::{Engine, EngineMode, EngineOptions};
 use zako_core::project_resolver::ProjectResolver;
 use zako_core::sandbox::Sandbox;
+use crate::buffered_writer::TemporaryBufferedWriterMaker;
 
 const STYLES: styling::Styles = styling::Styles::styled()
     .header(
@@ -88,6 +92,14 @@ struct Args {
         help = "this will print backtrace and spans but do not set log level"
     )]
     backtrace: bool,
+
+    #[arg(
+        global = true,
+        long,
+        visible_alias = "quiet",
+        help = "suppress all output"
+    )]
+    silent: bool,
 
     #[command(flatten)]
     color: colorchoice_clap::Color,
@@ -451,6 +463,8 @@ fn setup_backtrace_env(enable_backtrace: bool) {
 }
 
 fn inner_main() -> eyre::Result<()> {
+    let (writer,handle) = crate::buffered_writer::TemporaryBufferedWriterMaker::new();
+
     let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder().build();
 
     let tracer = provider.tracer(env!("CARGO_BIN_NAME"));
@@ -459,7 +473,7 @@ fn inner_main() -> eyre::Result<()> {
 
     let subscriber = Registry::default()
         .with(telemetry)
-        .with(HierarchicalLayer::new(3).with_ansi(true).with_indent_lines(true));
+        .with(HierarchicalLayer::new(3).with_ansi(true).with_indent_lines(true).with_writer(writer));
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
@@ -482,6 +496,30 @@ fn inner_main() -> eyre::Result<()> {
     let args = Args::parse_from(args);
 
     parse_args_span.exit();
+
+    // 尘埃落定
+    // 不是输出help/version，并且不是静默模式，倾泻而出
+    if !args.silent{
+        match handle.lock(){
+            Ok(mut guard) => {
+                guard.release()?;
+            },
+            Err(e) => {
+                return Err(eyre::eyre!("failed to lock buffered writer: {}", e));
+            }
+        }
+    }
+    else{
+        // 为了防止内存泄露，清空缓冲区并不再写入，静默成功
+        match handle.lock(){
+            Ok(mut guard) => {
+                guard.silent();
+            },
+            Err(e) => {
+                return Err(eyre::eyre!("failed to lock buffered writer: {}", e));
+            }
+        }
+    }
 
     if let Some(dir) = args.chdir {
         let dir = PathBuf::from(dir);
@@ -518,5 +556,9 @@ fn inner_main() -> eyre::Result<()> {
 }
 
 pub fn main() {
-    ::std::process::exit(inner_main().map(|_x| exit_code::SUCCESS).unwrap());
+    ::std::process::exit(
+        inner_main().map(|_x| exit_code::SUCCESS).unwrap_or_else(|e| {
+            eprintln!("{}: {}", "error".red().bold(), e);
+            exit_code::FAILURE
+        }));
 }
