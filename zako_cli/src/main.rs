@@ -136,7 +136,7 @@ fn run_deno(args: &[std::ffi::OsString],inherit_stdin:bool) -> eyre::Result<()> 
         .ok_or(eyre::eyre!("failed to split checksum of deno"))?;
 
     let deno_home = dirs::cache_dir().unwrap_or(temp_dir())
-        .join(format!("zmake-deno-bin-{}", checksum).as_str());
+        .join(format!("{}-deno-bin-{}",env!("CARGO_BIN_NAME"), checksum).as_str());
 
     // .exe do nothing in unix,but it is required in windows,so we always add it
     #[cfg(target_os = "windows")]
@@ -227,7 +227,7 @@ struct ExportBuiltinArgs {
 
 impl ExportBuiltinArgs {
     pub fn invoke(self) -> eyre::Result<()> {
-        let builtins = zmake_lib::builtin::id::construct_builtins_typescript_export();
+        let builtins = zako_core::builtin::id::construct_builtins_typescript_export();
 
         if let Some(output_file) = self.output_file {
             let mut output_file = File::create(output_file)?;
@@ -243,10 +243,10 @@ impl ExportBuiltinArgs {
 #[derive(clap::Args, Debug)]
 #[command(name = "make", about = "Build the project")]
 struct MakeArgs {
-    #[arg(long,default_value = "zmakefile.ts", value_hint = clap::ValueHint::FilePath)]
+    #[arg(long,default_value = ::zako_core::PROJECT_FILE_NAME, value_hint = clap::ValueHint::FilePath)]
     project_file: String,
 
-    #[arg(long, help = "Set the cpu counts that zmake use")]
+    #[arg(long, help = "Set the cpu counts to use")]
     concurrency: Option<usize>,
 }
 
@@ -300,7 +300,7 @@ struct GenerateCompleteArgs {
     #[arg(long)]
     shell: Shell,
 
-    #[arg(long, default_value = "zmake")]
+    #[arg(long, default_value = env!("CARGO_BIN_NAME"))]
     bin_name: String,
 
     #[arg(long,default_value = None,help = "set this options to output to file,or it will output to stdout")]
@@ -342,7 +342,7 @@ impl GenerateCompleteArgs {
 
 shadow!(build_information);
 #[derive(clap::Args, Debug)]
-#[command(name = "information", about = "Print (debug) information about zmake")]
+#[command(name = "information", about = "Print (debug) information")]
 struct InformationArgs {}
 impl InformationArgs {
     pub fn invoke(self) -> eyre::Result<()> {
@@ -394,7 +394,7 @@ impl InformationArgs {
 
         println!(
             "{}",
-            ::zmake_lib::builtin::id::construct_builtins_typescript_export()
+            ::zako_core::builtin::id::construct_builtins_typescript_export()
         );
 
         Ok(())
@@ -453,20 +453,20 @@ fn setup_backtrace_env(enable_backtrace: bool) {
 fn inner_main() -> eyre::Result<()> {
     let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder().build();
 
-    let tracer = provider.tracer("zmake");
+    let tracer = provider.tracer(env!("CARGO_BIN_NAME"));
 
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
     let subscriber = Registry::default()
         .with(telemetry)
-        .with(HierarchicalLayer::new(2).with_ansi(true).with_indent_lines(true));
+        .with(HierarchicalLayer::new(3).with_ansi(true).with_indent_lines(true));
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args = env::args_os();
 
     let _span = trace_span!(
-        "zmake start",
+        "program start",
         version = env!("CARGO_PKG_VERSION"),
         args = format!("{:?}", args)
     )

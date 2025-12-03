@@ -14,7 +14,7 @@ async fn download(url: String, destination: std::path::PathBuf) -> eyre::Result<
 
     let total_size = response.content_length().unwrap_or(0);
 
-    // the should not showed in cmdline because of cargo but I thought it was a good idea to show it
+    // cargo build -vv to see this progress bar
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()
             .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
