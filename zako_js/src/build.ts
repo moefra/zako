@@ -7,7 +7,7 @@ if(current == undefined){
     current = Deno.cwd();
 }
 
-const dist = await Deno.realPath(`${current}/../../dist/`);
+const dist = `${current}/../../dist/`;
 
 await Deno.remove(dist, { recursive: true }).catch(() => { /* ignore error */ });
 await Deno.mkdir(dist, { recursive: true });
