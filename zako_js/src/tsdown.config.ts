@@ -21,7 +21,7 @@ let base = {
     clean: true,
     hash: false,
     shims: false,
-    external: [/^zmake/],
+    external: [/^zako/],
 };
 
 export default defineConfig([
@@ -29,7 +29,6 @@ export default defineConfig([
         ...base,
         entry: `${current}/../semver/index.js`,
         outDir: `${dist}/semver`,
-        copy: [{ from: `${current}/semver.jsr.json`, to: `${dist}/semver/jsr.json` }],
     },
     {
         ...base,
@@ -40,5 +39,10 @@ export default defineConfig([
         ...base,
         entry: `${current}/core.ts`,
         outDir: `${dist}/core`,
+    },
+    {
+        ...base,
+        entry: `${current}/global.ts`,
+        outDir: `${dist}/global`,
     },
 ]);

@@ -1,1 +1,1 @@
-declare module "zmake:workspace" {}
+declare module "zako:workspace" {}

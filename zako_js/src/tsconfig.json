@@ -1,9 +1,10 @@
 {
     "compilerOptions": {
         "paths": {
-            "zmake:semver": ["../../dist/semver/index.d.ts"],
-            "zmake:rt": ["../../dist/rt.d.mts"],
-            "zmake:core": ["../../dist/core.d.mts"]
+            "zako:semver": ["../../../dist/semver/index.d.ts"],
+            "zako:rt": ["../../../dist/rt.d.mts"],
+            "zako:syscall": ["../../../dist/syscall.d.ts"],
+            "zako:core": ["../../dist/core.d.mts"]
         },
         "moduleResolution": "bundler",
         "allowJs": false,
@@ -19,8 +20,8 @@
         "isolatedModules": true,
         "isolatedDeclarations": true,
         "declaration": true,
-        "inlineSourceMap": true,
-        "inlineSources": true,
+        "inlineSourceMap": false,
+        "inlineSources": false,
         "esModuleInterop": false
     },
     "files": ["./rt.ts", "./core.ts"]

@@ -28,7 +28,7 @@ mod transformer;
 mod transport_server;
 pub mod version_extractor;
 
-pub static PROJECT_FILE_NAME: &str = "ZProject.ts";
+pub static PROJECT_FILE_NAME: &str = "ZPROJECT.ts";
 pub static BUILD_FILE_NAME:&str = "ZBUILD.ts";
 pub static RULE_FILE_SUFFIX:&str = ".zako.ts";
 pub static SCRIPT_FILE_SUFFIX:&str = ".zscript.ts";

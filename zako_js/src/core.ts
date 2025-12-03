@@ -1,10 +1,10 @@
-import * as syscall from "zmake:syscall";
-import * as semver from "zmake:semver";
+import * as syscall from "zako:syscall";
+import * as semver from "zako:semver";
 
-export class ZMakeRuntimeError extends Error {
+export class ZakoRuntimeError extends Error {
     constructor(message: string) {
-        super(`zmake runtime error:${message}`);
-        this.name = "ZMakeRuntimeError";
+        super(`zako runtime error:${message}`);
+        this.name = "ZakoRuntimeError";
     }
 }
 
@@ -32,32 +32,32 @@ export type QualifiedArtifactId = `${ArtifactId}@${Version}`;
 type Id<Str extends string> = `${QualifiedArtifactId}#${Str}::${string}`;
 
 /**
- * zmake Id with type `target`
+ * Id with type `target`
  */
 export type Target = Id<"target">;
 
 /**
- * zmake Id with type `target_type`
+ * Id with type `target_type`
  */
 export type TargetType = Id<"target_type">;
 
 /**
- * zmake Id with type `architecture`
+ * Id with type `architecture`
  */
 export type Architecture = Id<"architecture">;
 
 /**
- * zmake Id with type `os`
+ * Id with type `os`
  */
 export type Os = Id<"os">;
 
 /**
- * zmake Id with type `tool_type`
+ * Id with type `tool_type`
  */
 export type ToolType = Id<"tool_type">;
 
 /**
- * zmake Id with type `tool_name`
+ * Id with type `tool_name`
  */
 export type ToolName = Id<"tool_name">;
 
@@ -66,10 +66,10 @@ export const version: semver.SemVer = new semver.SemVer(
     false,
 );
 
-export function requireZMakeVersion(requiredVersion: string): void {
+export function requireZakoVersion(requiredVersion: string): void {
     if (!semver.satisfies(version, requiredVersion, false)) {
-        throw new ZMakeRuntimeError(
-            `zmake version ${version} is required but current version ${version} is not satisified`,
+        throw new ZakoRuntimeError(
+            `zako version ${version} is required but current version ${version} is not satisified`,
         );
     }
 }
@@ -84,7 +84,7 @@ export type transitiveLevel = "public" | "private" | "interface";
 type Author = `${string} <${string}@${string}>`;
 
 /**
- * project.zmake
+ * ZPROJECT.ts
  */
 export interface ProjectMeta {
     group: GroupId;

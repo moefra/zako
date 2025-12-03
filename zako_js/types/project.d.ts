@@ -1,6 +1,6 @@
-import * as core from "zmake:core";
+import * as core from "zako:core";
 
-declare module "zmake:project" {
+declare module "zako:project" {
     export interface Project extends core.ProjectMeta {
         workspaces?: core.Pattern;
         rules?: core.Pattern;
