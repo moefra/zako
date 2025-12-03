@@ -8,7 +8,6 @@
     },
     "nodeModulesDir": "auto",
     "tasks": {
-        "install": "deno install --global --allow-all",
         "build": "deno run --global --allow-all ./src/build.ts"
     },
     "exclude": ["dist/"]

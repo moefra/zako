@@ -21,7 +21,6 @@ jobs:
       - name: Build JavaScript
         run: |
           cd zako_js
-          deno task install
           deno task build
       - name: Cache
         uses: actions/cache@v4
@@ -43,7 +42,6 @@ jobs:
       - name: Zako Self-Build Test
         run: |
           zako --version
-          zako -C zako_js deno task install
           zako -C zako_js deno task build
       - name: Zako Execute Test
         run: |
