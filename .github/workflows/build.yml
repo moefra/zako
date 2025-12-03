@@ -17,6 +17,9 @@ jobs:
           submodules: true
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
+        with:
+          version: "33.1"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: denoland/setup-deno@v2
         with:
           deno-version: ^2
