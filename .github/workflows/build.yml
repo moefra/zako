@@ -1,0 +1,50 @@
+name: Build
+
+on: [push]
+
+jobs:
+  build-and-upload:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, ubuntu-24.04-arm, macos-latest]
+        profile: [release, dev]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: ^2
+      - name: Build JavaScript
+        run: |
+          cd zako_js
+          deno task install
+          deno task build
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build Rust
+        run: |
+          cargo build --profile ${{ matrix.profile }}
+      - name: Rust Test
+        run: |
+          cargo test --profile ${{ matrix.profile }}
+      - name: Install Zako
+        run: |
+          cargo install --path zako_cli --profile ${{ matrix.profile }}
+      - name: Zako Self-Build Test
+        run: |
+          zako --version
+          zako -C zako_js deno task install
+          zako -C zako_js deno task build
+      - name: Zako Execute Test
+        run: |
+          zako deno run --allow-all test.ts $(which zako)
