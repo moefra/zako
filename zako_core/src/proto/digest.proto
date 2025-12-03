@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zmake.v1.digest;
+package zako.v1.digest;
 
 message Digest{
   bytes fast_xxhash3_128 = 1;

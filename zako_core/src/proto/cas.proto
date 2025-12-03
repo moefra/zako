@@ -1,24 +1,24 @@
 syntax = "proto3";
 
-package zmake.v1.cas;
+package zako.v1.cas;
 
 import "digest.proto";
 import "net.proto";
 
 message NegotiateBlobsRequest {
-  repeated zmake.v1.digest.Digest blob_digests = 1;
+  repeated zako.v1.digest.Digest blob_digests = 1;
 }
 
 message NegotiateBlobsResponse {
-  repeated zmake.v1.digest.Digest missing_blob_digests = 1;
+  repeated zako.v1.digest.Digest missing_blob_digests = 1;
 }
 
 message GetTransportDetailsRequest {
-  repeated zmake.v1.net.Protocol supported_protocols = 1;
+  repeated zako.v1.net.Protocol supported_protocols = 1;
 }
 
 message TransportDetails {
-  zmake.v1.net.SocketAddress server_addr = 1;
+  zako.v1.net.SocketAddress server_addr = 1;
 
   string auth_token = 2;
 

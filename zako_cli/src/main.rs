@@ -22,9 +22,9 @@ use tracing::{Span, trace};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_tree::HierarchicalLayer;
-use zmake_lib::engine::{Engine, EngineMode, EngineOptions};
-use zmake_lib::project_resolver::ProjectResolver;
-use zmake_lib::sandbox::Sandbox;
+use zako_core::engine::{Engine, EngineMode, EngineOptions};
+use zako_core::project_resolver::ProjectResolver;
+use zako_core::sandbox::Sandbox;
 
 const STYLES: styling::Styles = styling::Styles::styled()
     .header(

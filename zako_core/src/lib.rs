@@ -30,27 +30,27 @@ pub mod version_extractor;
 
 pub static PROJECT_FILE_NAME: &str = "ZProject.ts";
 pub static BUILD_FILE_NAME:&str = "ZBUILD.ts";
-pub static RULE_FILE_SUFFIX:&str = ".zmake.ts";
+pub static RULE_FILE_SUFFIX:&str = ".zako.ts";
 pub static SCRIPT_FILE_SUFFIX:&str = ".zscript.ts";
 
 pub mod proto {
     pub mod digest {
-        tonic::include_proto!("zmake.v1.digest");
+        tonic::include_proto!("zako.v1.digest");
     }
 
     pub mod fs {
-        tonic::include_proto!("zmake.v1.fs");
+        tonic::include_proto!("zako.v1.fs");
     }
 
     pub mod net {
-        tonic::include_proto!("zmake.v1.net");
+        tonic::include_proto!("zako.v1.net");
     }
 
     pub mod cas {
-        tonic::include_proto!("zmake.v1.cas");
+        tonic::include_proto!("zako.v1.cas");
     }
 
     pub mod transport {
-        tonic::include_proto!("zmake.v1.transport");
+        tonic::include_proto!("zako.v1.transport");
     }
 }

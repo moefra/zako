@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zmake.v1.fs;
+package zako.v1.fs;
 
 import "digest.proto";
 
@@ -8,7 +8,7 @@ message VirtualFsItem{
   string relative_path = 1;
 
   oneof item{
-    zmake.v1.digest.Digest digest = 2;
+    zako.v1.digest.Digest digest = 2;
     string symlink_target = 3;
     bool empty_directory = 4;
   }

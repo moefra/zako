@@ -4535,6 +4535,90 @@ dependencies = [
 ]
 
 [[package]]
+name = "zako-cli"
+version = "0.1.0"
+dependencies = [
+ "argfile",
+ "clap",
+ "clap_complete",
+ "color-eyre",
+ "colorchoice",
+ "colorchoice-clap",
+ "const_format",
+ "dirs",
+ "exit-code",
+ "eyre",
+ "futures-util",
+ "glob",
+ "hex",
+ "indicatif",
+ "num_cpus",
+ "opentelemetry",
+ "opentelemetry-stdout",
+ "opentelemetry_sdk",
+ "reqwest",
+ "sha2",
+ "shadow-rs",
+ "strum",
+ "tokio",
+ "tracing",
+ "tracing-error",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "tracing-tree",
+ "zako-core",
+ "zip",
+]
+
+[[package]]
+name = "zako-core"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "async-stream",
+ "async-trait",
+ "bytes",
+ "cfg-if",
+ "const_format",
+ "convert_case",
+ "dashmap",
+ "eyre",
+ "futures",
+ "glob",
+ "hex",
+ "lenient_semver",
+ "num_cpus",
+ "oxc",
+ "prost",
+ "prost-types",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_v8",
+ "sha2",
+ "smallvec",
+ "static_init",
+ "strum",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "tracing",
+ "tracing-attributes",
+ "tracing-core",
+ "tracing-error",
+ "tracing-subscriber",
+ "unicode-ident",
+ "url",
+ "uuid",
+ "v8",
+ "xxhash-rust",
+]
+
+[[package]]
 name = "zerocopy"
 version = "0.8.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4661,90 +4745,6 @@ name = "zlib-rs"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f06ae92f42f5e5c42443fd094f245eb656abf56dd7cce9b8b263236565e00f2"
-
-[[package]]
-name = "zmake-cli"
-version = "0.1.0"
-dependencies = [
- "argfile",
- "clap",
- "clap_complete",
- "color-eyre",
- "colorchoice",
- "colorchoice-clap",
- "const_format",
- "dirs",
- "exit-code",
- "eyre",
- "futures-util",
- "glob",
- "hex",
- "indicatif",
- "num_cpus",
- "opentelemetry",
- "opentelemetry-stdout",
- "opentelemetry_sdk",
- "reqwest",
- "sha2",
- "shadow-rs",
- "strum",
- "tokio",
- "tracing",
- "tracing-error",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "tracing-tree",
- "zip",
- "zmake-lib",
-]
-
-[[package]]
-name = "zmake-lib"
-version = "0.1.0"
-dependencies = [
- "ahash",
- "async-stream",
- "async-trait",
- "bytes",
- "cfg-if",
- "const_format",
- "convert_case",
- "dashmap",
- "eyre",
- "futures",
- "glob",
- "hex",
- "lenient_semver",
- "num_cpus",
- "oxc",
- "prost",
- "prost-types",
- "semver",
- "serde",
- "serde_json",
- "serde_v8",
- "sha2",
- "smallvec",
- "static_init",
- "strum",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tonic",
- "tonic-prost",
- "tonic-prost-build",
- "tracing",
- "tracing-attributes",
- "tracing-core",
- "tracing-error",
- "tracing-subscriber",
- "unicode-ident",
- "url",
- "uuid",
- "v8",
- "xxhash-rust",
-]
 
 [[package]]
 name = "zoneinfo64"

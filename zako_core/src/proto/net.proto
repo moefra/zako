@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zmake.v1.net;
+package zako.v1.net;
 
 message IpAddress{
   oneof ip_addr {

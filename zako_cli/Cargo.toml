@@ -1,5 +1,5 @@
 [package]
-name = "zmake-cli"
+name = "zako-cli"
 
 build = "build.rs"
 
@@ -12,20 +12,10 @@ repository.workspace = true
 documentation.workspace = true
 
 [[bin]]
-name = "zmake"
+name = "zako"
 path = "./src/main.rs"
 
 [lints]
-workspace = true
-[profile.dev]
-workspace = true
-[profile.dev.package."*"]
-workspace = true
-[profile.test]
-workspace = true
-[profile.release]
-workspace = true
-[profile.bench]
 workspace = true
 
 [dependencies]
@@ -44,7 +34,7 @@ exit-code.workspace = true
 num_cpus.workspace = true
 tracing.workspace = true
 
-zmake-lib = { path = "../zmake_lib" }
+zako-core.workspace = true
 
 eyre.workspace = true
 color-eyre.workspace = true

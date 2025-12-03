@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package zmake.v1.transport;
+package zako.v1.transport;
 
 import "digest.proto";
 
 message DownloadRequest {
-    zmake.v1.digest.Digest digest = 1;
+  zako.v1.digest.Digest digest = 1;
     uint64 offset = 2;
   }
 
@@ -15,7 +15,7 @@ message DownloadRequest {
 
   message UploadRequest {
     oneof payload {
-      zmake.v1.digest.Digest metadata = 1;
+      zako.v1.digest.Digest metadata = 1;
 
       bytes chunk = 2;
     }
