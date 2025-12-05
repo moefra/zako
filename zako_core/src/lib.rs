@@ -27,6 +27,10 @@ mod tool;
 mod transformer;
 mod transport_server;
 pub mod version_extractor;
+mod future;
+mod v8utils;
+mod v8error;
+mod execution_result;
 
 pub static PROJECT_FILE_NAME: &str = "ZPROJECT.ts";
 pub static BUILD_FILE_NAME:&str = "ZBUILD.ts";

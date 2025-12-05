@@ -1,11 +1,11 @@
 use std::fmt::Display;
 use std::path::PathBuf;
 
-pub static MEMORY_MODULE_PREFIX: &'static str = "__ZMAKE_MEMORY_MODULE_";
+pub static MEMORY_MODULE_PREFIX: &'static str = "__ZAKO_MEMORY_MODULE_";
 
 pub static IMPORT_MAP_MODULE_PREFIX: &'static str = "@";
 
-pub static BUILTIN_MODULE_PREFIX: &'static str = "zmake:";
+pub static BUILTIN_MODULE_PREFIX: &'static str = "zako:";
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ModuleSpecifier {

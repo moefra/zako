@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::string::String;
 use thiserror::Error;
 
@@ -95,6 +95,12 @@ impl TryFrom<String> for NeutralPath {
 impl Into<String> for NeutralPath {
     fn into(self) -> String {
         self.0
+    }
+}
+
+impl Into<PathBuf> for NeutralPath {
+    fn into(self) -> PathBuf {
+        PathBuf::from(self.0)
     }
 }
 

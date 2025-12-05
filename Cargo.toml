@@ -6,6 +6,7 @@ resolver = "3"
 [workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
+panic = "deny"
 
 [workspace.dependencies]
 zako-core = { path = "zako_core" }
@@ -78,6 +79,8 @@ bytes = "1.11.0"
 async-stream = "0.3.6"
 
 xxhash-rust = "0.8.15"
+
+deno_core = "0.372.0"
 
 sha2 = "0.10.9"
 

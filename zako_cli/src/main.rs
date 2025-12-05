@@ -26,6 +26,7 @@ use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_tree::HierarchicalLayer;
 use zako_core::engine::{Engine, EngineMode, EngineOptions};
+use zako_core::path::NeutralPath;
 use zako_core::project_resolver::ProjectResolver;
 use zako_core::sandbox::Sandbox;
 use crate::buffered_writer::TemporaryBufferedWriterMaker;
@@ -255,8 +256,15 @@ impl ExportBuiltinArgs {
 #[derive(clap::Args, Debug)]
 #[command(name = "make", about = "Build the project")]
 struct MakeArgs {
+    /// The file path must be valid NeutralPath.
+    ///
+    /// It will join into the sandbox path to construct the full path.
     #[arg(long,default_value = ::zako_core::PROJECT_FILE_NAME, value_hint = clap::ValueHint::FilePath)]
     project_file: String,
+
+    /// The path to construct the sandbox
+    #[arg(long,default_value = ".", value_hint = clap::ValueHint::DirPath)]
+    sandbox_dir: String,
 
     #[arg(long, help = "Set the cpu counts to use")]
     concurrency: Option<usize>,
@@ -268,18 +276,11 @@ impl MakeArgs {
 
         let runtime = Builder::new_multi_thread().build()?;
 
-        let project_file = PathBuf::from(self.project_file);
-        let project_file = project_file
-            .canonicalize()
-            .expect("Project file path is invalid for it can not be canonicalized");
-        let project_dir = project_file
-            .parent()
-            .expect("the project file must be a file in a directory")
-            .to_path_buf();
+        let project_file = NeutralPath::new(self.project_file)?;
 
         info!("use concurrency {}", concurrency);
 
-        let sandbox = std::sync::Arc::from(Sandbox::new(project_dir)?);
+        let sandbox = std::sync::Arc::from(Sandbox::new(self.sandbox_dir)?);
 
         let engine = Engine::new(
             sandbox,
@@ -289,9 +290,9 @@ impl MakeArgs {
             },
         )?;
 
-        let resolver = ProjectResolver::new(engine);
+        let mut resolver = ProjectResolver::new(engine);
 
-        resolver.resolve_project(project_file.to_string_lossy().to_string())?;
+        resolver.resolve_project(&project_file)?;
 
         Ok(())
     }
@@ -463,7 +464,7 @@ fn setup_backtrace_env(enable_backtrace: bool) {
 }
 
 fn inner_main() -> eyre::Result<()> {
-    let (writer,handle) = crate::buffered_writer::TemporaryBufferedWriterMaker::new();
+    let (writer,handle) = TemporaryBufferedWriterMaker::new();
 
     let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder().build();
 
@@ -473,7 +474,7 @@ fn inner_main() -> eyre::Result<()> {
 
     let subscriber = Registry::default()
         .with(telemetry)
-        .with(HierarchicalLayer::new(3).with_ansi(true).with_indent_lines(true).with_writer(writer));
+        .with(HierarchicalLayer::new(2).with_ansi(true).with_indent_lines(true).with_writer(writer));
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 

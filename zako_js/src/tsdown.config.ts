@@ -45,4 +45,14 @@ export default defineConfig([
         entry: `${current}/global.ts`,
         outDir: `${dist}/global`,
     },
+    {
+        ...base,
+        entry: `${current}/console.ts`,
+        outDir: `${dist}/console`,
+    },
+    {
+        ...base,
+        entry: `${current}/project.ts`,
+        outDir: `${dist}/project`,
+    },
 ]);

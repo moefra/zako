@@ -1,4 +1,4 @@
-use crate::engine::Engine;
+use crate::engine::{Engine, EngineError};
 use crate::module_specifier::ModuleSpecifier;
 use crate::project::ProjectExported;
 use crate::project_resolver::ProjectResolveError::{
@@ -12,6 +12,8 @@ use std::sync::Arc;
 use std::{fs, io};
 use thiserror::Error;
 use tracing::instrument;
+use crate::path::NeutralPath;
+use crate::sandbox::{Sandbox, SandboxError};
 
 #[derive(Error, Debug)]
 pub enum ProjectResolveError {
@@ -23,6 +25,10 @@ pub enum ProjectResolveError {
     CircularDependency(PathBuf),
     #[error("get an io error")]
     IOError(#[from] io::Error),
+    #[error("get an sandbox error")]
+    SandboxError(#[from] SandboxError),
+    #[error("get an engine error")]
+    EngineError(#[from] EngineError),
 }
 
 #[derive(Debug)]
@@ -43,10 +49,10 @@ impl ProjectResolver {
 
     #[instrument]
     pub fn resolve_project(
-        self: &Self,
-        project_file_path: String,
+        self: &mut Self,
+        project_file_path: &NeutralPath,
     ) -> Result<(), ProjectResolveError> {
-        let file = fs::canonicalize(project_file_path)?;
+        let file = self.engine.get_sandbox().join_path_for(project_file_path)?;
 
         if !file.exists() {
             return Err(FileNotExists(file));
@@ -66,8 +72,7 @@ impl ProjectResolver {
             self.resolving.borrow_mut().insert(file.clone(), true);
         }
 
-        self.engine
-            .execute_module(&ModuleSpecifier::File(file.clone()));
+        self.engine.execute_module(&ModuleSpecifier::File(project_file_path.clone().into()))?;
 
         self.resolving.borrow_mut().insert(file, false);
 
