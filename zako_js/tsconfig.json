@@ -1,11 +1,11 @@
 {
     "compilerOptions": {
+        "composite": false,
         "allowJs": false,
         "checkJs": false,
 
         "allowImportingTsExtensions": true,
         "moduleResolution": "bundler",
-        "composite": true,
 
         // wait to update to ES2025
         "target": "ESNext",
@@ -43,6 +43,8 @@
         "noImplicitOverride": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-        "noPropertyAccessFromIndexSignature": true
+        "noPropertyAccessFromIndexSignature": true,
+        "exactOptionalPropertyTypes": true,
+        "useUnknownInCatchVariables": true,
     }
 }

@@ -13,6 +13,7 @@
             "zako:console": ["./builtins/console/index.ts"],
             "zako:*": ["../builtins/types/*.d.ts"]
         },
+        "declarationDir": "../dist",
     },
     "include": ["./builtins/**/*.ts" ,"./types/**/*.d.ts"]
 }

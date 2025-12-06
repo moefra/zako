@@ -145,6 +145,10 @@ console.log("generate index.d.ts...");
             continue;
         }
         const modName = mod.substring(0, mod.length - 5); // remove .d.ts
+        if(modName === "index"){
+            continue;
+        }
+        console.log(`export module zako:${modName}`);
         if(modName != "console"){
             source += `import type {} from "./${modName}";\n`;
         }
