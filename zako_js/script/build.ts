@@ -1,8 +1,9 @@
 
 const current = import.meta.dir;
-const dist = `${current}/../dist/`;
+const dist = `${current}/../../dist/`;
 const src = `${current}/../src/`;
-const builtins = `${src}/builtins/`;
+const builtins_src = `${src}/builtins/`;
+const builtins_dist = `${dist}/builtins/`;
 
 import * as fs from "node:fs/promises";
 
@@ -19,12 +20,12 @@ console.log("transpile...");
     });
 
     let transformTasks = [];
-    const dirs = await fs.readdir(`${builtins}`,
+    const dirs = await fs.readdir(`${builtins_src}`,
         { withFileTypes: true,
         recursive:false });
 
     await fs.mkdir(
-    `${dist}/builtins/`,
+    `${builtins_dist}`,
     { recursive: true }
     );
 
@@ -33,8 +34,8 @@ console.log("transpile...");
             continue;
         }
 
-        const entry = `${builtins}/${dir.name}/index.ts`;
-        const out = `${dist}/builtins/${dir.name}.js`;
+        const entry = `${builtins_src}/${dir.name}/index.ts`;
+        const out = `${builtins_dist}/${dir.name}.js`;
 
         console.log(`transpile ${entry} -> ${out}`);
 
@@ -56,9 +57,9 @@ console.log("bundle source files...");
 {
     console.log(`bundle semver into dist/builtins/semver.js`);
     await Bun.build({
-        entrypoints: [`${builtins}/semver/index.ts`],
-        outdir: `${dist}/builtins/`,
-        minify: true,
+        entrypoints: [`${builtins_src}/semver/index.ts`],
+        outdir: `${builtins_dist}`,
+        minify: false,
         sourcemap: "inline",
         target: 'browser',
         splitting: false,
@@ -94,7 +95,7 @@ console.log("simplify directory structure...");
 {
     await fs.mkdir(`${dist}/types`, { recursive: true });
 
-    const typeDirs = await fs.readdir(`${dist}/`,
+    const typeDirs = await fs.readdir(`${builtins_dist}/`,
         { withFileTypes: true, recursive:false });
 
     for (let dir of typeDirs){
@@ -106,19 +107,21 @@ console.log("simplify directory structure...");
             continue;
         }
 
-        const entry = `${dist}/${dir.name}/index.d.ts`;
+        const entry = `${builtins_dist}/${dir.name}/index.d.ts`;
         const out = `${dist}/types/${dir.name}.d.ts`;
 
         console.log(`copy type ${entry} -> ${out}`);
 
         await fs.copyFile(entry, out);
+        // 过河拆桥
+        await fs.rm(`${builtins_dist}/${dir.name}`, { recursive: true, force: true });
     }
 }
 
 // remove dist/xxx directory, left dist/builtins/ and dist/types/
 console.log("remove needless directory...");
 {
-    const dirs = await fs.readdir(`${dist}/`,
+    let dirs = await fs.readdir(`${dist}/`,
     { withFileTypes: true, recursive:false });
 
     for (let dir of dirs){

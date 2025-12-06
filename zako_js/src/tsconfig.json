@@ -11,9 +11,9 @@
             "zako:build": ["./builtins/build/index.ts"],
             "zako:rule": ["./builtins/rule/index.ts"],
             "zako:console": ["./builtins/console/index.ts"],
-            "zako:*": ["../builtins/types/*.d.ts"]
         },
-        "declarationDir": "../dist",
+        "declarationDir": "../../dist",
+        "isolatedDeclarations": false
     },
-    "include": ["./builtins/**/*.ts" ,"./types/**/*.d.ts"]
+    "include": ["./builtins/**/*.ts"]
 }

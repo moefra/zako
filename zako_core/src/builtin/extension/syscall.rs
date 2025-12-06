@@ -6,7 +6,7 @@ deno_core::extension!(
     deps = [zako_rt],
     ops = [syscall_version, syscall_log],
     esm_entry_point = "zako:syscall",
-    esm = ["zako:syscall" = "builtins/syscall.js"],
+    esm = ["zako:syscall" = "../dist/builtins/syscall.js"],
     docs = "The extension that communicates between the script and the zako",
 );
 

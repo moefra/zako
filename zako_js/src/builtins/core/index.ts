@@ -64,10 +64,9 @@ export type ToolType = Id<"tool_type">;
  */
 export type ToolName = Id<"tool_name">;
 
-export const version: semver.SemVer = new semver.SemVer(
+export const version = new semver.SemVer(
     syscall.version as Version,
-    false,
-);
+    false);
 
 export function requireZakoVersion(requiredVersion: string): void {
     if (!semver.satisfies(version, requiredVersion, false)) {

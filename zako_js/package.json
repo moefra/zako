@@ -24,6 +24,7 @@
         "typescript": "^5"
     },
     "dependencies": {
+        "@std/semver": "npm:@jsr/std__semver",
         "@types/semver": "^7.7.1",
         "dts-bundle-generator": "^9.5.1",
         "semver": "^7.7.3"

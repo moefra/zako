@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "composite": false,
+        "composite": true,
         "allowJs": false,
         "checkJs": false,
 
@@ -25,9 +25,11 @@
         "noEmit": false,
         "emitDeclarationOnly": true,
         "declaration": true,
-        "declarationDir": "./dist",
 
+        // make module interoperable
         "esModuleInterop": true,
+        "allowSyntheticDefaultImports":true,
+
         "moduleDetection": "force",
 
         // enable source map
