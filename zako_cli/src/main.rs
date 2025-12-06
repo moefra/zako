@@ -1,5 +1,6 @@
 mod buffered_writer;
 
+use crate::buffered_writer::TemporaryBufferedWriterMaker;
 use clap::builder::styling;
 use clap::builder::styling::AnsiColor;
 use clap::builder::styling::Color::Ansi;
@@ -8,19 +9,19 @@ use clap_complete::{generate, shells};
 use color_eyre::owo_colors::OwoColorize;
 use colorchoice::ColorChoice;
 use const_format::concatcp;
+use eyre::eyre;
 use opentelemetry::trace::TracerProvider;
 use sha2::Digest;
 use shadow_rs::{Format, shadow};
+use std::env::temp_dir;
+use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use std::{env, io};
-use std::env::temp_dir;
-use std::ffi::OsString;
 use std::sync::Mutex;
-use eyre::eyre;
+use std::{env, io};
 use tokio::runtime::Builder;
-use tracing::{Level, info, trace_span, debug};
+use tracing::{Level, debug, info, trace_span};
 use tracing::{Span, trace};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
@@ -28,8 +29,6 @@ use tracing_tree::HierarchicalLayer;
 use zako_core::engine::{Engine, EngineMode, EngineOptions};
 use zako_core::path::NeutralPath;
 use zako_core::project_resolver::ProjectResolver;
-use zako_core::sandbox::Sandbox;
-use crate::buffered_writer::TemporaryBufferedWriterMaker;
 
 const STYLES: styling::Styles = styling::Styles::styled()
     .header(
@@ -123,59 +122,46 @@ enum SubCommands {
     ExportBuiltin(ExportBuiltinArgs),
     Make(MakeArgs),
     Deno(DenoArgs),
+    Bun(BunArgs),
 }
 
-#[derive(clap::Args, Debug)]
-#[command(
-    name = "deno",
-    about = "Execute deno command,relay following arguments to deno",
-    disable_help_flag = true,
-    disable_version_flag = true,
-)]
-struct DenoArgs {
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<OsString>,
-}
+fn run_program(name: &str, binary: &[u8], args: Vec<String>) -> Result<(), eyre::Error> {
+    let _span = trace_span!("execute program", name = name, args = format!("{:?}", args)).entered();
 
-static DENO_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/deno"));
-static DENO_CHECKSUM: &'static str = include_str!(concat!(std::env!("OUT_DIR"), "/deno.sha256sum"));
+    let home = dirs::cache_dir().unwrap_or(temp_dir()).join(
+        format!(
+            "{}-{}-bin-{}",
+            env!("CARGO_BIN_NAME"),
+            name,
+            env!("CARGO_PKG_VERSION")
+        )
+        .as_str(),
+    );
 
-fn run_deno(args: &[std::ffi::OsString],inherit_stdin:bool) -> eyre::Result<()> {
-    let _span = trace_span!("run deno", args = format!("{:?}", args)).entered();
-    let checksum = DENO_CHECKSUM.trim();
-
-    let (checksum, _) = checksum
-        .split_once(" ")
-        .ok_or(eyre::eyre!("failed to split checksum of deno"))?;
-
-    let deno_home = dirs::cache_dir().unwrap_or(temp_dir())
-        .join(format!("{}-deno-bin-{}",env!("CARGO_BIN_NAME"), checksum).as_str());
-
-    // .exe do nothing in unix,but it is required in windows,so we always add it
     #[cfg(target_os = "windows")]
-    let deno_exe = deno_home.join("deno.exe");
+    let exe = home.join(format!("{}.exe", name));
     #[cfg(not(target_os = "windows"))]
-    let deno_exe = deno_home.join("deno");
+    let exe = home.join(name);
 
-    match fs::create_dir_all(&deno_home) {
+    match fs::create_dir_all(&home) {
         Ok(_) => (),
         Err(e) => {
             return Err(eyre::eyre!(
-                    "failed to create deno home directory `{:?}`: {}",
-                    deno_home,
-                    e
-                ));
+                "failed to create program home directory `{:?}`: {}",
+                home,
+                e
+            ));
         }
     };
 
-    if !deno_exe.exists() {
-        debug!("Extracting embedded deno to {:?}", deno_exe);
+    if !exe.exists() {
+        debug!("Extracting embedded binary to {:?}", exe);
 
-        let temp_exe = deno_home.join(format!(".tmp-deno-{}", std::process::id()));
+        let temp_exe = home.join(format!(".tmp-{}-{}", name, std::process::id()));
 
         {
             let mut file = fs::File::create(&temp_exe)?;
-            file.write_all(&DENO_BINARY)?;
+            file.write_all(binary)?;
 
             #[cfg(unix)]
             {
@@ -187,45 +173,78 @@ fn run_deno(args: &[std::ffi::OsString],inherit_stdin:bool) -> eyre::Result<()> 
             file.sync_all()?;
         }
 
-        match fs::rename(&temp_exe, &deno_exe) {
-            Ok(_) => {},
+        match fs::rename(&temp_exe, &exe) {
+            Ok(_) => {}
             Err(e) => {
                 let _ = fs::remove_file(&temp_exe);
-                if !deno_exe.exists() {
-                    return Err(eyre::eyre!("Failed to rename deno binary: {}", e));
+                if !exe.exists() {
+                    return Err(eyre::eyre!("Failed to rename program binary: {}", e));
                 }
             }
         }
     }
 
-    let mut binding = std::process::Command::new(&deno_exe);
-    let deno = binding
+    let mut exe = std::process::Command::new(&exe);
+    let exe = exe
         .args(args)
-        .stdin(if inherit_stdin { std::process::Stdio::inherit() } else { std::process::Stdio::null() })
+        .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
         .current_dir(std::env::current_dir()?);
 
     let path = env::var("PATH").unwrap_or_else(|_| "".to_string());
     let path = env::split_paths(&path).map(|x| OsString::from(x));
-    let path = std::env::join_paths([PathBuf::from(deno_home), path.collect()].iter())?;
-    deno.env(
-        "PATH",
-        path);
+    let path = std::env::join_paths([PathBuf::from(home), path.collect()].iter())?;
+    exe.env("PATH", path);
 
-    let status = deno.status()?;
+    let status = exe.status()?;
 
     if !status.success() {
         return Err(eyre::eyre!(
-        "failed to execute deno command(exit code: {})",
-        status
-        .code()
-        .map(|x| x.to_string())
-        .unwrap_or("unknown".to_string())
+            "failed to execute program(exit code: {})",
+            status
+                .code()
+                .map(|x| x.to_string())
+                .unwrap_or("unknown".to_string())
         ));
     }
 
     Ok(())
+}
+
+#[derive(clap::Args, Debug)]
+#[command(
+    name = "bun",
+    about = "Execute bun command,relay following arguments to bun",
+    disable_help_flag = true,
+    disable_version_flag = true
+)]
+struct BunArgs {
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    args: Vec<String>,
+}
+static BUN_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/bun"));
+
+fn run_bun(args: Vec<String>) -> eyre::Result<()> {
+    run_program("bun", BUN_BINARY, args)
+}
+
+#[derive(clap::Args, Debug)]
+#[command(
+    name = "deno",
+    about = "Execute deno command,relay following arguments to deno",
+    disable_help_flag = true,
+    disable_version_flag = true
+)]
+struct DenoArgs {
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    args: Vec<String>,
+}
+
+static DENO_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/deno"));
+
+fn run_deno(args: Vec<String>) -> eyre::Result<()> {
+    run_program("deno", DENO_BINARY, args)
 }
 
 #[derive(clap::Args, Debug)]
@@ -280,15 +299,10 @@ impl MakeArgs {
 
         info!("use concurrency {}", concurrency);
 
-        let sandbox = std::sync::Arc::from(Sandbox::new(self.sandbox_dir)?);
-
-        let engine = Engine::new(
-            sandbox,
-            EngineOptions {
-                tokio_handle: runtime.handle().clone(),
-                mode: EngineMode::Project,
-            },
-        )?;
+        let engine = Engine::new(EngineOptions {
+            tokio_handle: runtime.handle().clone(),
+            mode: EngineMode::Project,
+        })?;
 
         let mut resolver = ProjectResolver::new(engine);
 
@@ -354,6 +368,7 @@ impl GenerateCompleteArgs {
 }
 
 shadow!(build_information);
+
 #[derive(clap::Args, Debug)]
 #[command(name = "information", about = "Print (debug) information")]
 struct InformationArgs {}
@@ -464,7 +479,7 @@ fn setup_backtrace_env(enable_backtrace: bool) {
 }
 
 fn inner_main() -> eyre::Result<()> {
-    let (writer,handle) = TemporaryBufferedWriterMaker::new();
+    let (writer, handle) = TemporaryBufferedWriterMaker::new();
 
     let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder().build();
 
@@ -472,9 +487,12 @@ fn inner_main() -> eyre::Result<()> {
 
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-    let subscriber = Registry::default()
-        .with(telemetry)
-        .with(HierarchicalLayer::new(2).with_ansi(true).with_indent_lines(true).with_writer(writer));
+    let subscriber = Registry::default().with(telemetry).with(
+        HierarchicalLayer::new(2)
+            .with_ansi(true)
+            .with_indent_lines(true)
+            .with_writer(writer),
+    );
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
@@ -500,22 +518,39 @@ fn inner_main() -> eyre::Result<()> {
 
     // 尘埃落定
     // 不是输出help/version，并且不是静默模式，倾泻而出
-    if !args.silent{
-        match handle.lock(){
+    //
+    //《江城子·北邮校徽戏作》
+    // 蓟门烟树郁苍苍，
+    // 立邮邦，
+    // 气昂扬。
+    // 赫赫徽标，
+    // 展翅正翱翔。
+    // 本是传书通四海，
+    // 观翼下，
+    // 意味长。
+    // 谁知学子话荒唐，
+    // 指高墙，
+    // 费思量。
+    // 一点圆圆，
+    // 直坠向中央。
+    // 莫道宏图多壮志，
+    // 看此势，
+    // 是拉翔。
+    if !args.silent {
+        match handle.lock() {
             Ok(mut guard) => {
                 guard.release()?;
-            },
+            }
             Err(e) => {
                 return Err(eyre::eyre!("failed to lock buffered writer: {}", e));
             }
         }
-    }
-    else{
+    } else {
         // 为了防止内存泄露，清空缓冲区并不再写入，静默成功
-        match handle.lock(){
+        match handle.lock() {
             Ok(mut guard) => {
                 guard.silent();
-            },
+            }
             Err(e) => {
                 return Err(eyre::eyre!("failed to lock buffered writer: {}", e));
             }
@@ -530,10 +565,7 @@ fn inner_main() -> eyre::Result<()> {
         env::set_current_dir(&dir).expect("failed to change directory");
     }
 
-    info!(
-        "working directory: {}",
-        env::current_dir()?.display()
-    );
+    info!("working directory: {}", env::current_dir()?.display());
 
     args.color.write_global();
     setup_backtrace_env(args.backtrace);
@@ -552,14 +584,45 @@ fn inner_main() -> eyre::Result<()> {
         SubCommands::GenerateComplete(args) => args.invoke(),
         SubCommands::Make(args) => args.invoke(),
         SubCommands::ExportBuiltin(args) => args.invoke(),
-        SubCommands::Deno(args) => run_deno(args.args.as_slice(),true),
+        SubCommands::Deno(args) => run_deno(args.args),
+        SubCommands::Bun(args) => run_bun(args.args),
     };
 }
 
 pub fn main() {
-    ::std::process::exit(
-        inner_main().map(|_x| exit_code::SUCCESS).unwrap_or_else(|e| {
-            eprintln!("{}: {}", "error".red().bold(), e);
+    let now = std::time::Instant::now();
+    let code = std::panic::catch_unwind(|| {
+        inner_main()
+            .map(|_| exit_code::SUCCESS)
+            .unwrap_or_else(|e| {
+                eprintln!("{}: {:?}", "ERROR".red().bold(), e);
+                eprintln!("  {}", "EXIT".red().bold());
+                exit_code::FAILURE
+            })
+    });
+    let code = match code {
+        Err(err) => {
+            eprintln!("{}: {:?}", "ERROR".red().bold(), err);
+            eprintln!(
+                "{}",
+                "  Uncaught PANIC from zako. It is a bug, report it. Get in touch by `zako --help`"
+                    .red()
+                    .on_white()
+            );
+            eprintln!("  {}", "EXIT".red().bold());
             exit_code::FAILURE
-        }));
+        }
+        Ok(code) => code,
+    };
+
+    let duration = now.elapsed();
+    println!(
+        "Elapsed {}{}{} {} == {}",
+        duration.as_secs().green(),
+        ".".white(),
+        duration.subsec_nanos().yellow(),
+        "seconds".cyan(),
+        humantime::format_duration(duration).to_string().magenta()
+    );
+    ::std::process::exit(code);
 }

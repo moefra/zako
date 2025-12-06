@@ -18,8 +18,6 @@ num_cpus.workspace = true
 
 bytes.workspace = true
 
-tracing-error.workspace = true
-
 async-stream.workspace = true
 futures.workspace = true
 
@@ -46,8 +44,11 @@ strum.workspace = true
 
 tracing-attributes.workspace = true
 
-v8.workspace = true
-serde_v8.workspace = true
+deno_core.workspace = true
+deno_error.workspace = true
+
+parking_lot.workspace = true
+
 oxc.workspace = true
 
 convert_case.workspace = true

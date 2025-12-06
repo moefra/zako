@@ -3,6 +3,8 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+pub type SandboxRef = std::sync::Arc<Sandbox>;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Sandbox {
     root: PathBuf,
@@ -67,5 +69,13 @@ impl Sandbox {
                 target: canonicalized_path,
             })
         }
+    }
+
+    pub fn is_in_sandbox<P: AsRef<Path>>(&self, path: P) -> bool {
+        let path = match std::fs::canonicalize(path.as_ref()) {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+        path.starts_with(&self.root)
     }
 }

@@ -1,0 +1,34 @@
+{
+    "name": "zako-js",
+    "version": "0.1.0",
+    "type": "module",
+    "author": "Moe Godot <me@kawayi.moe> (http://x.com/moegodot)",
+    "license": "GPL-3.0-only",
+    "keywords": ["build"],
+    "exports": {
+        "./rt": "./src/builtins/rt/rt.ts",
+        "./syscall": "./src/builtins/syscall/syscall.ts",
+        "./global": "./src/builtins/global/global.ts",
+        "./semver": "./src/builtins/semver/semver.ts",
+        "./core": "./src/builtins/core/core.ts",
+        "./project": "./src/builtins/project/project.ts",
+        "./build": "./src/builtins/build/build.ts",
+        "./rule": "./src/builtins/rule/rule.ts"
+    },
+    "homepage": "https://github.com/moefra/zako",
+    "description": "The js/ts code that zako use.",
+    "devDependencies": {
+        "@types/bun": "latest"
+    },
+    "peerDependencies": {
+        "typescript": "^5"
+    },
+    "dependencies": {
+        "@types/semver": "^7.7.1",
+        "dts-bundle-generator": "^9.5.1",
+        "semver": "^7.7.3"
+    },
+    "scripts": {
+        "build": "tsc --emitDeclarationOnly --project src/tsconfig.json && bun run ./script/build.ts"
+    }
+}

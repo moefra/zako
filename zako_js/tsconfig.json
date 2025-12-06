@@ -1,0 +1,48 @@
+{
+    "compilerOptions": {
+        "allowJs": false,
+        "checkJs": false,
+
+        "allowImportingTsExtensions": true,
+        "moduleResolution": "bundler",
+        "composite": true,
+
+        // wait to update to ES2025
+        "target": "ESNext",
+        "module": "ESNext",
+        "newLine": "lf",
+        "lib": ["esnext"],
+
+        // do not use libraries from system
+        "types": [],
+
+        // enable options to make zako code modern
+        "verbatimModuleSyntax": true,
+        "erasableSyntaxOnly": true,
+        "isolatedModules": true,
+        "isolatedDeclarations": true,
+
+        "noEmit": false,
+        "emitDeclarationOnly": true,
+        "declaration": true,
+        "declarationDir": "./dist",
+
+        "esModuleInterop": true,
+        "moduleDetection": "force",
+
+        // enable source map
+        "inlineSourceMap": true,
+        "inlineSources": true,
+
+        // enable as more check as possible
+        "alwaysStrict": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
+        "noImplicitOverride": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noPropertyAccessFromIndexSignature": true
+    }
+}

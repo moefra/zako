@@ -1,23 +1,24 @@
-use crate::module_loader::{ModuleLoadError, ModuleLoader, Options};
-use crate::module_specifier::ModuleSpecifier;
-use crate::platform::get_initialized_or_default;
-use crate::sandbox::Sandbox;
+use crate::platform::get_set_platform_or_default;
+use crate::sandbox::{Sandbox, SandboxRef};
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 use std::sync::mpsc::Sender;
+use deno_core::error::CoreError;
+use deno_core::{v8, JsRuntime, RuntimeOptions};
 use prost::Message;
+use tracing_attributes::instrument;
 use v8::{Context, Global, Isolate, Local, Object, PinScope, PromiseResolver, Value};
-use crate::future::PendingOp;
-use crate::v8error::V8Error;
-use crate::v8utils;
-use crate::v8utils::with_try_catch;
+use crate::builtin;
+use crate::zako_module_loader::{LoaderOptions, ModuleSpecifier, ZakoModuleLoader};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum EngineMode {
     Project,
     Rule,
+    Build,
 }
 
 #[derive(Debug)]
@@ -26,108 +27,104 @@ pub struct EngineOptions {
     pub mode: EngineMode,
 }
 
-#[derive(Debug)]
-pub struct State {
-    pub mode: EngineMode,
-    pub tokio_handle: tokio::runtime::Handle,
-    pub module_loader: ModuleLoader,
-    pub async_tx: Sender<PendingOp>,
-}
-
 #[derive(Error, Debug)]
 pub enum EngineError{
-    #[error("Caught exception when execute module `{0:?}`:{1:?}")]
-    CaughtException(ModuleSpecifier, V8Error),
-    #[error("Get error when execute module `{0:?}`:{1}")]
-    ExecutionError(ModuleSpecifier,String),
-    #[error("Get error from module loader:{0}")]
-    ModuleLoadError(#[from] ModuleLoadError),
+    #[error("Get an core error:{0}")]
+    CoreError(#[from] CoreError),
 }
 
-#[derive(Debug)]
+/// An engine,that should be used in one thread.
 pub struct Engine {
-    sandbox: Arc<Sandbox>,
-    isolate: RefCell<v8::OwnedIsolate>,
-    context: Global<v8::Context>,
-    receiver: RefCell<std::sync::mpsc::Receiver<PendingOp>>,
-    state: Rc<State>,
+    options: EngineOptions,
+    runtime: Rc<RefCell<JsRuntime>>,
+}
+
+impl Debug for Engine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Engine")
+            .field("options", &self.options)
+            .finish()
+    }
 }
 
 impl Engine {
-    pub fn new(sandbox: Arc<Sandbox>, options: EngineOptions) -> eyre::Result<Self> {
-        let _ = get_initialized_or_default();
+    pub fn new(options: EngineOptions) -> Result<Self, EngineError> {
+        JsRuntime::init_platform(Some(get_set_platform_or_default()), false);
 
-        let channel = std::sync::mpsc::channel();
-        let mut isolate = v8::Isolate::new(v8::CreateParams::default());
+        let loader = Rc::new(ZakoModuleLoader::new(
+            LoaderOptions {
+                ..Default::default()
+            }
+        ));
 
-        let loader = ModuleLoader::new(
-            sandbox.clone(),
-            Options {
-                enable_imports: true,
-            },
-        );
+        let runtime = JsRuntime::try_new(
+            RuntimeOptions {
+                module_loader: Some(loader.clone()),
+                extensions: vec![
+                    builtin::extension::rt::zako_rt::init(),
+                    builtin::extension::syscall::zako_syscall::init(),
+                    builtin::extension::global::zako_global::init(),
+                    builtin::extension::semver::zako_semver::init(),
+                    builtin::extension::core::zako_core::init(),
+                    builtin::extension::console::zako_console::init(),
+                ],
+            ..Default::default()
+        })?;
 
-        loader.apply(&mut isolate);
-
-        let (context,state) = {
-            let handle_scope = std::pin::pin!(v8::HandleScope::new(&mut isolate));
-            let mut handle_scope = handle_scope.init();
-
-            let context = v8::Context::new(&mut handle_scope, Default::default());
-            let scope = &mut v8::ContextScope::new(&mut handle_scope, context);
-
-            let state = Rc::from(State {
-                mode: options.mode,
-                tokio_handle: options.tokio_handle.clone(),
-                module_loader: loader,
-                async_tx: channel.0
-            });
-
-            context.set_slot::<State>(state.clone());
-
-            (Global::new(scope, context),state)
+        let engine = Engine{
+            options,
+            runtime: Rc::new(RefCell::new(runtime)),
         };
 
-        let mut engine = Engine {
-            sandbox,
-            isolate: RefCell::from(isolate),
-            context,
-            receiver: RefCell::from(channel.1),
-            state
-        };
-
-        _ = engine.execute_module(&crate::builtin::js::RT)?;
-        _ = engine.execute_module(&crate::builtin::js::GLOBAL)?;
+        //engine.execute_build_script()?;
 
         Ok(engine)
     }
+    /*
+    pub fn execute_build_script(&mut self) -> Result<(), EngineError> {
+        let bootstrap_code =
+            r#"
+            import "zako:rt";
+            import "zako:syscall";
+            import "zako:global";
+            import "zako:console";
+            import "zako:core";
+            import "zako:semver";
+            "#;
 
-    pub fn execute_module(self: &mut Self, module_specifier: &ModuleSpecifier)
-                               -> Result<Global<Value>, EngineError>{
-        let state = self.state.clone();
+        let bootstrap_url = ModuleSpecifier::Memory("boostrap".into());
 
-        let result = with_try_catch(
-            self.isolate.get_mut(),
-                &self.context,
-            |scope,context|{
-                let context = Global::new(scope, context);
-                state.module_loader.execute_module(
-                    scope,
-                    context,
-                    module_specifier
-                )
-            }
-        ).map_err(|err|{
-            EngineError::CaughtException(
-                module_specifier.clone(),
-                err
-            )
-        })?;
+        let js_runtime = self.runtime.clone();
+        let future = async move {
+            let mut js_runtime = js_runtime.borrow_mut();
+            let mod_id = js_runtime.load_side_es_module_from_code(&bootstrap_url.to_url(), bootstrap_code).await?;
+            let result = js_runtime.mod_evaluate(mod_id);
+            js_runtime.run_event_loop(Default::default()).await?;
+            result.await?;
+            js_runtime.get_module_namespace(mod_id)
+        };
 
-        Ok(result?)
+        self.options.tokio_handle.block_on(future)?;
+
+        Ok(())
     }
+     */
 
-    pub fn get_sandbox(&self) -> Arc<Sandbox> {
-        self.sandbox.clone()
+    #[instrument]
+    pub fn execute_module(self: &mut Self, module_specifier: &ModuleSpecifier)
+                               -> Result<Global<Object>, EngineError>{
+
+        let js_runtime = self.runtime.clone();
+
+        let future = async move {
+            let mut js_runtime = js_runtime.borrow_mut();
+            let mod_id = js_runtime.load_main_es_module(&module_specifier.url).await?;
+            let result = js_runtime.mod_evaluate(mod_id);
+            js_runtime.run_event_loop(Default::default()).await?;
+            result.await?;
+            js_runtime.get_module_namespace(mod_id)
+        };
+
+        Ok(self.options.tokio_handle.block_on(future)?)
     }
 }

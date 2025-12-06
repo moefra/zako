@@ -1,28 +1,18 @@
 {
+    "extends": "../tsconfig.json",
     "compilerOptions": {
         "paths": {
-            "zako:semver": ["../../../dist/semver/index.d.ts"],
-            "zako:rt": ["../../../dist/rt.d.mts"],
-            "zako:syscall": ["../../../dist/syscall.d.ts"],
-            "zako:core": ["../../dist/core.d.mts"]
+            "zako:rt": ["./builtins/rt/index.ts"],
+            "zako:syscall": ["./builtins/syscall/index.ts"],
+            "zako:global": ["./builtins/global/index.ts"],
+            "zako:semver": ["./builtins/semver/index.ts"],
+            "zako:core": ["./builtins/core/index.ts"],
+            "zako:project": ["./builtins/project/index.ts"],
+            "zako:build": ["./builtins/build/index.ts"],
+            "zako:rule": ["./builtins/rule/index.ts"],
+            "zako:console": ["./builtins/console/index.ts"],
+            "zako:*": ["../builtins/types/*.d.ts"]
         },
-        "moduleResolution": "bundler",
-        "allowJs": false,
-        "checkJs": false,
-        "strict": true,
-        "allowImportingTsExtensions": false,
-        "alwaysStrict": true,
-        "target": "ESNext",
-        "module": "ESNext",
-        "newLine": "lf",
-        "verbatimModuleSyntax": true,
-        "erasableSyntaxOnly": true,
-        "isolatedModules": true,
-        "isolatedDeclarations": true,
-        "declaration": true,
-        "inlineSourceMap": false,
-        "inlineSources": false,
-        "esModuleInterop": false
     },
-    "files": ["./rt.ts", "./core.ts"]
+    "include": ["./builtins/**/*.ts" ,"./types/**/*.d.ts"]
 }

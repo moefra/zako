@@ -36,6 +36,8 @@ lenient_semver = "0.4.2"
 
 zip = "6.0.0"
 
+humantime = "2.3.0"
+
 tracing-error = "0.2.1"
 
 opentelemetry = "0.31.0"
@@ -81,6 +83,11 @@ async-stream = "0.3.6"
 xxhash-rust = "0.8.15"
 
 deno_core = "0.372.0"
+deno_error = "0.7.1"
+
+parking_lot = "0.12.5"
+
+dunce = "1.0.5"
 
 sha2 = "0.10.9"
 

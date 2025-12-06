@@ -1,3 +1,5 @@
+/// <reference no-default-lib="true" />
+/// <reference lib="esnext" />
 
 import {
     trace as coreTrace,
@@ -42,12 +44,3 @@ Object.defineProperty(globalThis, "console", {
     enumerable: false,
     configurable: true,
 });
-
-/**
- * legacy global console object.
- *
- * use trace/debug/info/warn/error in `zako:core` module instead.
- */
-declare global {
-    export const console: Console;
-}

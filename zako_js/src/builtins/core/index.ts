@@ -1,3 +1,6 @@
+/// <reference no-default-lib="true" />
+/// <reference lib="esnext" />
+
 import * as syscall from "zako:syscall";
 import * as semver from "zako:semver";
 

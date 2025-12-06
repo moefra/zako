@@ -1,19 +1,19 @@
 use crate::engine::{Engine, EngineError};
-use crate::module_specifier::ModuleSpecifier;
+use crate::path::NeutralPath;
 use crate::project::ProjectExported;
 use crate::project_resolver::ProjectResolveError::{
     CircularDependency, FileNotExists, IOError, NotAFile,
 };
+use crate::sandbox::{Sandbox, SandboxError};
+use crate::zako_module_loader::{ModuleLoadError, ModuleSpecifier, ModuleType};
 use ahash::AHashMap;
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{fs, io};
 use thiserror::Error;
-use tracing::instrument;
-use crate::path::NeutralPath;
-use crate::sandbox::{Sandbox, SandboxError};
+use tracing::{error, instrument, trace_span};
 
 #[derive(Error, Debug)]
 pub enum ProjectResolveError {
@@ -29,6 +29,8 @@ pub enum ProjectResolveError {
     SandboxError(#[from] SandboxError),
     #[error("get an engine error")]
     EngineError(#[from] EngineError),
+    #[error("get an module load error")]
+    ModuleLoadError(#[from] ModuleLoadError),
 }
 
 #[derive(Debug)]
@@ -52,7 +54,7 @@ impl ProjectResolver {
         self: &mut Self,
         project_file_path: &NeutralPath,
     ) -> Result<(), ProjectResolveError> {
-        let file = self.engine.get_sandbox().join_path_for(project_file_path)?;
+        let file = <NeutralPath as AsRef<Path>>::as_ref(project_file_path).canonicalize()?;
 
         if !file.exists() {
             return Err(FileNotExists(file));
@@ -72,7 +74,8 @@ impl ProjectResolver {
             self.resolving.borrow_mut().insert(file.clone(), true);
         }
 
-        self.engine.execute_module(&ModuleSpecifier::File(project_file_path.clone().into()))?;
+        self.engine
+            .execute_module(&ModuleSpecifier::new_file_module(&file)?)?;
 
         self.resolving.borrow_mut().insert(file, false);
 

@@ -26,7 +26,12 @@ use oxc::semantic::SemanticBuilder;
 use oxc::span::SourceType;
 use oxc::transformer::{TransformOptions, Transformer};
 
-pub fn transform_typescript(source_code: &str, source_name: &str) -> Result<String, String> {
+pub struct Transpiled{
+    pub code:String,
+    pub source_map:Option<String>
+}
+
+pub fn transform_typescript(source_code: &str, source_name: &str) -> Result<Transpiled, String> {
     let allocator = Allocator::new();
 
     let path = Path::new(source_name);
@@ -63,5 +68,10 @@ pub fn transform_typescript(source_code: &str, source_name: &str) -> Result<Stri
         return Err(err_str);
     }
 
-    return Ok(Codegen::new().build(&program).code);
+    let generated = Codegen::new().build(&program);
+
+    return Ok(Transpiled{
+        code: generated.code,
+        source_map: generated.map.map(|s| s.to_json_string()),
+    });
 }

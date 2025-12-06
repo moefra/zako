@@ -51,6 +51,8 @@ hex.workspace = true
 
 tracing-error.workspace = true
 
+humantime.workspace = true
+
 tracing-tree.workspace = true
 
 # ZMake cli use unwrap() to report backtrace to users
