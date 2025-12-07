@@ -27,6 +27,7 @@ use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_tree::HierarchicalLayer;
 use zako_core::engine::{Engine, EngineMode, EngineOptions};
+use zako_core::file_finder::FileFinder;
 use zako_core::path::NeutralPath;
 use zako_core::project_resolver::ProjectResolver;
 

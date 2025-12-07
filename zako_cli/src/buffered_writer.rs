@@ -7,16 +7,16 @@ use tracing_subscriber::fmt::MakeWriter;
 /// 一个临时缓冲写入器，先将数据写入内存缓冲区，
 ///
 /// 直到调用 `release` 方法后，才将缓冲区的数据写入底层写入器。
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct TemporaryBufferedWriterMaker {
-    inner: Arc<Mutex<TemporaryBufferedWriter>>
+    inner: Arc<Mutex<TemporaryBufferedWriter>>,
 }
 
 #[derive(Debug)]
 pub struct TemporaryBufferedWriter {
     buffer: Vec<u8>,
     buffer_released: bool,
-    silent:bool,
+    silent: bool,
     release_to: Stdout,
 }
 
@@ -25,7 +25,7 @@ impl TemporaryBufferedWriter {
         Self {
             buffer: Vec::with_capacity(512),
             buffer_released: false,
-            silent:false,
+            silent: false,
             release_to: std::io::stdout(),
         }
     }
@@ -41,17 +41,22 @@ impl TemporaryBufferedWriter {
         Ok(())
     }
 
-    pub fn silent(&mut self){
+    pub fn silent(&mut self) {
         self.silent = true;
         self.buffer.clear();
         self.buffer.shrink_to_fit();
     }
 }
 
-impl TemporaryBufferedWriterMaker{
-    pub fn new() -> (Self,Arc<Mutex<TemporaryBufferedWriter>>){
+impl TemporaryBufferedWriterMaker {
+    pub fn new() -> (Self, Arc<Mutex<TemporaryBufferedWriter>>) {
         let write = Arc::new(Mutex::new(TemporaryBufferedWriter::new()));
-        (Self { inner: write.clone() },write)
+        (
+            Self {
+                inner: write.clone(),
+            },
+            write,
+        )
     }
 }
 
@@ -67,8 +72,8 @@ impl Write for TemporaryBufferedWriterMaker {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut inner = self.inner.lock().unwrap();
 
-        if inner.silent{
-            return Ok(buf.len())
+        if inner.silent {
+            return Ok(buf.len());
         }
 
         if inner.buffer_released {
@@ -82,7 +87,7 @@ impl Write for TemporaryBufferedWriterMaker {
     fn flush(&mut self) -> std::io::Result<()> {
         let inner = self.inner.lock().unwrap();
 
-        if inner.silent{
+        if inner.silent {
             return Ok(());
         }
 

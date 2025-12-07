@@ -1,5 +1,4 @@
-/// <reference no-default-lib="true" />
-/// <reference lib="esnext" />
+
 
 import {
     trace as coreTrace,

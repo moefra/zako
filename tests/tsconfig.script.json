@@ -1,0 +1,27 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "types": [
+            "node"
+        ],
+        "typeRoots": [
+            "./.zako/types/",
+            "./node_modules/@types/"
+        ],
+        "outDir": "./dist/script"
+    },
+    "include": [
+        "./**/*.script.ts",
+        "./**/scripts/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        ".zako"
+    ],
+    "references": [
+        {
+            "path": "./tsconfig.library.json"
+        }
+    ]
+}

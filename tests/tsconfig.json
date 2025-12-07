@@ -1,0 +1,23 @@
+{
+    "files": [],
+    "references": [
+        {
+            "path": "./tsconfig.library.json"
+        },
+        {
+            "path": "./tsconfig.project.json"
+        },
+        {
+            "path": "./tsconfig.build.json"
+        },
+        {
+            "path": "./tsconfig.rule.json"
+        },
+        {
+            "path": "./tsconfig.toolchain.json"
+        },
+        {
+            "path": "./tsconfig.script.json"
+        }
+    ]
+}

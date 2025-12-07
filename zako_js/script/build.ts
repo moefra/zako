@@ -1,11 +1,11 @@
 
+import * as fs from "node:fs/promises";
+
 const current = import.meta.dir;
 const dist = `${current}/../../dist/`;
 const src = `${current}/../src/`;
 const builtins_src = `${src}/builtins/`;
 const builtins_dist = `${dist}/builtins/`;
-
-import * as fs from "node:fs/promises";
 
 // transpile builtins/*.ts into dist/builtins/*.js
 console.log("transpile...");
@@ -74,8 +74,8 @@ console.log("bundle source files...");
 console.log("bundle type declaration files...");
 {
     const proc = Bun.spawn(["bun", "x", "dts-bundle-generator",
-            //"--project",
-            //`${src}/tsconfig.json`,
+            "--project",
+            `${src}/tsconfig.json`,
             "--external-inlines=@types/semver",
             "-o",
             `${dist}/semver/index.d.ts`,
@@ -100,10 +100,6 @@ console.log("simplify directory structure...");
 
     for (let dir of typeDirs){
         if(dir.isFile()){
-            continue;
-        }
-
-        if(dir.name === "builtins" || dir.name === "types"){
             continue;
         }
 
@@ -136,11 +132,15 @@ console.log("remove needless directory...");
 }
 
 // generate index.d.ts
+let collectedBuiltinCommonModules: string[] = [];
 console.log("generate index.d.ts...");
 {
-    let source = `/// <reference no-default-lib="true"/>\n`;
-    source += `/// <reference lib="esnext"/>\n`; // TODO: use es2025 when ts-go release
-    source += `export {};\n`;
+    let commonSource = `export {};\n`;
+
+    let projectSource = `${commonSource}`;
+    let buildSource = `${commonSource}`;
+    let ruleSource = `${commonSource}`;
+    let toolchainSource = `${commonSource}`;
 
     let modules = await fs.readdir(`${dist}/types/`);
     for (let mod of modules){
@@ -148,26 +148,249 @@ console.log("generate index.d.ts...");
             continue;
         }
         const modName = mod.substring(0, mod.length - 5); // remove .d.ts
-        if(modName === "index"){
+        if(modName.startsWith("index")){
             continue;
         }
         console.log(`export module zako:${modName}`);
+
+        let modSource = "";
         if(modName != "console"){
-            source += `import type {} from "./${modName}";\n`;
+            modSource += `import type {} from "./${modName}";\n`;
         }
         else{
-            source += `import type { Console } from "./${modName}";\n`;
+            modSource += `import type { Console } from "./${modName}";\n`;
         }
-        source += `declare module "zako:${modName}" {\n`;
-        source += `    export * from "./${modName}";\n`;
-        source += `}\n`;
+        modSource += `declare module "zako:${modName}" {\n`;
+        modSource += `    export * from "./${modName}";\n`;
+        modSource += `}\n`;
+
+        if (modName == "project") {
+            projectSource += modSource.replaceAll("./","../");
+        } else if (modName == "build") {
+            buildSource += modSource.replaceAll("./","../");
+        } else if (modName == "rule") {
+            ruleSource += modSource.replaceAll("./","../");
+        } else if (modName == "toolchain") {
+            toolchainSource += modSource.replaceAll("./","../");
+        } else {
+            commonSource += modSource;
+            projectSource += modSource.replaceAll("./","../");
+            buildSource += modSource.replaceAll("./","../");
+            ruleSource += modSource.replaceAll("./","../");
+            toolchainSource += modSource.replaceAll("./","../");
+            collectedBuiltinCommonModules.push(`zako:${modName}`);
+        }
     }
 
-    source += `declare global { export const console: Console; }\n`
+    commonSource += `declare global { export const console: Console; }\n`
+    projectSource += `declare global { export const console: Console; }\n`
+    buildSource += `declare global { export const console: Console; }\n`
+    ruleSource += `declare global { export const console: Console; }\n`
+    toolchainSource += `declare global { export const console: Console; }\n`
 
+    await fs.mkdir(`${dist}/types/project/`, { recursive: true });
+    await fs.mkdir(`${dist}/types/build/`, { recursive: true });
+    await fs.mkdir(`${dist}/types/rule/`, { recursive: true });
+    await fs.mkdir(`${dist}/types/toolchain/`, { recursive: true });
     await fs.writeFile(
         `${dist}/types/index.d.ts`,
-        source,
+        commonSource,
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/types/project/index.d.ts`,
+        projectSource,
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/types/build/index.d.ts`,
+        buildSource,
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/types/rule/index.d.ts`,
+        ruleSource,
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/types/toolchain/index.d.ts`,
+        toolchainSource,
+        "utf-8"
+    );
+}
+
+// copy package.json,README.md,LICENSE into dist/
+console.log("copy package.json, README.md, LICENSE to dist/types...");
+{
+    await fs.copyFile(
+        `${current}/../package.json`,
+        `${dist}/types/package.json`
+    );
+    await fs.copyFile(
+        `${current}/../../README.md`,
+        `${dist}/types/README.md`
+    );
+    await fs.copyFile(
+        `${current}/../../LICENSE`,
+        `${dist}/types/LICENSE`
+    );
+}
+
+// generate template directory
+console.log("generate template...")
+{
+    await fs.mkdir(`${dist}/template`, { recursive: true });
+}
+
+// generate template tsconfig.json
+import * as JSON5 from "json5";
+
+function createConfig(name:string, includes:string[], types:string[], extraExcludes:string[] = [], refs:string[]  = []):any {
+    return {
+        extends: "./tsconfig.base.json",
+        compilerOptions: {
+            types: types,
+            typeRoots: ["./.zako/types/", "./node_modules/@types/"],
+            outDir: `./dist/${name}`,
+        },
+        include: includes,
+        exclude: [
+            "node_modules",
+            "dist",
+            ".zako",
+            ...extraExcludes
+        ],
+        references: refs.map(path => ({ path }))
+    };
+};
+
+console.log("generate template/tsconfig.json...")
+{
+    // best js/ts practice included!
+    const baseConfig = JSON5.parse(await fs.readFile(`${current}/../tsconfig.json`, "utf-8")) as any;
+
+    delete baseConfig["reference"];
+    delete baseConfig["include"];
+    delete baseConfig["exclude"];
+    baseConfig["files"] = [];
+    baseConfig.compilerOptions.composite = true;
+    baseConfig.compilerOptions.declarationMap = true;
+
+    const rootConfig = {
+        files: [],
+        references: [
+            { path: "./tsconfig.library.json" },
+            { path: "./tsconfig.project.json" },
+            { path: "./tsconfig.build.json" },
+            { path: "./tsconfig.rule.json" },
+            { path: "./tsconfig.toolchain.json" },
+            { path: "./tsconfig.script.json" }
+        ]
+    };
+
+    const patterns = {
+        project: ["./**/zako.ts"],
+        build: ["./**/BUILD.ts"],
+        rule: ["./**/*.rule.ts"],
+        toolchain: ["./**/*.toolchain.ts"],
+        script: ["./**/*.script.ts", "./**/scripts/**/*.ts"],
+        library: ["./**/*.ts"]
+    };
+
+    const libraryConfig = createConfig(
+    "library",
+    patterns.library,
+    ["zako"],
+    [
+        ...patterns.project,
+        ...patterns.build,
+        ...patterns.rule,
+        ...patterns.toolchain,
+        ...patterns.script
+    ],
+    []
+    );
+
+    const commonRefs = ["./tsconfig.library.json"];
+
+    const projectConfig = createConfig(
+        "project",
+        patterns.project,
+    ["zako/project"],
+        [],
+        commonRefs
+    );
+
+    const buildConfig = createConfig(
+        "build",
+        patterns.build,
+        ["zako/build"],
+        [],
+        [...commonRefs, "./tsconfig.rule.json"] // Build 可能引用 Rule
+    );
+
+    const ruleConfig = createConfig(
+        "rule",
+        patterns.rule,
+        ["zako/rule"],
+        [],
+        commonRefs
+    );
+
+    const toolchainConfig = createConfig(
+        "toolchain",
+        patterns.toolchain,
+        ["zako/toolchain"],
+        [],
+        commonRefs
+    );
+
+    const scriptConfig = createConfig(
+        "script",
+        patterns.script,
+        ["node"],
+        [],
+        commonRefs
+    );
+
+    await fs.writeFile(
+        `${dist}/template/tsconfig.json`,
+        JSON.stringify(rootConfig, null, 4),
+        "utf-8",
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.base.json`,
+        JSON.stringify(baseConfig, null, 4),
+        "utf-8",
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.build.json`,
+        JSON.stringify(buildConfig, null, 4),
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.project.json`,
+        JSON.stringify(projectConfig, null, 4),
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.rule.json`,
+        JSON.stringify(ruleConfig, null, 4),
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.toolchain.json`,
+        JSON.stringify(toolchainConfig, null, 4),
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.library.json`,
+        JSON.stringify(libraryConfig, null, 4),
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.script.json`,
+        JSON.stringify(scriptConfig, null, 4),
         "utf-8"
     );
 }

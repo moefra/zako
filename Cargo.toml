@@ -8,6 +8,9 @@ unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
 
+[workspace.lints.rustdoc]
+missing_docs = "warn"
+
 [workspace.dependencies]
 zako-core = { path = "zako_core" }
 
@@ -54,7 +57,7 @@ tokio = { version = "1.48.0", features = ["full"] }
 tracing-attributes = "0.1.24"
 
 glob = "0.3.3"
-strum = {version="0.27",features=["derive"]}
+strum = { version = "0.27", features = ["derive"] }
 
 colorchoice-clap = "1.0.7"
 
@@ -98,7 +101,19 @@ async-trait = "0.1.89"
 shadow-rs = "1.4"
 clap_complete = "4.5.61"
 
-reqwest = { version = "0.12", features = ["json","blocking","json","gzip","brotli","zstd","deflate","stream","socks","default-tls","native-tls"] }
+reqwest = { version = "0.12", features = [
+    "json",
+    "blocking",
+    "json",
+    "gzip",
+    "brotli",
+    "zstd",
+    "deflate",
+    "stream",
+    "socks",
+    "default-tls",
+    "native-tls",
+] }
 indicatif = "0.18.3"
 
 prost = "0.14"

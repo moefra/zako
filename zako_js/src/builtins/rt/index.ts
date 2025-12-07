@@ -1,5 +1,3 @@
-/// <reference no-default-lib="true" />
-/// <reference lib="esnext" />
 /**
  * This file is must for zmake.
  *

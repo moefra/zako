@@ -1,0 +1,26 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "types": [
+            "zako/toolchain"
+        ],
+        "typeRoots": [
+            "./.zako/types/",
+            "./node_modules/@types/"
+        ],
+        "outDir": "./dist/toolchain"
+    },
+    "include": [
+        "./**/*.toolchain.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        ".zako"
+    ],
+    "references": [
+        {
+            "path": "./tsconfig.library.json"
+        }
+    ]
+}

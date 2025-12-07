@@ -1,5 +1,6 @@
 // @ts-nocheck
 
+// to instantiate rt module
 import * as _rt from "zako:rt";
 
 export function log(

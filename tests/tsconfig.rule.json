@@ -1,0 +1,26 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "types": [
+            "zako/rule"
+        ],
+        "typeRoots": [
+            "./.zako/types/",
+            "./node_modules/@types/"
+        ],
+        "outDir": "./dist/rule"
+    },
+    "include": [
+        "./**/*.rule.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        ".zako"
+    ],
+    "references": [
+        {
+            "path": "./tsconfig.library.json"
+        }
+    ]
+}

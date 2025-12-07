@@ -3,40 +3,27 @@
         "composite": true,
         "allowJs": false,
         "checkJs": false,
-
         "allowImportingTsExtensions": true,
         "moduleResolution": "bundler",
-
-        // wait to update to ES2025
         "target": "ESNext",
         "module": "ESNext",
         "newLine": "lf",
-        "lib": ["ESNext"],
-
-        // do not use libraries from system
+        "lib": [
+            "ESNext"
+        ],
         "types": [],
-
-        // enable options to make zako code modern
         "verbatimModuleSyntax": true,
         "erasableSyntaxOnly": true,
         "isolatedModules": true,
         "isolatedDeclarations": true,
-
         "noEmit": false,
         "emitDeclarationOnly": true,
         "declaration": true,
-
-        // make module interoperable
         "esModuleInterop": true,
-        "allowSyntheticDefaultImports":true,
-
+        "allowSyntheticDefaultImports": true,
         "moduleDetection": "force",
-
-        // enable source map
         "inlineSourceMap": true,
         "inlineSources": true,
-
-        // enable as more check as possible
         "alwaysStrict": true,
         "strict": true,
         "skipLibCheck": true,
@@ -48,5 +35,7 @@
         "noPropertyAccessFromIndexSignature": true,
         "exactOptionalPropertyTypes": true,
         "useUnknownInCatchVariables": true,
-    }
+        "declarationMap": true
+    },
+    "files": []
 }
