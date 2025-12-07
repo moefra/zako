@@ -34,7 +34,7 @@ exit-code.workspace = true
 num_cpus.workspace = true
 tracing.workspace = true
 
-zako-core.workspace = true
+zako-core = { path = "../zako_core" }
 
 eyre.workspace = true
 color-eyre.workspace = true
@@ -69,8 +69,8 @@ clap.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
 tokio.workspace = true
-futures-util.workspace=true
-eyre.workspace=true
+futures-util.workspace = true
+eyre.workspace = true
 color-eyre.workspace = true
 zip.workspace = true
 sha2.workspace = true

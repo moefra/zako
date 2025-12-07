@@ -8,6 +8,7 @@
 pub mod console;
 pub mod core;
 pub mod global;
+pub mod project;
 pub mod rt;
 pub mod semver;
 pub mod syscall;

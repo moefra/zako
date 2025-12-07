@@ -74,11 +74,12 @@ console.log("bundle source files...");
 console.log("bundle type declaration files...");
 {
     const proc = Bun.spawn(["bun", "x", "dts-bundle-generator",
-            "--project",
-            `${src}/tsconfig.json`,
+            //"--project",
+            //`${src}/tsconfig.json`,
             "--external-inlines=@types/semver",
+            "semver",
             "-o",
-            `${dist}/semver/index.d.ts`,
+            `${builtins_dist}/semver/index.d.ts`,
             "--",
             `${current}/../node_modules/@types/semver/index.d.ts`,], {
         cwd: dist,

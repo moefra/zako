@@ -63,10 +63,16 @@ export type ToolType = Id<"tool_type">;
  */
 export type ToolName = Id<"tool_name">;
 
-export const version:semver.SemVer = semver.parse(syscall.version as Version);
+let parseVersion = semver.parse(syscall.version,false);
 
-export function requireZakoVersion(requiredVersion: string): void {
-    if (!semver.satisfies(version, semver.parseRange(requiredVersion))) {
+if(parseVersion === null){
+    throw new ZakoRuntimeError(`invalid zako version string from syscall.version: ${syscall.version}`);
+}
+
+export const version:semver.SemVer = parseVersion;
+
+export function requireZakoVersion(requiredVersion: string | semver.Range): void {
+    if (!semver.satisfies(version, requiredVersion)) {
         throw new ZakoRuntimeError(
             `zako version ${version} is required but current version ${version} is not satisified`,
         );

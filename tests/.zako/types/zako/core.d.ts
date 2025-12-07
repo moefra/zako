@@ -46,7 +46,7 @@ export type ToolType = Id<"tool_type">;
  */
 export type ToolName = Id<"tool_name">;
 export declare const version: semver.SemVer;
-export declare function requireZakoVersion(requiredVersion: string): void;
+export declare function requireZakoVersion(requiredVersion: string | semver.Range): void;
 export type visibility = "public" | "private" | string[];
 export type transitiveLevel = "public" | "private" | "interface";
 /**

@@ -12,8 +12,6 @@ panic = "deny"
 missing_docs = "warn"
 
 [workspace.dependencies]
-zako-core = { path = "zako_core" }
-
 clap = { version = "4.5", default-features = true, features = [
     "derive",
     # 若不是从天上赐的，clap就不能得什么:

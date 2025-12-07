@@ -55,22 +55,28 @@
 
 文件命名与权限有着严格的对应关系：
 
-1. 定义层 (`ZPROJECT.ts`)
+1. 定义层 (`zako.ts`)
     * 职责: 项目根配置，声明 Workspace 成员。
     * 权限: 纯声明式，无 IO，允许 Glob。
-2. 逻辑层 (`ZBUILD.ts`)
+2. 逻辑层 (`BUILD.ts`)
     * 职责: 定义构建目标 (Target)。
     * 权限: 纯计算，生成构建图，禁止 IO。
-3. 规则层 (`*.zako.ts`)
-    * 职责: 定义 Rule 和 Toolchain。
-    * 权限: 分析阶段禁止 IO；探测阶段允许访问系统 (需写入 Config)。
-4. 脚本层 (`*.zscript.ts`)
+3. 规则层 (`*.rule.ts`)
+    * 职责: 定义 Rule
+    * 权限: 禁止 IO。分阶段运行。
+4. 工具链层 (`*.toolchain.ts`)
+    * 职责: 定义 Toolchain。
+    * 权限: 允许使用IO；探测阶段允许访问系统 (需写入 Config)。
+5. 脚本层 (`*.zscript.ts`)
     * 职责: 运维、部署、胶水代码。
     * 权限: 全功能 Deno 环境 (通过嵌入的 deno 执行)。
 
+Also see `zako_core/lib.rs` file for more docs.
+
 ## 互操作性
 
-* 包管理: 使用 `jsr` 管理 TS 依赖。
+* 包管理: 使用 `npm` 管理 TS 依赖。
 * 远程协议: 基于 gRPC/Protobuf，目标是兼容 Bazel REAPI。
 * IDE: 计划支持 BSP 协议。计划支持输出`compile_commands.json`。
+* 计划支持V8 debugger。
 * CI/CD: 计划集成 GitHub Actions、GitLab CI 等主流平台。
