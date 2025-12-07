@@ -1,9 +1,14 @@
 {
     "extends": "./tsconfig.base.json",
     "compilerOptions": {
-        "types": [
-            "zako/rule"
-        ],
+        "paths": {
+            "zako:*": [
+                "./.zako/types/zako/*.d.ts"
+            ],
+            "zako:rule": [
+                "./.zako/types/zako/rule/rule.d.ts"
+            ]
+        },
         "typeRoots": [
             "./.zako/types/",
             "./node_modules/@types/"

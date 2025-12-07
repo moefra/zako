@@ -1,3 +1,4 @@
+/// <reference path="./global.d.ts" />
 import * as semver from "zako:semver";
 export declare class ZakoRuntimeError extends Error {
     constructor(message: string);

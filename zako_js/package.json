@@ -1,5 +1,5 @@
 {
-    "name": "zako-js",
+    "name": "zako",
     "version": "0.1.0",
     "type": "module",
     "author": "Moe Godot <me@kawayi.moe> (http://x.com/moegodot)",
@@ -10,16 +10,16 @@
             "types": "./index.d.ts"
         },
         "./project": {
-            "types": "./project/index.d.ts"
+            "types": "./project/project.d.ts"
         },
         "./build": {
-            "types": "./build/index.d.ts"
+            "types": "./build/build.d.ts"
         },
         "./rule": {
-            "types": "./rule/index.d.ts"
+            "types": "./rule/rule.d.ts"
         },
         "./toolchain": {
-            "types": "./toolchain/index.d.ts"
+            "types": "./toolchain/toolchain.d.ts"
         }
     },
     "homepage": "https://github.com/moefra/zako",

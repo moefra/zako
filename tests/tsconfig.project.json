@@ -1,15 +1,17 @@
 {
     "extends": "./tsconfig.base.json",
     "compilerOptions": {
-        "types": [
-            "zako-js"
-        ],
+        "paths": {
+            "zako:*": [
+                "./.zako/types/zako/*.d.ts"
+            ],
+            "zako:project": [
+                "./.zako/types/zako/project/project.d.ts"
+            ]
+        },
         "typeRoots": [
             "./.zako/types/",
             "./node_modules/@types/"
-        ],
-        "customConditions": [
-            "types"
         ],
         "outDir": "./dist/project"
     },

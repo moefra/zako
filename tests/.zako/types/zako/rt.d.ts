@@ -1,3 +1,4 @@
+/// <reference path="./global.d.ts" />
 /**
  * This file is must for zmake.
  *

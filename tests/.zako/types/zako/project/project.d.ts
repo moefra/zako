@@ -1,3 +1,4 @@
+/// <reference path="../global.d.ts" />
 import * as core from "zako:core";
 export interface Project extends core.ProjectMeta {
     workspaces?: core.Pattern;

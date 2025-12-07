@@ -1,14 +1,14 @@
 {
     "extends": "./tsconfig.base.json",
     "compilerOptions": {
-        "types": [
-            "node"
-        ],
         "typeRoots": [
             "./.zako/types/",
             "./node_modules/@types/"
         ],
-        "outDir": "./dist/script"
+        "outDir": "./dist/script",
+        "types": [
+            "node"
+        ]
     },
     "include": [
         "./**/*.script.ts",

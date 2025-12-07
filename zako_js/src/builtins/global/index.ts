@@ -43,3 +43,7 @@ Object.defineProperty(globalThis, "console", {
     enumerable: false,
     configurable: true,
 });
+
+declare global {
+    const console: Console;
+}
