@@ -5,7 +5,7 @@ macro_rules! make_builtin_id {
         self => { $($id:literal => { $($type:ident => { $($key:ident => $value:literal),* }),* } ),* }
     } => {
         #[allow(unused_imports)]
-        use $crate::id::IdType::{ToolType,Tool,ToolProvider,TargetType,Target,Os,Architecture,Property};
+        use $crate::id::IdType::{ToolType,Tool,ToolProvider,TargetType,Target,Os,Architecture,Property,Config};
 
         $(
             pub mod $submodule;
@@ -36,19 +36,19 @@ macro_rules! make_builtin_id {
             $(
                 $(
                     #[::static_init::dynamic(lazy)]
-                    pub static $key : $crate::id::Id = {
+                    pub static $key : $crate::id::ResolvedId = {
                         let id = $id;
                         let id_type: &'static str = $type.into();
                         let id_str = format!("{}#{}::{}", id,id_type,$value);
-                        <$crate::id::Id as ::std::str::FromStr>::from_str(&id_str).expect("Builtin ID format error")
+                        <$crate::id::ResolvedId as ::std::str::FromStr>::from_str(&id_str).expect("Builtin ID format error")
                     };
                 )*
             )*
         )*
 
         #[::static_init::dynamic(lazy)]
-        pub static BUILTIN: ::std::collections::BTreeMap<::std::string::String, crate::id::Id> = {
-            let mut map = ::std::collections::BTreeMap::<::std::string::String, $crate::id::Id>::new();
+        pub static BUILTIN: ::std::collections::BTreeMap<::std::string::String, crate::id::ResolvedId> = {
+            let mut map = ::std::collections::BTreeMap::<::std::string::String, $crate::id::ResolvedId>::new();
 
             $(
                 let id = $id;
@@ -58,7 +58,7 @@ macro_rules! make_builtin_id {
 
                     $(
                         let value = format!("{}#{}::{}", id,id_type,$value);
-                        let value = <$crate::id::Id as ::std::str::FromStr>::from_str(&value).unwrap();
+                        let value = <$crate::id::ResolvedId as ::std::str::FromStr>::from_str(&value).unwrap();
 
                         let key = ::convert_case::ccase!(camel, std::stringify!($key));
 

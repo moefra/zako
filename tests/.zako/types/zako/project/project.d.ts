@@ -3,9 +3,11 @@ import * as core from "zako:core";
 export interface Project extends core.ProjectMeta {
     workspaces?: core.Pattern;
     rules?: core.Pattern;
+    toolchain?: core.Pattern;
 }
 export interface ProjectBuilder extends Project {
-    addWorkspace(workspace: core.Pattern): void;
-    addRule(rule: core.Pattern): void;
+    addBuild(workspace: core.Pattern | string): void;
+    addRule(rule: core.Pattern | string): void;
+    addToolchain(toolchain: core.Pattern | string): void;
 }
 export declare function project(options: Project): ProjectBuilder;

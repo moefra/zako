@@ -1,0 +1,17 @@
+{
+    "group": "fra.moe",
+    "artifact": "zako",
+    "version": "1.0.0",
+    "description": "An example zako project",
+    "license": "MIT",
+    "authors": ["MoeGodot <me@kawayi.moe>"],
+    "workspaces": ["src/**","tests/**"],
+    "options": {
+        "debug": {
+            "type": "boolean",
+            "default": false,
+            "required": false,
+            "description": "Enable debug mode"
+        }
+    }
+}

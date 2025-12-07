@@ -1,6 +1,6 @@
 use crate::engine::{Engine, EngineError};
 use crate::path::NeutralPath;
-use crate::project::ProjectExported;
+use crate::project::Project;
 use crate::project_resolver::ProjectResolveError::{
     CircularDependency, FileNotExists, IOError, NotAFile,
 };
@@ -36,7 +36,7 @@ pub enum ProjectResolveError {
 #[derive(Debug)]
 pub struct ProjectResolver {
     engine: Engine,
-    result: RefCell<AHashMap<PathBuf, ProjectExported>>,
+    result: RefCell<AHashMap<PathBuf, Project>>,
     resolving: RefCell<AHashMap<PathBuf, bool>>,
 }
 
@@ -74,7 +74,8 @@ impl ProjectResolver {
             self.resolving.borrow_mut().insert(file.clone(), true);
         }
 
-        self.engine
+        let resolved = self
+            .engine
             .execute_module(&ModuleSpecifier::new_file_module(&file)?)?;
 
         self.resolving.borrow_mut().insert(file, false);

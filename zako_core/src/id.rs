@@ -1,6 +1,7 @@
-use semver::Version;
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::fmt::{self, Debug};
+use std::hash::Hash;
 use std::str::FromStr;
 use strum::{EnumString, IntoStaticStr};
 use thiserror::Error;
@@ -186,45 +187,108 @@ impl ArtifactId {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct QualifiedArtifactId {
-    artifact_id: ArtifactId,
-    version: Version,
+pub struct PackageIdReq {
+    pub artifact_id: ArtifactId,
+    pub version: VersionReq,
 }
 
 #[derive(Error, Debug)]
-pub enum QualifiedArtifactIdError {
-    #[error("QualifiedArtifactId::from_str() has a bad input `{0}`")]
+pub enum PackageIdReqError {
+    #[error("PackageIdReq::from_str() has a bad input `{0}`")]
     BadFormat(String),
     #[error("failed to parse some part")]
     InvalidPart(#[from] Box<dyn std::error::Error>),
 }
 
-impl fmt::Display for QualifiedArtifactId {
+impl fmt::Display for PackageIdReq {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}@{}", self.artifact_id, self.version)
     }
 }
 
-impl FromStr for QualifiedArtifactId {
-    type Err = QualifiedArtifactIdError;
+impl FromStr for PackageIdReq {
+    type Err = PackageIdReqError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (artifact_part, version_part) = s
             .rsplit_once('@')
-            .ok_or_else(|| QualifiedArtifactIdError::BadFormat(s.to_string()))?;
+            .ok_or_else(|| PackageIdReqError::BadFormat(s.to_string()))?;
 
         let artifact_id = ArtifactId::from_str(artifact_part)
-            .map_err(|err| QualifiedArtifactIdError::InvalidPart(err.into()))?;
-        let version = Version::from_str(version_part)
-            .map_err(|err| QualifiedArtifactIdError::InvalidPart(err.into()))?;
+            .map_err(|err| PackageIdReqError::InvalidPart(err.into()))?;
+        let version = VersionReq::from_str(version_part)
+            .map_err(|err| PackageIdReqError::InvalidPart(err.into()))?;
 
         Ok(Self::from(artifact_id, version))
     }
 }
 
-impl QualifiedArtifactId {
-    pub fn from(artifact_id: ArtifactId, version: Version) -> QualifiedArtifactId {
-        QualifiedArtifactId {
+impl PackageIdReq {
+    pub fn from(artifact_id: ArtifactId, version: VersionReq) -> PackageIdReq {
+        PackageIdReq {
+            artifact_id,
+            version,
+        }
+    }
+    pub fn get_artifact_id(&self) -> &ArtifactId {
+        &self.artifact_id
+    }
+    pub fn get_version(&self) -> &VersionReq {
+        &self.version
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct PackageId {
+    artifact_id: ArtifactId,
+    version: Version,
+}
+
+impl TryInto<PackageIdReq> for PackageId {
+    type Error = semver::Error;
+
+    fn try_into(self) -> Result<PackageIdReq, Self::Error> {
+        Ok(PackageIdReq::from(
+            self.artifact_id,
+            VersionReq::parse(&format!("={}", self.version))?,
+        ))
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum PackageIdError {
+    #[error("PackageId::from_str() has a bad input `{0}`")]
+    BadFormat(String),
+    #[error("failed to parse some part")]
+    InvalidPart(#[from] Box<dyn std::error::Error>),
+}
+
+impl fmt::Display for PackageId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}@{}", self.artifact_id, self.version)
+    }
+}
+
+impl FromStr for PackageId {
+    type Err = PackageIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (artifact_part, version_part) = s
+            .rsplit_once('@')
+            .ok_or_else(|| PackageIdError::BadFormat(s.to_string()))?;
+
+        let artifact_id = ArtifactId::from_str(artifact_part)
+            .map_err(|err| PackageIdError::InvalidPart(err.into()))?;
+        let version = Version::from_str(version_part)
+            .map_err(|err| PackageIdError::InvalidPart(err.into()))?;
+
+        Ok(Self::from(artifact_id, version))
+    }
+}
+
+impl PackageId {
+    pub fn from(artifact_id: ArtifactId, version: Version) -> PackageId {
+        PackageId {
             artifact_id,
             version,
         }
@@ -243,30 +307,50 @@ impl QualifiedArtifactId {
 )]
 #[strum(serialize_all = "snake_case")]
 pub enum IdType {
+    /// Stand for a build target, like `//path/to/main_rs`
     Target,
+    /// Stand for a target type, like `//test` or `//install`. It helps to group targets.
     TargetType,
+    /// Stand for a architecture, like `x86_64` or `aarch64`
     Architecture,
+    /// Stand for a operating system, like `windows` or `linux`
     Os,
+    /// Stand for a tool, like `rustc` or `git`
     Tool,
+    /// Stand for a tool provider, like `moe.fra:zako@2.0.0#tool_provider//rust`. It helps to get tools.
     ToolProvider,
+    /// Stand for a tool type, like `//c/compiler` or `linker`. It helps to group tools.
     ToolType,
+    /// Stand for a property, like `asan_enabled` or `use_unicode_api`
     Property,
+    /// Stand for a configuration, like `debug` or `use_3rd_party_libs_instead_of_builtin`
+    Config,
 }
+
+trait IdInner:
+    Sized + Clone + std::cmp::Eq + PartialEq + std::fmt::Display + FromStr + Serialize + Debug + Hash
+{
+}
+
+impl IdInner for PackageId {}
+impl IdInner for PackageIdReq {}
 
 /// This look like `com.group.id:artifact_name@1.0.0#id_type::path/to/target`
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct Id {
-    artifact_id: QualifiedArtifactId,
+pub struct Id<T: IdInner>
+where
+    <T as FromStr>::Err: std::error::Error,
+{
+    artifact_id: T,
     id_type: IdType,
     name: Vec<Ident>,
 }
 
-impl Id {
-    pub fn from(
-        artifact_id: QualifiedArtifactId,
-        id_type: IdType,
-        name: Vec<Ident>,
-    ) -> Result<Self, IdError> {
+impl<T: IdInner> Id<T>
+where
+    <T as FromStr>::Err: std::error::Error,
+{
+    pub fn from(artifact_id: T, id_type: IdType, name: Vec<Ident>) -> Result<Self, IdError> {
         if name.is_empty() {
             return Err(IdError::EmptyIdentVec());
         }
@@ -276,7 +360,7 @@ impl Id {
             name,
         })
     }
-    pub fn get_artifact_id(&self) -> &QualifiedArtifactId {
+    pub fn get_artifact_id(&self) -> &T {
         &self.artifact_id
     }
     pub fn get_name(&self) -> &Vec<Ident> {
@@ -287,7 +371,10 @@ impl Id {
     }
 }
 
-impl FromStr for Id {
+impl<T: IdInner> FromStr for Id<T>
+where
+    <T as FromStr>::Err: std::error::Error + 'static,
+{
     type Err = IdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -295,8 +382,8 @@ impl FromStr for Id {
             .rsplit_once('#')
             .ok_or_else(|| IdError::BadFormat(s.to_string()))?;
 
-        let artifact = QualifiedArtifactId::from_str(qualified_artifact_id)
-            .map_err(|err| Self::Err::InvalidPart(err.into()))?;
+        let artifact =
+            T::from_str(qualified_artifact_id).map_err(|err| Self::Err::InvalidPart(err.into()))?;
 
         let mut idents = Vec::<Ident>::new();
 
@@ -317,7 +404,10 @@ impl FromStr for Id {
     }
 }
 
-impl fmt::Display for Id {
+impl<T: IdInner + fmt::Display> fmt::Display for Id<T>
+where
+    <T as FromStr>::Err: std::error::Error,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -346,3 +436,6 @@ pub enum IdError {
     #[error("unknown id type `{0}`")]
     UnknownIdType(String),
 }
+
+pub type ResolvedId = Id<PackageId>;
+pub type IdReq = Id<PackageIdReq>;

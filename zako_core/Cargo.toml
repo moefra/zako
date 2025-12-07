@@ -40,6 +40,8 @@ glob.workspace = true
 
 static_init.workspace = true
 
+ts-rs.workspace = true
+
 strum.workspace = true
 
 tracing-attributes.workspace = true

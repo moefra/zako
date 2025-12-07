@@ -41,6 +41,7 @@
         "tsc": "bun x tsc --emitDeclarationOnly --project src/tsconfig.json ",
         "build": "bun run clean && bun run tsc && bun run ./script/build.ts",
         "updTestsTem": "bun run ./script/updateTestsTemplate.ts",
+        "cpBind":"bun run ./script/copyBindings.ts",
         "fullBuild": "bun run build && bun run updTestsTem"
     },
     "files": ["./*.d.ts", "README.md", "LICENSE"]

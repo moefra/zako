@@ -16,7 +16,8 @@
         "outDir": "./dist/project"
     },
     "include": [
-        "./**/zako.ts"
+        "./**/zako.ts",
+        "./**/zako.json",
     ],
     "exclude": [
         "node_modules",

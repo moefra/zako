@@ -1,18 +1,18 @@
+use crate::builtin;
 use crate::platform::get_set_platform_or_default;
 use crate::sandbox::{Sandbox, SandboxRef};
+use crate::zako_module_loader::{LoaderOptions, ModuleSpecifier, ZakoModuleLoader};
+use deno_core::error::CoreError;
+use deno_core::{JsRuntime, RuntimeOptions, v8};
+use prost::Message;
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::Arc;
-use thiserror::Error;
 use std::sync::mpsc::Sender;
-use deno_core::error::CoreError;
-use deno_core::{v8, JsRuntime, RuntimeOptions};
-use prost::Message;
+use thiserror::Error;
 use tracing_attributes::instrument;
 use v8::{Context, Global, Isolate, Local, Object, PinScope, PromiseResolver, Value};
-use crate::builtin;
-use crate::zako_module_loader::{LoaderOptions, ModuleSpecifier, ZakoModuleLoader};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum EngineMode {
@@ -28,7 +28,7 @@ pub struct EngineOptions {
 }
 
 #[derive(Error, Debug)]
-pub enum EngineError{
+pub enum EngineError {
     #[error("Get an core error:{0}")]
     CoreError(#[from] CoreError),
 }
@@ -51,27 +51,24 @@ impl Engine {
     pub fn new(options: EngineOptions) -> Result<Self, EngineError> {
         JsRuntime::init_platform(Some(get_set_platform_or_default()), false);
 
-        let loader = Rc::new(ZakoModuleLoader::new(
-            LoaderOptions {
-                ..Default::default()
-            }
-        ));
+        let loader = Rc::new(ZakoModuleLoader::new(LoaderOptions {
+            ..Default::default()
+        }));
 
-        let runtime = JsRuntime::try_new(
-            RuntimeOptions {
-                module_loader: Some(loader.clone()),
-                extensions: vec![
-                    builtin::extension::rt::zako_rt::init(),
-                    builtin::extension::syscall::zako_syscall::init(),
-                    builtin::extension::global::zako_global::init(),
-                    builtin::extension::semver::zako_semver::init(),
-                    builtin::extension::core::zako_core::init(),
-                    builtin::extension::console::zako_console::init(),
-                ],
+        let runtime = JsRuntime::try_new(RuntimeOptions {
+            module_loader: Some(loader.clone()),
+            extensions: vec![
+                builtin::extension::rt::zako_rt::init(),
+                builtin::extension::syscall::zako_syscall::init(),
+                builtin::extension::global::zako_global::init(),
+                builtin::extension::semver::zako_semver::init(),
+                builtin::extension::core::zako_core::init(),
+                builtin::extension::console::zako_console::init(),
+            ],
             ..Default::default()
         })?;
 
-        let engine = Engine{
+        let engine = Engine {
             options,
             runtime: Rc::new(RefCell::new(runtime)),
         };
@@ -80,45 +77,19 @@ impl Engine {
 
         Ok(engine)
     }
-    /*
-    pub fn execute_build_script(&mut self) -> Result<(), EngineError> {
-        let bootstrap_code =
-            r#"
-            import "zako:rt";
-            import "zako:syscall";
-            import "zako:global";
-            import "zako:console";
-            import "zako:core";
-            import "zako:semver";
-            "#;
-
-        let bootstrap_url = ModuleSpecifier::Memory("boostrap".into());
-
-        let js_runtime = self.runtime.clone();
-        let future = async move {
-            let mut js_runtime = js_runtime.borrow_mut();
-            let mod_id = js_runtime.load_side_es_module_from_code(&bootstrap_url.to_url(), bootstrap_code).await?;
-            let result = js_runtime.mod_evaluate(mod_id);
-            js_runtime.run_event_loop(Default::default()).await?;
-            result.await?;
-            js_runtime.get_module_namespace(mod_id)
-        };
-
-        self.options.tokio_handle.block_on(future)?;
-
-        Ok(())
-    }
-     */
 
     #[instrument]
-    pub fn execute_module(self: &mut Self, module_specifier: &ModuleSpecifier)
-                               -> Result<Global<Object>, EngineError>{
-
+    pub fn execute_module(
+        self: &mut Self,
+        module_specifier: &ModuleSpecifier,
+    ) -> Result<Global<Object>, EngineError> {
         let js_runtime = self.runtime.clone();
 
         let future = async move {
             let mut js_runtime = js_runtime.borrow_mut();
-            let mod_id = js_runtime.load_main_es_module(&module_specifier.url).await?;
+            let mod_id = js_runtime
+                .load_main_es_module(&module_specifier.url)
+                .await?;
             let result = js_runtime.mod_evaluate(mod_id);
             js_runtime.run_event_loop(Default::default()).await?;
             result.await?;

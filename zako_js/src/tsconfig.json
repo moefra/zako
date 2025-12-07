@@ -11,7 +11,7 @@
             "zako:build": ["./builtins/build/index.ts"],
             "zako:rule": ["./builtins/rule/index.ts"],
             "zako:console": ["./builtins/console/index.ts"],
-            "zako:system": ["./builtins/toolchain/index.ts"]
+            "zako:system": ["./builtins/toolchain/index.ts"],
         },
         "declarationDir": "../../dist",
     },

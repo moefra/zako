@@ -88,8 +88,15 @@ export type transitiveLevel = "public" | "private" | "interface";
  */
 type Author = `${string} <${string}@${string}>`;
 
+export interface OptionsDeclaration {
+    option: string;
+    description: string;
+    type: "boolean" | "string" | "number";
+    default?: boolean | string | number;
+};
+
 /**
- * ZPROJECT.ts
+ * The metadata of a zako project
  */
 export interface ProjectMeta {
     group: GroupId;
@@ -126,4 +133,44 @@ export function warn(message: string): void {
 }
 export function error(message: string): void {
     return syscall.log("error", message);
+}
+
+export function appendPattern(appendTo?:Pattern,appended?:Pattern):Pattern{
+    let newPattern = appendTo;
+
+    if(newPattern == undefined){
+        newPattern = [];
+    }
+    if(Array.isArray(newPattern)){
+        if(Array.isArray(appended)){
+            newPattern = [...newPattern,...appended];
+        }
+        else{
+            newPattern = {
+                include: [...newPattern, ...appended?.include ?? []],
+                exclude: appended?.exclude ?? [],
+            }
+        }
+    }else{
+        if(Array.isArray(appended)){
+            if(newPattern.include == undefined){
+                newPattern.include = [];
+            }
+            newPattern.include = [...newPattern.include,...appended];
+        }
+        else{
+            if(newPattern.include == undefined){
+                newPattern.include = [];
+            }
+            if(newPattern.exclude == undefined){
+                newPattern.exclude = [];
+            }
+            newPattern.include = [...newPattern.include,...(appended?.include ?? [])];
+            if(newPattern.exclude == undefined){
+                newPattern.exclude = [];
+            }
+            newPattern.exclude = [...newPattern.exclude,...(appended?.exclude ?? [])];
+        }
+    }
+    return newPattern;
 }

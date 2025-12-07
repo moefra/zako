@@ -24,7 +24,11 @@
 //! For zako,it should not rely on file suffix to determine file type. And no file can escape check regardless their name.
 //!
 //! An faster way is that, if a file is under `scripts` directory,it is treated as script file(In `tsconfig.json`).
+
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 pub mod access_control;
+pub mod author;
 pub mod build_constants;
 pub mod builtin;
 mod cas;
@@ -50,6 +54,8 @@ pub mod target;
 mod tool;
 mod transformer;
 mod transport_server;
+pub mod v8error;
+pub mod v8utils;
 pub mod version_extractor;
 mod zako_module_loader;
 
@@ -87,6 +93,18 @@ pub enum FileType {
     Script,
     /// [LIBRARY_FILE_SUFFIX]
     Library,
+}
+
+/// The pattern to match file paths.
+#[derive(TS, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(untagged)]
+#[ts(export, export_to = "pattern.d.ts")]
+pub enum Pattern {
+    Includes(Vec<String>),
+    IncludesExcludes {
+        includes: Vec<String>,
+        excludes: Vec<String>,
+    },
 }
 
 pub mod proto {

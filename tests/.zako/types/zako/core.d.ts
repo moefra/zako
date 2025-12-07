@@ -54,7 +54,7 @@ export type transitiveLevel = "public" | "private" | "interface";
  */
 type Author = `${string} <${string}@${string}>`;
 /**
- * ZPROJECT.ts
+ * The metadata of a zako project
  */
 export interface ProjectMeta {
     group: GroupId;
@@ -78,4 +78,5 @@ export declare function debug(message: string): void;
 export declare function info(message: string): void;
 export declare function warn(message: string): void;
 export declare function error(message: string): void;
+export declare function appendPattern(appendTo?: Pattern, appended?: Pattern): Pattern;
 export {};
