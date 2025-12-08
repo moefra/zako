@@ -51,7 +51,12 @@ deno_error.workspace = true
 
 parking_lot.workspace = true
 
-oxc.workspace = true
+oxc_transformer.workspace = true
+oxc_allocator.workspace = true
+oxc_codegen.workspace = true
+oxc_parser.workspace = true
+oxc_semantic.workspace = true
+oxc_span.workspace = true
 
 convert_case.workspace = true
 

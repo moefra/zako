@@ -5,15 +5,18 @@ use crate::project_resolver::ProjectResolveError::{
     CircularDependency, FileNotExists, IOError, NotAFile,
 };
 use crate::sandbox::{Sandbox, SandboxError};
+use crate::v8error::{ExecutionResult, V8Error};
+use crate::v8utils;
 use crate::zako_module_loader::{ModuleLoadError, ModuleSpecifier, ModuleType};
 use ahash::AHashMap;
+use deno_core::v8::{Global, Local};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{fs, io};
 use thiserror::Error;
-use tracing::{error, instrument, trace_span};
+use tracing::{error, event, instrument, trace_span};
 
 #[derive(Error, Debug)]
 pub enum ProjectResolveError {
@@ -31,6 +34,10 @@ pub enum ProjectResolveError {
     EngineError(#[from] EngineError),
     #[error("get an module load error")]
     ModuleLoadError(#[from] ModuleLoadError),
+    #[error("get an v8 engine error: {0:?}")]
+    V8Error(V8Error),
+    #[error("get an serde_v8 error")]
+    V8SerdeError(#[from] deno_core::serde_v8::Error),
 }
 
 #[derive(Debug)]
@@ -50,7 +57,7 @@ impl ProjectResolver {
     }
 
     #[instrument]
-    pub fn resolve_project(
+    fn resolve_project_inner(
         self: &mut Self,
         project_file_path: &NeutralPath,
     ) -> Result<(), ProjectResolveError> {
@@ -74,11 +81,34 @@ impl ProjectResolver {
             self.resolving.borrow_mut().insert(file.clone(), true);
         }
 
-        let resolved = self
-            .engine
-            .execute_module(&ModuleSpecifier::new_file_module(&file)?)?;
+        let project = self.engine.execute_module_and_then(
+            &ModuleSpecifier::new_file_module(&file)?,
+            |mut scope, _context, resolved_project| {
+                let object = resolved_project.into();
+                deno_core::serde_v8::from_v8::<Project>(&mut scope, object)
+            },
+        )??;
 
-        self.resolving.borrow_mut().insert(file, false);
+        event!(
+            tracing::Level::INFO,
+            "resolved project file `{}` successfully,get `{}`",
+            file.display(),
+            format!("{:?}", project)
+        );
+
+        self.resolving.borrow_mut().insert(file.clone(), false);
+
+        self.result.borrow_mut().insert(file, project);
+
+        Ok(())
+    }
+
+    #[instrument]
+    pub fn resolve_project(
+        self: &mut Self,
+        project_file_path: &NeutralPath,
+    ) -> Result<(), ProjectResolveError> {
+        let resolved = self.resolve_project_inner(project_file_path);
 
         Ok(())
     }

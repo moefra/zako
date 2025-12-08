@@ -21,7 +21,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::{env, io};
 use tokio::runtime::Builder;
-use tracing::{Level, debug, info, trace_span};
+use tracing::{Level, debug, error, info, trace_span};
 use tracing::{Span, trace};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
@@ -122,7 +122,6 @@ enum SubCommands {
     GenerateComplete(GenerateCompleteArgs),
     ExportBuiltin(ExportBuiltinArgs),
     Make(MakeArgs),
-    Deno(DenoArgs),
     Bun(BunArgs),
 }
 
@@ -224,28 +223,18 @@ struct BunArgs {
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     args: Vec<String>,
 }
-static BUN_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/bun"));
+static BUN_BINARY_ZSTD: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/bun.zst"));
+
+fn decompress_zstd(data: &[u8]) -> eyre::Result<Vec<u8>> {
+    let mut decoder = zstd::stream::Decoder::new(data)?;
+    let mut decompressed_data = Vec::new();
+    std::io::copy(&mut decoder, &mut decompressed_data)?;
+    Ok(decompressed_data)
+}
 
 fn run_bun(args: Vec<String>) -> eyre::Result<()> {
-    run_program("bun", BUN_BINARY, args)
-}
-
-#[derive(clap::Args, Debug)]
-#[command(
-    name = "deno",
-    about = "Execute deno command,relay following arguments to deno",
-    disable_help_flag = true,
-    disable_version_flag = true
-)]
-struct DenoArgs {
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<String>,
-}
-
-static DENO_BINARY: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/deno"));
-
-fn run_deno(args: Vec<String>) -> eyre::Result<()> {
-    run_program("deno", DENO_BINARY, args)
+    let decompressed_binary = decompress_zstd(BUN_BINARY_ZSTD)?;
+    run_program("bun", &decompressed_binary, args)
 }
 
 #[derive(clap::Args, Debug)]
@@ -575,7 +564,7 @@ fn inner_main() -> eyre::Result<()> {
         ::colorchoice::ColorChoice::Auto
         | ::colorchoice::ColorChoice::AlwaysAnsi
         | ::colorchoice::ColorChoice::Always => {
-            color_eyre::install().unwrap_or_else(|_| println!("failed to install color-eyre"));
+            install_color_eyre_hook();
         }
         ::colorchoice::ColorChoice::Never => {}
     };
@@ -585,36 +574,112 @@ fn inner_main() -> eyre::Result<()> {
         SubCommands::GenerateComplete(args) => args.invoke(),
         SubCommands::Make(args) => args.invoke(),
         SubCommands::ExportBuiltin(args) => args.invoke(),
-        SubCommands::Deno(args) => run_deno(args.args),
         SubCommands::Bun(args) => run_bun(args.args),
     };
 }
 
+fn make_user_report_bug() {
+    eprintln!(
+        "{}",
+        "Uncaught PANIC from zako. It is a bug, report it. Get in touch by `zako --help`"
+            .red()
+            .on_white()
+    );
+    eprintln!("  {}", "EXIT".red().bold());
+}
+
+/// This hook report panic to both user and tracing system
+///
+/// It should always be called when panic occurs
+fn panic_hook(info: &std::panic::PanicHookInfo<'_>) {
+    let payload = info.payload();
+
+    let message = if let Some(s) = payload.downcast_ref::<&str>() {
+        s
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.as_str()
+    } else {
+        "Unknown panic message"
+    };
+
+    let location = info
+        .location()
+        .map(|l| format!("at file `{}` line `{}`", l.file(), l.line()))
+        .unwrap_or_default();
+
+    let span_id = Span::current().id();
+
+    eprintln!(
+        "Panic occurred at `{}` (span {:?}:{}",
+        location.red().bold(),
+        span_id,
+        message.red().bold(),
+    );
+
+    tracing::error!(
+        panic.message = message,
+        panic.location = location,
+        panic.span_id = ?span_id,
+        "Application panicked!"
+    );
+
+    make_user_report_bug();
+}
+
+/// Install color-eyre panic hook with original panic hook
+///
+/// This is optional, but [panic_hook] must install.
+fn install_color_eyre_hook() {
+    let eyre = Box::new(
+        match color_eyre::config::HookBuilder::default()
+            .display_env_section(true)
+            .display_location_section(true)
+            .try_into_hooks()
+        {
+            Ok(hooks) => hooks,
+            Err(e) => {
+                eprintln!(
+                    "{}: {:?}",
+                    "Failed to build color-eyre hook".red().bold(),
+                    e
+                );
+                return;
+            }
+        },
+    );
+
+    _ = eyre.1.install().inspect_err(|err| {
+        eprintln!(
+            "{}: {:?}",
+            "Failed to install color-eyre panic hook".red().bold(),
+            err
+        );
+    });
+
+    let eyre = eyre.0.into_panic_hook();
+
+    let origin = std::panic::take_hook();
+
+    std::panic::set_hook(Box::new(move |info| {
+        eprintln!("{}", "----- color-eyre panic hook -----".red().bold());
+        eyre(info);
+        eprintln!("{}", "----- zako panic hook -----".red().bold());
+        origin(info);
+    }));
+}
+
 pub fn main() {
     let now = std::time::Instant::now();
-    let code = std::panic::catch_unwind(|| {
-        inner_main()
-            .map(|_| exit_code::SUCCESS)
-            .unwrap_or_else(|e| {
-                eprintln!("{}: {:?}", "ERROR".red().bold(), e);
-                eprintln!("  {}", "EXIT".red().bold());
-                exit_code::FAILURE
-            })
-    });
-    let code = match code {
-        Err(err) => {
-            eprintln!("{}: {:?}", "ERROR".red().bold(), err);
-            eprintln!(
-                "{}",
-                "  Uncaught PANIC from zako. It is a bug, report it. Get in touch by `zako --help`"
-                    .red()
-                    .on_white()
-            );
+
+    std::panic::set_hook(Box::new(panic_hook));
+
+    let code = inner_main()
+        .map(|_| exit_code::SUCCESS)
+        .unwrap_or_else(|e| {
+            eprintln!("{}: {:?}", "ERROR".red().bold(), e);
             eprintln!("  {}", "EXIT".red().bold());
             exit_code::FAILURE
-        }
-        Ok(code) => code,
-    };
+        });
 
     let duration = now.elapsed();
     println!(
@@ -625,5 +690,6 @@ pub fn main() {
         "seconds".cyan(),
         humantime::format_duration(duration).to_string().magenta()
     );
+
     ::std::process::exit(code);
 }

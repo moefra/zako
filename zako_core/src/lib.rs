@@ -100,12 +100,24 @@ pub enum FileType {
 #[serde(untagged)]
 #[ts(export, export_to = "pattern.d.ts")]
 pub enum Pattern {
-    Includes(Vec<String>),
-    IncludesExcludes {
+    /// Same as [Pattern::Glob] with empty excludes.
+    List(Vec<String>),
+    /// This will walk with prejudice. Including ignore files in .gitignore and add file suffix automatically.
+    Glob {
+        #[serde(default)]
         includes: Vec<String>,
-        excludes: Vec<String>,
+        #[ts(optional)]
+        #[serde(default)]
+        excludes: Option<Vec<String>>,
+        #[ts(optional)]
+        #[serde(default)]
+        auto_suffix: Option<bool>,
     },
+    /// This will match exactly what you give.
+    Exact { files: Vec<String> },
 }
+
+impl Pattern {}
 
 pub mod proto {
     pub mod digest {

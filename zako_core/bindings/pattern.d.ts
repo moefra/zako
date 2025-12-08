@@ -5,5 +5,6 @@
  */
 export type Pattern = Array<string> | {
   includes: Array<string>;
-  excludes: Array<string>;
-};
+  excludes?: Array<string>;
+  auto_suffix?: boolean;
+} | { files: Array<string> };

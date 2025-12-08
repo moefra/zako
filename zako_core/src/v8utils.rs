@@ -1,6 +1,7 @@
 use crate::v8error::{ExecutionResult, V8Error};
 use crate::zako_module_loader;
-use deno_core::v8;
+use deno_core::anyhow::Context;
+use deno_core::v8::{self, PinScope};
 use deno_core::v8::{
     Global, HandleScope, Isolate, Local, OwnedIsolate, PinnedRef, Platform, Value,
 };
@@ -103,13 +104,14 @@ pub fn with_context_scope<F, R>(
     f: F,
 ) -> R
 where
-    F: FnOnce(&mut v8::PinScope<'_, '_>, v8::Local<'_, v8::Context>) -> R,
+    F: for<'pin, 'i> FnOnce(&mut v8::PinScope<'pin, 'i>, v8::Local<'pin, v8::Context>) -> R,
 {
-    let scope = std::pin::pin!(HandleScope::new(isolate));
+    let handle = HandleScope::<v8::Context>::new(isolate);
+    let scope = std::pin::pin!(handle);
     let mut scope = scope.init();
     let context = v8::Local::new(&mut scope, context_global);
-    let scope = &mut v8::ContextScope::new(&mut scope, context);
-    f(scope, context)
+    let mut scope = v8::ContextScope::new(&mut scope, context);
+    f(&mut scope, context)
 }
 
 /// 这是一个辅助函数，封装了所有样板代码
@@ -121,14 +123,14 @@ pub fn with_try_catch<F, R>(
     isolate: &mut Isolate,
     context_global: &Global<v8::Context>,
     f: F,
-) -> Result<ExecutionResult<Option<R>>, V8Error>
+) -> Result<ExecutionResult<R>, V8Error>
 where
-    F: FnOnce(
-        &mut PinnedRef<v8::TryCatch<'_, '_, HandleScope>>,
-        v8::Local<'_, v8::Context>,
-    ) -> Option<R>,
+    F: for<'s, 'obj> FnOnce(
+        &mut PinnedRef<v8::TryCatch<'s, '_, HandleScope<'_>>>,
+        v8::Local<'s, v8::Context>,
+    ) -> R,
 {
-    with_context_scope(isolate, context_global, |mut scope, context| {
+    with_context_scope(isolate, context_global, |scope, context| {
         let try_catch = std::pin::pin!(v8::TryCatch::new(scope));
         let mut try_catch = try_catch.init();
 
@@ -178,10 +180,10 @@ pub fn convert_rejected_promise_to_error<'s, 'i>(
 ) -> V8Error {
     let exception = promise.result(scope);
 
-    convert_rejected_promise_result_to_error(scope, exception)
+    convert_object_to_error(scope, exception)
 }
 
-pub fn convert_rejected_promise_result_to_error<'s, 'i>(
+pub fn convert_object_to_error<'s, 'i>(
     scope: &mut v8::PinScope<'s, 'i>,
     exception: Local<'s, v8::Value>,
 ) -> V8Error {

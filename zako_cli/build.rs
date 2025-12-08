@@ -11,6 +11,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
+use std::path::PathBuf;
 
 async fn download(url: String, destination: std::path::PathBuf) -> eyre::Result<()> {
     println!("download file `{}`", &url);
@@ -105,6 +106,17 @@ async fn download_and_extract(
     Ok(())
 }
 
+async fn zstd_compress(input: &str, output: &str) -> eyre::Result<()> {
+    let mut input_file = std::fs::File::open(input)?;
+    let mut output_file = std::fs::File::create(output)?;
+
+    let mut encoder = zstd::stream::Encoder::new(&mut output_file, 22)?;
+    io::copy(&mut input_file, &mut encoder)?;
+    encoder.finish()?;
+
+    Ok(())
+}
+
 async fn download_bun() -> eyre::Result<()> {
     download_and_extract(
         "https://github.com/oven-sh/bun/releases/download/",
@@ -121,6 +133,15 @@ async fn download_bun() -> eyre::Result<()> {
             },
             env::var("CARGO_CFG_TARGET_ARCH").unwrap(),
         ),
+    )
+    .await?;
+    zstd_compress(
+        &std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"))
+            .join("bun")
+            .to_string_lossy(),
+        &std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"))
+            .join("bun.zst")
+            .to_string_lossy(),
     )
     .await
 }
@@ -150,7 +171,7 @@ async fn download_deno() -> eyre::Result<()> {
 async fn main() {
     color_eyre::install().unwrap_or_else(|_| println!("failed to install color-eyre"));
 
-    download_deno().await.unwrap();
+    // download_deno().await.unwrap();
     download_bun().await.unwrap();
 
     ShadowBuilder::builder()

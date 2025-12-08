@@ -55,9 +55,7 @@ humantime.workspace = true
 
 tracing-tree.workspace = true
 
-# ZMake cli use unwrap() to report backtrace to users
-#[lints]
-#workspace = true
+zstd.workspace = true
 
 [features]
 default = []
@@ -75,3 +73,4 @@ color-eyre.workspace = true
 zip.workspace = true
 sha2.workspace = true
 hex.workspace = true
+zstd.workspace = true

@@ -8,6 +8,7 @@
 //! //-----^result---------^fatal error that can not continue
 //! ```
 use crate::zako_module_loader::ModuleSpecifier;
+
 #[derive(Clone, Debug, Default)]
 pub struct V8Error {
     pub module_specifier: Option<ModuleSpecifier>,
@@ -18,6 +19,7 @@ pub struct V8Error {
 }
 
 use deno_core::v8::{Global, Promise, Value};
+use strum::Display;
 
 /// 代表 JS 代码执行后的结果状态（前提是 V8 引擎本身没有崩溃）
 #[derive(Debug)]
