@@ -1,6 +1,4 @@
-use std::cell::RefCell;
-use std::io::{Stderr, StderrLock, Stdout, StdoutLock, Write};
-use std::rc::Rc;
+use std::io::{Stdout, Write};
 use std::sync::{Arc, Mutex};
 use tracing_subscriber::fmt::MakeWriter;
 

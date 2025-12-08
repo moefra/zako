@@ -1,6 +1,6 @@
+use deno_core::v8;
 use std::sync::OnceLock;
 use tracing::error;
-use deno_core::v8;
 
 static PLATFORM: OnceLock<v8::SharedRef<v8::Platform>> = OnceLock::new();
 

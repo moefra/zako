@@ -1,6 +1,6 @@
+use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::env;
 use tracing::{trace, warn};
 
 pub struct FileFinder {
