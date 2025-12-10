@@ -1,8 +1,8 @@
-use crate::digest::Digest;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use thiserror::Error;
 use tokio::io::AsyncRead;
+use zako_digest::Digest;
 
 /// A Content Addressable Storage (CAS) is a storage system that stores data by its content rather than by its location.
 #[async_trait]

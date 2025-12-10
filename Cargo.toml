@@ -1,6 +1,6 @@
 [workspace]
-members = ["zako_core", "zako_cli"]
-default-members = ["zako_core", "zako_cli"]
+members = ["zako_core", "zako_cli", "hone", "zako_digest"]
+default-members = ["zako_cli"]
 resolver = "3"
 
 [workspace.lints.clippy]
@@ -12,6 +12,10 @@ panic = "deny"
 missing_docs = "warn"
 
 [workspace.dependencies]
+zako-core = { path = "./zako_core" }
+hone = { path = "./hone" }
+zako-digest = { path = "./zako_digest" }
+
 clap = { version = "4.5", default-features = true, features = [
     "derive",
     # 若不是从天上赐的，clap就不能得什么:
@@ -90,7 +94,7 @@ bytes = "1.11.0"
 
 async-stream = "0.3.6"
 
-xxhash-rust = "0.8.15"
+xxhash-rust = { version = "0.8.15", features = ["xxh3", "const_xxh3"] }
 
 deno_core = "0.372.0"
 deno_error = "0.7.1"
@@ -131,7 +135,9 @@ tonic-prost = "0.14.2"
 
 tokio-stream = "0.1"
 
-dashmap = { version = "6.1.0" }
+dashmap = { version = "6.1", features = ["inline", "rayon", "serde"] }
+
+rayon = "1.11.0"
 
 uuid = { version = "1.18.1", features = ["v4"] }
 
@@ -140,6 +146,18 @@ tokio-util = "0.7.17"
 tracing-tree = "0.4.1"
 
 dirs = "6.0.0"
+
+ignore = "0.4.25"
+
+crossbeam = "0.8.4"
+crossbeam-channel = "0.5.15"
+
+orx-concurrent-bag = "3.4.0"
+
+mimalloc = "0.1"
+
+im-rc = "15.1.0"
+im = "15.1.0"
 
 [profile.dev]
 opt-level = 1
@@ -160,7 +178,7 @@ inherits = "dev"
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-panic = "unwind"
+panic = "abort"
 strip = "symbols"
 debug = false
 

@@ -1,4 +1,4 @@
-use crate::id::{Id, ResolvedId};
+use crate::id::ResolvedId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

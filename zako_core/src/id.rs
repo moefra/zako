@@ -259,8 +259,10 @@ impl TryInto<PackageIdReq> for PackageId {
 pub enum PackageIdError {
     #[error("PackageId::from_str() has a bad input `{0}`")]
     BadFormat(String),
-    #[error("failed to parse some part")]
-    InvalidPart(#[from] Box<dyn std::error::Error>),
+    #[error("failed to parse artifact id")]
+    InvalidArtifactId(#[from] ArtifactIdError),
+    #[error("failed to parse server version")]
+    InvalidVersion(#[from] semver::Error),
 }
 
 impl fmt::Display for PackageId {
@@ -277,10 +279,8 @@ impl FromStr for PackageId {
             .rsplit_once('@')
             .ok_or_else(|| PackageIdError::BadFormat(s.to_string()))?;
 
-        let artifact_id = ArtifactId::from_str(artifact_part)
-            .map_err(|err| PackageIdError::InvalidPart(err.into()))?;
-        let version = Version::from_str(version_part)
-            .map_err(|err| PackageIdError::InvalidPart(err.into()))?;
+        let artifact_id = ArtifactId::from_str(artifact_part)?;
+        let version = Version::from_str(version_part)?;
 
         Ok(Self::from(artifact_id, version))
     }

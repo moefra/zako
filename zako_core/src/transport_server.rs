@@ -1,12 +1,15 @@
 use crate::cas::{Cas, CasError};
-use crate::proto::transport::upload_request::Payload::Metadata;
-use crate::proto::transport::{DownloadRequest, DownloadResponse, UploadRequest, UploadResponse};
+use crate::protobuf::transport::upload_request::Payload::Metadata;
+use crate::protobuf::transport::{
+    DownloadRequest, DownloadResponse, UploadRequest, UploadResponse,
+};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use tokio_stream::{Stream, StreamExt};
 use tonic::async_trait;
 use tonic::{Request, Response, Status, Streaming};
+use zako_digest::Digest;
 
 #[derive(Debug)]
 pub struct TransportServer {
@@ -20,7 +23,7 @@ impl TransportServer {
 }
 
 #[async_trait]
-impl crate::proto::transport::transport_server::Transport for TransportServer {
+impl crate::protobuf::transport::transport_server::Transport for TransportServer {
     type DownloadStream = Pin<Box<dyn Stream<Item = Result<DownloadResponse, Status>> + Send>>;
 
     async fn download(
@@ -34,10 +37,8 @@ impl crate::proto::transport::transport_server::Transport for TransportServer {
         let data = self
             .cas
             .fetch(
-                &crate::digest::Digest::try_from(
-                    digest.ok_or(Status::invalid_argument("digest is required"))?,
-                )
-                .map_err(|err| Status::from(err))?,
+                &Digest::try_from(digest.ok_or(Status::invalid_argument("digest is required"))?)
+                    .map_err(|err| Status::from(err))?,
                 offset,
             )
             .await
@@ -65,7 +66,7 @@ impl crate::proto::transport::transport_server::Transport for TransportServer {
 
         let digest: Option<UploadRequest> = request.message().await?;
 
-        let digest = crate::digest::Digest::try_from(match digest {
+        let digest = zako_digest::Digest::try_from(match digest {
             Some(request) => match request.payload {
                 Some(metadata) => match metadata {
                     Metadata(meta) => meta,
@@ -90,7 +91,7 @@ impl crate::proto::transport::transport_server::Transport for TransportServer {
 
         let stream = tokio_util::io::StreamReader::new(request.map(move |x| match x {
             Ok(upload_request) => match upload_request.payload {
-                Some(crate::proto::transport::upload_request::Payload::Chunk(data)) => {
+                Some(crate::protobuf::transport::upload_request::Payload::Chunk(data)) => {
                     cloned_length.fetch_add(data.len() as u64, std::sync::atomic::Ordering::SeqCst);
                     Ok(bytes::Bytes::from(data))
                 }

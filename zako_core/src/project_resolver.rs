@@ -1,22 +1,20 @@
 use crate::engine::{Engine, EngineError};
+use crate::id::{PackageId, PackageIdError};
 use crate::path::NeutralPath;
-use crate::project::Project;
-use crate::project_resolver::ProjectResolveError::{
-    CircularDependency, FileNotExists, IOError, NotAFile,
-};
-use crate::sandbox::{Sandbox, SandboxError};
-use crate::v8error::{ExecutionResult, V8Error};
-use crate::v8utils;
+use crate::project::{Project, ResolvedProject};
+use crate::project_resolver::ProjectResolveError::{CircularDependency, FileNotExists, NotAFile};
+use crate::sandbox::SandboxError;
+use crate::v8error::V8Error;
 use crate::zako_module_loader::{ModuleLoadError, ModuleSpecifier, ModuleType};
 use ahash::AHashMap;
-use deno_core::v8::{Global, Local};
 use std::cell::RefCell;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::{fs, io};
 use thiserror::Error;
-use tracing::{error, event, instrument, trace_span};
+use tracing::{event, instrument};
 
 #[derive(Error, Debug)]
 pub enum ProjectResolveError {
@@ -38,12 +36,17 @@ pub enum ProjectResolveError {
     V8Error(V8Error),
     #[error("get an serde_v8 error")]
     V8SerdeError(#[from] deno_core::serde_v8::Error),
+    #[error("get an error when try to prase the id of the package")]
+    ParseError(#[from] PackageIdError),
+    #[error("try to get parsed project `{0}` but not found in ProjectResolver.parsed")]
+    NoExpectedProjectFound(PathBuf),
 }
 
 #[derive(Debug)]
 pub struct ProjectResolver {
     engine: Engine,
-    result: RefCell<AHashMap<PathBuf, Project>>,
+    parsed: RefCell<AHashMap<PathBuf, Rc<Project>>>,
+    resolved: RefCell<AHashMap<PathBuf, Rc<ResolvedProject>>>,
     resolving: RefCell<AHashMap<PathBuf, bool>>,
 }
 
@@ -51,7 +54,8 @@ impl ProjectResolver {
     pub fn new(engine: Engine) -> Self {
         ProjectResolver {
             engine,
-            result: RefCell::new(AHashMap::default()),
+            parsed: RefCell::new(AHashMap::default()),
+            resolved: RefCell::new(AHashMap::default()),
             resolving: RefCell::new(AHashMap::default()),
         }
     }
@@ -60,7 +64,7 @@ impl ProjectResolver {
     fn resolve_project_inner(
         self: &mut Self,
         project_file_path: &NeutralPath,
-    ) -> Result<(), ProjectResolveError> {
+    ) -> Result<Rc<Project>, ProjectResolveError> {
         let file = <NeutralPath as AsRef<Path>>::as_ref(project_file_path).canonicalize()?;
 
         if !file.exists() {
@@ -75,7 +79,12 @@ impl ProjectResolver {
             return if *status {
                 Err(CircularDependency(file))
             } else {
-                Ok(())
+                return Ok(self
+                    .parsed
+                    .borrow()
+                    .get(&file)
+                    .ok_or(ProjectResolveError::NoExpectedProjectFound(file.clone()))?)
+                .cloned();
             };
         } else {
             self.resolving.borrow_mut().insert(file.clone(), true);
@@ -98,9 +107,7 @@ impl ProjectResolver {
 
         self.resolving.borrow_mut().insert(file.clone(), false);
 
-        self.result.borrow_mut().insert(file, project);
-
-        Ok(())
+        Ok(Rc::new(project))
     }
 
     #[instrument]
@@ -108,7 +115,14 @@ impl ProjectResolver {
         self: &mut Self,
         project_file_path: &NeutralPath,
     ) -> Result<(), ProjectResolveError> {
-        let resolved = self.resolve_project_inner(project_file_path);
+        let resolved = self.resolve_project_inner(project_file_path)?;
+
+        let packageId = PackageId::from_str(&format!(
+            "{}:{}@{}",
+            resolved.group, resolved.artifact, resolved.version
+        ))?;
+
+        // process subpackages
 
         Ok(())
     }

@@ -25,7 +25,12 @@
 //!
 //! An faster way is that, if a file is under `scripts` directory,it is treated as script file(In `tsconfig.json`).
 
+use std::{clone, path::PathBuf};
+
+use ignore::WalkState;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use tracing::{Level, event};
 use ts_rs::TS;
 pub mod access_control;
 pub mod author;
@@ -34,7 +39,6 @@ pub mod builtin;
 mod cas;
 mod cas_server;
 pub mod configuration;
-mod digest;
 pub mod engine;
 mod error;
 mod extension;
@@ -103,6 +107,10 @@ pub enum Pattern {
     /// Same as [Pattern::Glob] with empty excludes.
     List(Vec<String>),
     /// This will walk with prejudice. Including ignore files in .gitignore and add file suffix automatically.
+    ///
+    /// [Pattern::Glob::auto_filename] will auto add filename to matched set,like if you give "src/**",and filename is "zako.ts",it will match "src/**/zako.ts".  Default is true.
+    ///
+    /// [Pattern::Glob::auto_ignore] will respect ignore files like .gitignore automatically. Default is true.
     Glob {
         #[serde(default)]
         includes: Vec<String>,
@@ -111,19 +119,109 @@ pub enum Pattern {
         excludes: Option<Vec<String>>,
         #[ts(optional)]
         #[serde(default)]
-        auto_suffix: Option<bool>,
+        auto_filename: Option<bool>,
+        #[ts(optional)]
+        #[serde(default)]
+        auto_ignore: Option<bool>,
     },
-    /// This will match exactly what you give.
+    /// This will match exactly what you give. No glob support.
     Exact { files: Vec<String> },
 }
 
-impl Pattern {}
-
-pub mod proto {
-    pub mod digest {
-        tonic::include_proto!("zako.v1.digest");
+impl Pattern {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Pattern::List(v) => v.is_empty(),
+            Pattern::Glob { includes, .. } => includes.is_empty(),
+            Pattern::Exact { files } => files.is_empty(),
+        }
     }
 
+    pub fn walk(
+        &self,
+        filename: Option<&str>,
+        mut current: PathBuf,
+    ) -> Result<Vec<PathBuf>, std::io::Error> {
+        current = current.canonicalize()?;
+
+        let (includes, excludes, auto_filename, auto_ignore) = match self {
+            Pattern::List(file_list) => (file_list.clone(), vec![], true, true),
+            Pattern::Glob {
+                includes,
+                excludes,
+                auto_filename,
+                auto_ignore,
+            } => {
+                let mut incs: Vec<String> = includes.clone();
+                let mut excludes: Vec<String> = excludes.clone().unwrap_or_default();
+                (
+                    incs,
+                    excludes.clone(),
+                    auto_filename.unwrap_or(true),
+                    auto_ignore.unwrap_or(true),
+                )
+            }
+            Pattern::Exact { files } => {
+                return Ok(files
+                    .clone()
+                    .into_iter()
+                    .map(|f| current.join(f).canonicalize())
+                    .collect::<Result<Vec<PathBuf>, std::io::Error>>()?);
+            }
+        };
+
+        let mut walker = ignore::WalkBuilder::new(current);
+
+        walker.standard_filters(auto_ignore);
+
+        for include in includes {
+            if let Some(filename) = filename {
+                walker.add(format!("{}/{}", include, filename));
+            }
+        }
+        let filename = {
+            if auto_filename && let Some(filename) = filename {
+                Some(filename)
+            } else {
+                None
+            }
+        };
+        for exclude in excludes {
+            if let Some(filename) = filename {
+                walker.add(format!("!{}/{}", exclude, filename));
+            }
+        }
+
+        let bag = orx_concurrent_bag::ConcurrentBag::new();
+        let walker = walker.build_parallel();
+
+        let bag_ref = &bag;
+
+        walker.run(|| {
+            return Box::new(|result| {
+                match result {
+                    Err(err) => {
+                        event!(Level::WARN, "get an ignore parallel walker error: {}", err);
+                    }
+                    Ok(entry) => {
+                        let mut path = entry.path().to_string_lossy().to_string();
+                        if let Some(filename) = &filename {
+                            path = format!("{}/{}", path, filename);
+                        }
+                        bag_ref.push(PathBuf::from(path));
+                    }
+                }
+                return WalkState::Continue;
+            });
+        });
+
+        let result = bag.into_inner().into_iter().collect::<Vec<PathBuf>>();
+
+        Ok(result)
+    }
+}
+
+pub mod protobuf {
     pub mod fs {
         tonic::include_proto!("zako.v1.fs");
     }

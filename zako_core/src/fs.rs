@@ -1,6 +1,7 @@
 use thiserror::Error;
 
-use crate::digest::{Digest, DigestError};
+use zako_digest::Digest;
+use zako_digest::DigestError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FsItem {
@@ -86,13 +87,13 @@ impl VirtualFsItem {
 }
 
 use crate::path::{NeutralPath, PathError};
-use crate::proto::fs::virtual_fs_item::Item as ProtoItem;
+use crate::protobuf::fs::virtual_fs_item::Item as ProtoItem;
 use std::convert::TryFrom;
 
-impl TryFrom<crate::proto::fs::VirtualFsItem> for VirtualFsItem {
+impl TryFrom<crate::protobuf::fs::VirtualFsItem> for VirtualFsItem {
     type Error = VirtualFileError;
 
-    fn try_from(proto: crate::proto::fs::VirtualFsItem) -> Result<Self, Self::Error> {
+    fn try_from(proto: crate::protobuf::fs::VirtualFsItem) -> Result<Self, Self::Error> {
         let item = match proto.item {
             Some(ProtoItem::Digest(d)) => FsItem::File(
                 d.try_into()

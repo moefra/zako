@@ -35,3 +35,11 @@
     }
 }
 ```
+
+## 惊群效应
+
+Resolve 惊群效应
+
+## Fan-out 问题
+
+Resolve fan-out

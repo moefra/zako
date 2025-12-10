@@ -1,0 +1,28 @@
+[package]
+name = "hone"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+repository.workspace = true
+homepage.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+xxhash-rust.workspace = true
+eyre.workspace = true
+dashmap.workspace = true
+ahash.workspace = true
+rayon.workspace = true
+serde.workspace = true
+hex.workspace = true
+zako-digest.workspace = true
+futures.workspace = true
+im.workspace = true
+
+[lints]
+workspace = true

@@ -1,9 +1,10 @@
 use crate::cas::{Cas, CasError};
-use crate::digest::Digest;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tokio::fs;
 use tokio::io::{AsyncRead, AsyncSeekExt};
+use zako_digest::Digest;
+use zako_digest::DigestError;
 
 #[derive(Debug)]
 pub struct LocalCas {

@@ -1,3 +1,5 @@
+pub mod hash;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -82,10 +84,10 @@ pub enum DigestError {
     WrongLengthSecureHash,
 }
 
-impl TryFrom<crate::proto::digest::Digest> for Digest {
+impl TryFrom<crate::protobuf::Digest> for Digest {
     type Error = DigestError;
 
-    fn try_from(value: crate::proto::digest::Digest) -> Result<Self, Self::Error> {
+    fn try_from(value: crate::protobuf::Digest) -> Result<Self, Self::Error> {
         let fast = value.fast_xxhash3_128;
 
         let fast: u128 = u128::from_be_bytes(
@@ -106,12 +108,24 @@ impl TryFrom<crate::proto::digest::Digest> for Digest {
     }
 }
 
-impl Into<crate::proto::digest::Digest> for Digest {
-    fn into(self) -> crate::proto::digest::Digest {
-        crate::proto::digest::Digest {
+impl Into<crate::protobuf::Digest> for Digest {
+    fn into(self) -> crate::protobuf::Digest {
+        crate::protobuf::Digest {
             fast_xxhash3_128: self.fast_xxhash3_128.to_be_bytes().to_vec(),
             secure_sha256: self.secure_sha256.map(|sha256| sha256.to_vec()),
             size_bytes: self.size_bytes,
         }
+    }
+}
+
+pub mod protobuf {
+    tonic::include_proto!("zako.v1.digest");
+}
+
+use tonic::Status;
+
+impl From<DigestError> for Status {
+    fn from(err: DigestError) -> Self {
+        Status::invalid_argument(err.to_string())
     }
 }

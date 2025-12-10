@@ -1,20 +1,21 @@
 use crate::cas::Cas;
-use crate::digest::{Digest, DigestError}; // 假设你把 TryFrom 放到了这里
-use crate::proto::cas::{
+use crate::protobuf::cas::{
     GetTransportDetailsRequest, NegotiateBlobsRequest, NegotiateBlobsResponse, TransportDetails,
     content_addressable_storage_server::ContentAddressableStorage,
 };
 use dashmap::DashMap;
-use futures::{StreamExt, TryStreamExt}; // 引入 Stream 扩展方法
+use futures::StreamExt; // 引入 Stream 扩展方法
 use std::pin::Pin;
 use std::sync::Arc;
 use tonic::{Request, Response, Status, Streaming};
 use uuid::Uuid;
+use zako_digest::Digest;
+use zako_digest::DigestError;
 
 #[derive(Debug, Clone)]
 pub struct CasServerOptions {
     pub cas: Arc<dyn Cas + Send + Sync + 'static>,
-    pub server_address: crate::proto::net::SocketAddress,
+    pub server_address: crate::protobuf::net::SocketAddress,
     pub buffered_io_count: usize,
     pub recommended_concurrency: usize,
 }
@@ -22,7 +23,7 @@ pub struct CasServerOptions {
 impl CasServerOptions {
     pub fn new_default(
         cas: Arc<dyn Cas + Send + Sync + 'static>,
-        server_address: crate::proto::net::SocketAddress,
+        server_address: crate::protobuf::net::SocketAddress,
     ) -> Self {
         Self {
             cas,
@@ -38,7 +39,7 @@ pub struct CasServer {
     cas: Arc<dyn Cas + Send + Sync + 'static>,
     // TODO: TTL
     tokens: Arc<DashMap<String, ()>>,
-    server_address: crate::proto::net::SocketAddress,
+    server_address: crate::protobuf::net::SocketAddress,
     buffered_io_count: usize,
     recommended_concurrency: usize,
 }
@@ -116,12 +117,12 @@ impl ContentAddressableStorage for CasServer {
     ) -> Result<Response<TransportDetails>, Status> {
         let inner = request.into_inner();
 
-        let mut used_protocol: Option<crate::proto::net::Protocol> = None;
+        let mut used_protocol: Option<crate::protobuf::net::Protocol> = None;
 
         for protocol in inner.supported_protocols {
-            if protocol == crate::proto::net::Protocol::Grpc as i32 {
+            if protocol == crate::protobuf::net::Protocol::Grpc as i32 {
                 // Only GRpc is supported
-                used_protocol = Some(crate::proto::net::Protocol::Grpc);
+                used_protocol = Some(crate::protobuf::net::Protocol::Grpc);
             } else {
                 return Err(Status::failed_precondition(
                     "No supported transport protocol found",

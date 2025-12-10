@@ -27,6 +27,10 @@ use zako_core::engine::{Engine, EngineMode, EngineOptions};
 use zako_core::path::NeutralPath;
 use zako_core::project_resolver::ProjectResolver;
 
+use mimalloc::MiMalloc;
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 const STYLES: styling::Styles = styling::Styles::styled()
     .header(
         styling::AnsiColor::Green
@@ -50,7 +54,7 @@ const STYLES: styling::Styles = styling::Styles::styled()
     .placeholder(styling::AnsiColor::Cyan.on_default().italic().bold());
 
 const ABOUT: &'static str =
-    "The \x1b[35mpost-modern building tool\x1b[0m🛠️ that your mom warned you about🤯";
+    "The \x1b[35mpost-modern\x1b[0m 🛠️building tool🛠️ that your mom warned you about🤯";
 const BEFORE_HELP: &'static str = concatcp!(
     "打碎💨旧世界⚰️创立🚀新世界❤️‍🔥\n\x1B]8;;",
     env!("CARGO_PKG_HOMEPAGE"),
@@ -119,9 +123,13 @@ enum SubCommands {
     ExportBuiltin(ExportBuiltinArgs),
     Make(MakeArgs),
     Bun(BunArgs),
+    BunX(BunArgs),
 }
 
-fn run_program(name: &str, binary: &[u8], args: Vec<String>) -> Result<(), eyre::Error> {
+fn run_program<F>(name: &str, get_binary: F, args: Vec<String>) -> Result<(), eyre::Error>
+where
+    F: Fn() -> Result<&'static [u8], eyre::Error>,
+{
     let _span = trace_span!("execute program", name = name, args = format!("{:?}", args)).entered();
 
     let home = dirs::cache_dir().unwrap_or(temp_dir()).join(
@@ -157,7 +165,7 @@ fn run_program(name: &str, binary: &[u8], args: Vec<String>) -> Result<(), eyre:
 
         {
             let mut file = fs::File::create(&temp_exe)?;
-            file.write_all(binary)?;
+            file.write_all(get_binary()?)?;
 
             #[cfg(unix)]
             {
@@ -210,8 +218,20 @@ fn run_program(name: &str, binary: &[u8], args: Vec<String>) -> Result<(), eyre:
 
 #[derive(clap::Args, Debug)]
 #[command(
+    name = "bunx",
+    about = "Execute `bun x` command,relay following arguments to `bun x`.",
+    disable_help_flag = true,
+    disable_version_flag = true
+)]
+struct BunXArgs {
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    args: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+#[command(
     name = "bun",
-    about = "Execute bun command,relay following arguments to bun",
+    about = "Execute bun command,relay following arguments to bun.",
     disable_help_flag = true,
     disable_version_flag = true
 )]
@@ -223,14 +243,24 @@ static BUN_BINARY_ZSTD: &[u8] = include_bytes!(concat!(std::env!("OUT_DIR"), "/b
 
 fn decompress_zstd(data: &[u8]) -> eyre::Result<Vec<u8>> {
     let mut decoder = zstd::stream::Decoder::new(data)?;
-    let mut decompressed_data = Vec::new();
+    let mut decompressed_data = Vec::with_capacity(data.len() * 3 / 2);
     std::io::copy(&mut decoder, &mut decompressed_data)?;
     Ok(decompressed_data)
 }
 
 fn run_bun(args: Vec<String>) -> eyre::Result<()> {
-    let decompressed_binary = decompress_zstd(BUN_BINARY_ZSTD)?;
-    run_program("bun", &decompressed_binary, args)
+    run_program(
+        "bun",
+        || {
+            decompress_zstd(BUN_BINARY_ZSTD).map(|mut data| {
+                data.shrink_to_fit();
+                let data: &'static [u8] = data.leak();
+                data
+            })
+        },
+        args,
+    )?;
+    panic!("test panic");
 }
 
 #[derive(clap::Args, Debug)]
@@ -571,6 +601,11 @@ fn inner_main() -> eyre::Result<()> {
         SubCommands::Make(args) => args.invoke(),
         SubCommands::ExportBuiltin(args) => args.invoke(),
         SubCommands::Bun(args) => run_bun(args.args),
+        SubCommands::BunX(args) => run_bun({
+            let mut v = vec!["x".to_string()];
+            v.extend(args.args);
+            v
+        }),
     };
 }
 
@@ -606,7 +641,7 @@ fn panic_hook(info: &std::panic::PanicHookInfo<'_>) {
     let span_id = Span::current().id();
 
     eprintln!(
-        "Panic occurred at `{}` (span {:?}:{}",
+        "Panic occurred at `{}` (span {:?}) :{}",
         location.red().bold(),
         span_id,
         message.red().bold(),
@@ -628,7 +663,7 @@ fn panic_hook(info: &std::panic::PanicHookInfo<'_>) {
 fn install_color_eyre_hook() {
     let eyre = Box::new(
         match color_eyre::config::HookBuilder::default()
-            .display_env_section(true)
+            .display_env_section(false) // env are controlled by zako already
             .display_location_section(true)
             .try_into_hooks()
         {

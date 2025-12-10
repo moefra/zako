@@ -1,6 +1,7 @@
-use crate::{Pattern, access_control::Visibility, author::Author};
+use std::path::PathBuf;
+
+use crate::{Pattern, author::Author, id::PackageId};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use ts_rs::TS;
 
 #[derive(TS, Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -17,4 +18,16 @@ pub struct Project {
     pub rules: Option<Pattern>,
     pub toolchains: Option<Pattern>,
     pub subprojects: Option<Pattern>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+pub struct ResolvedProject {
+    pub package_id: PackageId,
+    pub description: Option<String>,
+    pub authors: Option<Vec<Author>>,
+    pub license: Option<String>,
+    pub builds: Vec<PathBuf>,
+    pub rules: Vec<PathBuf>,
+    pub toolchains: Vec<PathBuf>,
+    pub subprojects: Vec<PathBuf>,
 }
