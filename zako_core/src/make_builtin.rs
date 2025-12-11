@@ -4,6 +4,16 @@ macro_rules! make_builtin_id {
         $( pub mod $submodule:ident; )*
         self => { $($id:literal => { $($type:ident => { $($key:ident => $value:literal),* }),* } ),* }
     } => {
+    }
+}
+
+/*
+#[macro_export]
+macro_rules! make_builtin_id {
+    {
+        $( pub mod $submodule:ident; )*
+        self => { $($id:literal => { $($type:ident => { $($key:ident => $value:literal),* }),* } ),* }
+    } => {
         #[allow(unused_imports)]
         use $crate::id::IdType::{ToolType,Tool,ToolProvider,TargetType,Target,Os,Architecture,Property,Config};
 
@@ -71,3 +81,4 @@ macro_rules! make_builtin_id {
         };
     }
 }
+ */

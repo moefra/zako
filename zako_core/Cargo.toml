@@ -40,6 +40,8 @@ tokio.workspace = true
 unicode-ident.workspace = true
 eyre.workspace = true
 
+lasso.workspace = true
+
 glob.workspace = true
 
 static_init.workspace = true
@@ -96,6 +98,8 @@ tokio-util.workspace = true
 smallvec.workspace = true
 
 zako-digest.workspace = true
+
+evalexpr.workspace = true
 
 [build-dependencies]
 tonic-prost-build.workspace = true

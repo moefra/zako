@@ -9,7 +9,6 @@ use clap_complete::{generate, shells};
 use color_eyre::owo_colors::OwoColorize;
 use const_format::concatcp;
 use opentelemetry::trace::TracerProvider;
-use sha2::Digest;
 use shadow_rs::{Format, shadow};
 use std::env::temp_dir;
 use std::ffi::OsString;
@@ -27,7 +26,7 @@ use zako_core::engine::{Engine, EngineMode, EngineOptions};
 use zako_core::path::NeutralPath;
 use zako_core::project_resolver::ProjectResolver;
 
-use mimalloc::MiMalloc;
+use ::mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
@@ -294,7 +293,7 @@ struct MakeArgs {
     /// The file path must be valid NeutralPath.
     ///
     /// It will join into the sandbox path to construct the full path.
-    #[arg(long,default_value = ::zako_core::PROJECT_FILE_NAME, value_hint = clap::ValueHint::FilePath)]
+    #[arg(long,default_value = ::zako_core::PROJECT_SCRIPT_FILE_NAME, value_hint = clap::ValueHint::FilePath)]
     project_file: String,
 
     /// The path to construct the sandbox

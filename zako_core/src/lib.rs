@@ -14,6 +14,7 @@
 //!
 //! - library file(`*.ts`): those file can be shared between other files. They can only import other library files and core built-in module like `zako:core`;
 //! - script file(`*.script.ts`): those file can be used to write custom scripts. They can do anything and access `node:xxx`(or `Bun`,`Deno` object) modules,but they can not access zako's built-in module.
+//! - project manifest file(`zako.json5`): those file is used to define project metadata like name,version,dependencies etc. It can not import any module.
 //! - project root(`zako.ts`): those file is used to define a project.It is usually placed in the project root.It export build,rule and toolchain file. They can only import library files,core built-in module and `zako:project` module.
 //! - build file(`BUILD.ts`): "Embrace the industry holy grail: BUILD.ts — as God intended." those file is used to define build targets.It is the most common file. They can only import library files,core built-in module and `zako:build` module.
 //! - rule file(`*.rule.ts`): those file is used to define build rules.They can not access to system,they just get source file set and configuration from build file,process and convert configuration, access abstract toolchain. They can only import library files,core built-in module and `zako:rule` module.
@@ -38,7 +39,9 @@ pub mod build_constants;
 pub mod builtin;
 mod cas;
 mod cas_server;
-pub mod configuration;
+pub mod config;
+pub mod context;
+pub mod dependency;
 pub mod engine;
 mod error;
 mod extension;
@@ -47,6 +50,7 @@ pub mod fs;
 pub mod id;
 mod local_cas;
 mod make_builtin;
+pub mod package;
 pub mod path;
 pub mod pattern;
 mod platform;
@@ -63,14 +67,27 @@ pub mod v8utils;
 pub mod version_extractor;
 mod zako_module_loader;
 
+/// The result of iteration of this map is not ordered.
+///
+/// Please do not rely on any specific order.
+pub type FastMap<K, V> = ::dashmap::DashMap<K, V, ::ahash::RandomState>;
+
+/// The result of iteration of this map is not ordered.
+///
+/// Please do not rely on any specific order.
+pub type FastSet<K> = ::dashmap::DashSet<K, ::ahash::RandomState>;
+
 /// project file name.see root document for details
 pub static SCRIPT_FILE_SUFFIX: &str = ".script.ts";
 
 /// project file name.see root document for details
 pub static LIBRARY_FILE_SUFFIX: &str = ".ts";
 
+/// definition of project.see root document for details
+pub static PROJECT_MANIFEST_FILE_NAME: &str = "zako.json5";
+
 /// project file name.see root document for details
-pub static PROJECT_FILE_NAME: &str = "zako.ts";
+pub static PROJECT_SCRIPT_FILE_NAME: &str = "zako.ts";
 
 /// build file name.see root document for details
 pub static BUILD_FILE_NAME: &str = "BUILD.ts";

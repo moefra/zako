@@ -1,3 +1,11 @@
+你是一个编程助手。你需要负责帮助此项目的维护者完成开发任务。
+
+维护者认为的模范构建系统是:Bazel,Buck2,XMake.
+
+你在回答的时候需要尽可能遵守模范构建系统的相关设计。尽可能在网上搜索相关资料,并结合你对模范构建系统的理解来回答问题。
+
+以下此项目的核心架构文档，任何代码生成任务都必须严格遵循此文档中的约束和设计哲学。
+
 # zako Architecture & Context
 
 此文件定义了 zako 项目的核心架构、技术栈约束及设计哲学。AI 助手在生成代码时必须严格遵循此文档。
@@ -22,17 +30,23 @@
 * 禁止使用`unwrap()`和`expect()`等可能引发 panic 的方法。
 * 架构:
   * `zako_core`: 核心逻辑库。
+  * `zako_digest`: 哈希和内容寻址存储的protobuf定义。
+  * `hone`: 内部依赖图和任务调度引擎。
   * `zako_js`: 核心JS/TS库，还包含类型定义等文件。
   * `zako_cli`: 用户交互界面 (UI)。
 * 关键Crates:
   * JS 引擎: `deno_core` (底层是`v8`)。
-  * Glob引擎：`ignore` crate
+  * TS 转换: `oxc` 系列 (transformer, parser, codegen, semantic, allocator, span)。
+  * Glob引擎：`ignore` crate。
   * 异步: `tokio` (Runtime), `tracing` (日志/遥测)。
-  * 错误处理: `thiserror` (Lib层), `eyre` (App层)。
-  * 序列化: `serde` (JSON), `prost` (Protobuf)。
+  * 错误处理: `thiserror` (Lib层), `eyre` + `color-eyre` (App层)。
+  * 序列化: `serde` (JSON), `prost` (Protobuf), `json5` (JSON5)。
   * 网络: `tonic` (gRPC), `reqwest` (HTTP)。
   * 哈希: `xxhash-rust` (快速非加密), `sha2` (安全加密)。
+  * 并发: `rayon` (数据并行), `crossbeam` (并发原语), `dashmap` (并发HashMap), `parking_lot` (锁)。
+  * 字符串池: `lasso` (多线程字符串intern)。
   * CLI: `clap` (v4+)。
+  * 内存分配器: `mimalloc`。
 
 ### 脚本运行时
 
@@ -66,8 +80,8 @@
 1. 核心层(`*.ts`)
     * 职责: 提供可在各个层共享的工具代码。
     * 权限: 只能访问核心API，如`zako:core`。
-2. 定义层 (`zako.json` + `zako.ts`)
-    * 职责: `zako.json`:项目根配置，声明构建选项。`zako.ts`可根据构建选项动态进行添加子项目等操作。
+2. 定义层 (`zako.json5` + `zako.ts`)
+    * 职责: `zako.json5`:项目根配置（JSON5格式），声明构建选项。`zako.ts`可根据构建选项动态进行添加子项目等操作。
     * 权限: 纯声明式，无 IO，只能提供文件列表或者用于glob的字符串。
 3. 逻辑层 (`BUILD.ts`)
     * 职责: 定义构建目标 (Target)。
@@ -79,9 +93,9 @@
 5. 工具链层 (`*.toolchain.ts`)
     * 职责: 定义 Toolchain。
     * 权限: 允许使用IO；探测阶段允许访问系统 (访问需写入Config，并遵循最小信息原则)。不能直接访问target，只能获得`rule`提供的构建参数。
-6. 脚本层 (`*.zscript.ts`)
+6. 脚本层 (`*.script.ts`)
     * 职责: 运维、部署、胶水代码。不在沙箱内执行。
-    * 权限: 全功能 Deno/Bun 环境 (通过嵌入的 deno/bun 执行)。
+    * 权限: 全功能 Bun 环境 (通过嵌入的 bun 执行)。
 
 Also see `zako_core/lib.rs` file for more docs.
 
@@ -91,9 +105,61 @@ Also see `zako_core/lib.rs` file for more docs.
 * 官方规则包使用 `moe.fra:xxxx` 等反向域名格式，与社区包平权。
 * Battery included，内置一些官方编写的基本规则。
 
+### 5. 标识符与命名规范
+
+#### 包标识符 (Package ID)
+
+格式: `<group>:<artifact_name>`
+
+* `group`: 反向域名格式，由 `.` 分隔的标识符，例如 `moe.fra`, `com.example`
+* `artifact_name`: 包名，单个标识符，例如 `zako`, `curl`
+
+示例: `moe.fra:zako`, `com.google:guava`
+
+#### 包版本
+
+遵循 **SemVer 2.0.0** 规范，例如 `1.0.0`, `2.3.1-beta.1`
+
+#### 目标标识符 (InternedId)
+
+格式: `@<package_ref>//<path>:<target>`
+
+* `@<package_ref>`: 包引用，可选，省略表示当前包
+  * 格式: `@` + 包的 artifact_name（不含 group）
+  * 示例: `@zako`, `@curl`, `@openssl`
+  * 当引用当前包时，可省略 `@<package_ref>` 部分
+
+* `<path>`: 目标所在的路径，可为空表示包根路径
+  * 由 `/` 分隔的标识符序列
+  * 示例: `src/ui/button`, `core`, `` (空字符串表示根路径)
+  * 不允许包含 `.` 或 `..`
+
+* `<target>`: 目标名称，必需
+  * 单个标识符
+  * 示例: `main`, `lib-utils`, `test_suite`
+
+**完整示例:**
+
+* `//:main` - 当前包根路径下的 main 目标
+* `//src:main` - 当前包 src 路径下的 main 目标
+* `@curl//:main` - curl 包根路径下的 main 目标
+* `@curl//src:lib` - curl 包 src 路径下的 lib 目标
+* `@openssl//crypto:core` - openssl 包 crypto 路径下的 core 目标
+
+#### 标识符规则
+
+所有标识符（atom, path segment, target name）必须符合以下规则：
+
+* 首字符: Unicode XID_Start 或 `_`
+* 后续字符: Unicode XID_Continue 或 `-`
+* 不能为空
+* 支持多语言（Unicode）标识符
+
+这套规则既保证了与主流编程语言的兼容性，又允许使用 kebab-case 风格的命名。
+
 ## 互操作性
 
-* 包管理: 使用 `npm` 管理 TS 依赖。同时不提供`node` API（只提供一些诸如`console.log`等简单的全局确定性API），并且使用lock机制，确保包的可复现性。
+* 包管理: 使用 `bun` 管理 TS 依赖。同时不提供`node` API（只提供一些诸如`console.log`等简单的全局确定性API），并且使用lock机制，确保包的可复现性。
 * 远程协议: 基于 gRPC/Protobuf，目标是兼容 Bazel REAPI。
 * IDE: 计划支持 BSP 协议。计划支持输出`compile_commands.json`。
 * 计划支持V8 debugger对构建脚本进行debug。

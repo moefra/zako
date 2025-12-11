@@ -7,8 +7,6 @@ pub mod error;
 pub mod node;
 pub mod status;
 
-use zako_digest::hash::XXHash3;
-
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct KeyId(u64);
 

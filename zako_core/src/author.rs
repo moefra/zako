@@ -3,11 +3,22 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::id::{InternedString, Interner};
+
 #[derive(TS, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[ts(export, export_to = "author.d.ts", as = "AuthorTS")]
 pub struct Author {
     pub name: String,
     pub email: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct InternedAuthor(InternedString);
+
+impl Author {
+    pub fn intern(&self, interner: &mut Interner) -> InternedAuthor {
+        InternedAuthor(interner.get_or_intern(format!("{} <{}>", self.name, self.email).as_str()))
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
