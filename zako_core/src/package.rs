@@ -9,7 +9,7 @@ use crate::id::{InternedAtom, InternedString};
 ///
 /// 参考: https://semver.org/
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct InternedVersion(InternedString);
+pub struct InternedVersion(pub InternedString);
 
 impl InternedVersion {
     pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, String> {
@@ -24,7 +24,7 @@ impl InternedVersion {
 ///
 /// 例如: "moe.fra", "com.example"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct InternedGroup(InternedString);
+pub struct InternedGroup(pub InternedString);
 
 impl InternedGroup {
     pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, String> {

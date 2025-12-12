@@ -101,5 +101,7 @@ zako-digest.workspace = true
 
 evalexpr.workspace = true
 
+getrandom.workspace = true
+
 [build-dependencies]
 tonic-prost-build.workspace = true

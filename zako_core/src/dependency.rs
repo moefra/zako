@@ -38,8 +38,9 @@ pub enum InternedPackageSource {
         path: InternedString,
     },
 }
+
 impl InternedPackageSource {
-    pub fn from_package_source(source: &PackageSource, interner: &mut crate::id::Interner) -> Self {
+    pub fn from_raw(source: &PackageSource, interner: &mut crate::id::Interner) -> Self {
         match source {
             PackageSource::Registry { package } => InternedPackageSource::Registry {
                 package: interner.get_or_intern(&package),
@@ -53,6 +54,24 @@ impl InternedPackageSource {
             },
             PackageSource::Path { path } => InternedPackageSource::Path {
                 path: interner.get_or_intern(&path),
+            },
+        }
+    }
+
+    pub fn to_raw(&self, interner: &crate::id::Interner) -> PackageSource {
+        match self {
+            InternedPackageSource::Registry { package } => PackageSource::Registry {
+                package: interner.resolve(&package).to_string(),
+            },
+            InternedPackageSource::Git { repo, checkout } => PackageSource::Git {
+                repo: interner.resolve(&repo).to_string(),
+                checkout: checkout.map(|c| interner.resolve(&c).to_string()),
+            },
+            InternedPackageSource::Http { url } => PackageSource::Http {
+                url: interner.resolve(&url).to_string(),
+            },
+            InternedPackageSource::Path { path } => PackageSource::Path {
+                path: interner.resolve(&path).to_string(),
             },
         }
     }

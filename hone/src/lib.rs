@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use redb::TableDefinition;
+
 pub mod context;
 pub mod dependency;
 pub mod engine;
@@ -23,3 +25,9 @@ pub type FastSet<K> = ::dashmap::DashSet<K, ::ahash::RandomState>;
 pub type HoneResult<T> = Result<T, error::HoneError>;
 
 pub type SharedHoneResult<T> = Result<T, Arc<error::HoneError>>;
+
+const TABLE_NODES: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_nodes");
+
+const TABLE_PARENTS: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_parents");
+
+const TABLE_CHILDREN: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_children");

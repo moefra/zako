@@ -1,0 +1,24 @@
+[package]
+name = "kagami"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+repository.workspace = true
+homepage.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "my_app_macros"
+path = "src/lib.rs"
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+darling.workspace = true
+
+[lints]
+workspace = true

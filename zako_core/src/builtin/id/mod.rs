@@ -43,7 +43,7 @@ make_builtin_id! {
 
 pub fn construct_builtins_typescript_export() -> String {
     let mut result = String::from("export default {\n");
-    result.push_str(&TYPESCRIPT_EXPORT);
+    //result.push_str(&TYPESCRIPT_EXPORT);
     result.push_str("}\n");
     result
 }

@@ -1,12 +1,13 @@
-use crate::FastSet;
 use crate::dependency::DependencyGraph;
 use crate::{FastMap, HoneResult, SharedHoneResult, context::Context, status::NodeData};
+use crate::{FastSet, TABLE_NODES};
 use ahash::{AHashMap, HashSet, HashSetExt};
 use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
 use eyre::Error;
 use futures::StreamExt;
 use rayon::iter::IntoParallelRefIterator;
+use redb::TransactionError;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -18,29 +19,37 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Engine<K: NodeKey, V: NodeValue> {
-    status_map: DashMap<K, NodeStatus<V>>,
-    computer: Arc<dyn Computer<K, V>>,
-    dependency_graph: Arc<DependencyGraph<K>>,
+pub struct Engine<C, K: NodeKey<C>, V: NodeValue<C>> {
+    status_map: DashMap<K, NodeStatus<C, V>>,
+    computer: Arc<dyn Computer<C, K, V>>,
+    dependency_graph: Arc<DependencyGraph<C, K>>,
+    database: Arc<redb::Database>,
+    context: Arc<C>,
 }
 
-impl<K: NodeKey, V: NodeValue> Engine<K, V> {
-    pub fn new(computer: Arc<dyn Computer<K, V>>) -> Self {
+impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
+    pub fn new(
+        computer: Arc<dyn Computer<C, K, V>>,
+        database: Arc<redb::Database>,
+        context: Arc<C>,
+    ) -> Self {
         Self {
             status_map: DashMap::new(),
             computer: computer,
             dependency_graph: Arc::new(DependencyGraph::new()),
+            database,
+            context,
         }
     }
 
-    pub fn peek_status(&self, key: &K) -> Option<NodeStatus<V>> {
+    pub fn peek_status(&self, key: &K) -> Option<NodeStatus<C, V>> {
         self.status_map.get(key).map(|entry| (*entry).clone())
     }
 
     pub fn insert(
         &self,
         key: K,
-        status: NodeStatus<V>,
+        status: NodeStatus<C, V>,
         parent: Option<FastSet<K>>,
         child: Option<FastSet<K>>,
     ) {
@@ -55,15 +64,15 @@ impl<K: NodeKey, V: NodeValue> Engine<K, V> {
         }
     }
 
-    pub fn pollute(&self, key: K, status: NodeStatus<V>) {
+    pub fn pollute(&self, key: K, status: NodeStatus<C, V>) {
         self.status_map.insert(key, status);
     }
 
-    pub fn get_computer(&self) -> Arc<dyn Computer<K, V>> {
+    pub fn get_computer(&self) -> Arc<dyn Computer<C, K, V>> {
         self.computer.clone()
     }
 
-    pub fn get_dependency_graph(&self) -> &DependencyGraph<K> {
+    pub fn get_dependency_graph(&self) -> &DependencyGraph<C, K> {
         &self.dependency_graph
     }
 
@@ -72,8 +81,8 @@ impl<K: NodeKey, V: NodeValue> Engine<K, V> {
         key: K,
         caller: Option<K>,
         stack: im::Vector<K>,
-    ) -> SharedHoneResult<NodeData<V>> {
-        let mut result: Option<SharedHoneResult<NodeData<V>>> = None;
+    ) -> SharedHoneResult<NodeData<C, V>> {
+        let mut result: Option<SharedHoneResult<NodeData<C, V>>> = None;
 
         loop {
             let notify = Arc::new(tokio::sync::Notify::new());
@@ -113,6 +122,14 @@ impl<K: NodeKey, V: NodeValue> Engine<K, V> {
                                 drop(occupied_entry); // 释放锁
                                 break;
                             }
+                            NodeStatus::Unreachable(_) => {
+                                let err = Arc::new(HoneError::UnexpectedError(
+                                    "Node is unreachable".to_string(),
+                                ));
+                                result = Some(Err(err));
+                                drop(occupied_entry); // 释放锁
+                                break;
+                            }
                         }
                     }
                     Vacant(entry) => {
@@ -130,7 +147,7 @@ impl<K: NodeKey, V: NodeValue> Engine<K, V> {
 
             // --- 步骤 5: 执行计算 (无锁状态！) ---
             // 创建一个新的 Context，标记当前节点为 caller
-            let ctx: Context<'_, K, V> = Context {
+            let ctx: Context<'_, C, K, V> = Context {
                 engine: self,
                 caller: caller,
                 this: &key,
@@ -159,7 +176,7 @@ impl<K: NodeKey, V: NodeValue> Engine<K, V> {
         caller: Option<K>,
         search_stack: &mut im::Vector<K>,
         buffered_count: usize,
-    ) -> SharedHoneResult<NodeData<V>> {
+    ) -> SharedHoneResult<NodeData<C, V>> {
         // check circular dependency
         if search_stack.contains(&key) {
             return Err(Arc::new(HoneError::CycleDetected {
@@ -175,6 +192,7 @@ impl<K: NodeKey, V: NodeValue> Engine<K, V> {
             Occupied(children_entry) => {
                 let locked = children_entry.get();
                 let children: Vec<K> = locked.iter().map(|arc| arc.clone()).collect();
+                drop(children_entry); // 释放锁
 
                 let errors = futures::stream::iter(children)
                     .map(|child| {
@@ -220,7 +238,7 @@ impl<K: NodeKey, V: NodeValue> Engine<K, V> {
         result
     }
 
-    pub async fn resolve(&self, key: K, buffered_count: usize) -> SharedHoneResult<NodeData<V>> {
+    pub async fn resolve(&self, key: K, buffered_count: usize) -> SharedHoneResult<NodeData<C, V>> {
         let mut search_stack = im::Vector::<K>::new();
         self.resolve_inner(key, None, &mut search_stack, buffered_count)
             .await

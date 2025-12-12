@@ -3,9 +3,6 @@ use sha2::digest::typenum::int;
 
 use crate::package::InternedPackage;
 
-pub type InternedString = ::lasso::Spur;
-pub type Interner = dyn ::lasso::Interner<InternedString>;
-
 /// 判断字符串是否是合法的 XID 标识符
 pub fn is_xid_ident(s: &str) -> bool {
     if s.is_empty() {

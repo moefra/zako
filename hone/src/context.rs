@@ -13,25 +13,25 @@ use crate::{
 };
 
 #[async_trait]
-pub trait Computer<K: NodeKey, V: NodeValue>: Send + Sync + Debug {
-    async fn compute(&self, ctx: &Context<K, V>) -> HoneResult<NodeData<V>>;
+pub trait Computer<C, K: NodeKey<C>, V: NodeValue<C>>: Send + Sync + Debug {
+    async fn compute(&self, ctx: &Context<C, K, V>) -> HoneResult<NodeData<C, V>>;
 }
 
 #[derive(Debug)]
-pub struct Context<'a, K: NodeKey, V: NodeValue> {
-    pub engine: &'a Engine<K, V>,
+pub struct Context<'a, C, K: NodeKey<C>, V: NodeValue<C>> {
+    pub engine: &'a Engine<C, K, V>,
     pub caller: Option<K>,
     pub this: &'a K,
     pub stack: im::Vector<K>,
-    pub old_data: Option<NodeData<V>>,
+    pub old_data: Option<NodeData<C, V>>,
 }
 
-impl<'a, K: NodeKey, V: NodeValue> Context<'a, K, V> {
+impl<'a, C, K: NodeKey<C>, V: NodeValue<C>> Context<'a, C, K, V> {
     /// 请求一个依赖项
     /// 1. 将 (caller -> key) 边写入依赖图
     /// 2. 异步等待 key 计算完成
     /// 3. 返回结果
-    pub async fn request(&mut self, key: K) -> SharedHoneResult<NodeData<V>> {
+    pub async fn request(&mut self, key: K) -> SharedHoneResult<NodeData<C, V>> {
         if self.stack.contains(&key) {
             return Err(Arc::new(crate::error::HoneError::CycleDetected {
                 caller: self

@@ -3,16 +3,18 @@ use std::sync::Arc;
 use crate::{FastMap, FastSet, node::NodeKey};
 
 #[derive(Debug, Clone)]
-pub struct DependencyGraph<K: NodeKey> {
+pub struct DependencyGraph<C, K: NodeKey<C>> {
     parents: FastMap<K, FastSet<K>>,
     children: FastMap<K, FastSet<K>>,
+    _marker: std::marker::PhantomData<C>,
 }
 
-impl<K: NodeKey> DependencyGraph<K> {
+impl<C, K: NodeKey<C>> DependencyGraph<C, K> {
     pub fn new() -> Self {
         Self {
             parents: FastMap::default(),
             children: FastMap::default(),
+            _marker: std::marker::PhantomData,
         }
     }
 

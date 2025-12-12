@@ -13,7 +13,7 @@ pub struct Author {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct InternedAuthor(InternedString);
+pub struct InternedAuthor(pub InternedString);
 
 impl Author {
     pub fn intern(&self, interner: &mut Interner) -> InternedAuthor {

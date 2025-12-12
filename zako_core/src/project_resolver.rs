@@ -1,3 +1,5 @@
+use crate::context::{BuildContext, ContextHandler, SharedBuildContext};
+use crate::dependency::{InternedPackageSource, PackageSource};
 use crate::engine::{Engine, EngineError};
 use crate::id::{PackageId, PackageIdError};
 use crate::path::NeutralPath;
@@ -7,7 +9,11 @@ use crate::sandbox::SandboxError;
 use crate::v8error::V8Error;
 use crate::zako_module_loader::{ModuleLoadError, ModuleSpecifier, ModuleType};
 use ahash::AHashMap;
+use hone::node::{NodeKey, Persistent};
+use serde::de::{DeserializeOwned, DeserializeSeed};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
+use std::hash::Hash;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -15,6 +21,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{event, instrument};
+use zako_digest::hash::XXHash3;
 
 #[derive(Error, Debug)]
 pub enum ProjectResolveError {
@@ -42,88 +49,98 @@ pub enum ProjectResolveError {
     NoExpectedProjectFound(PathBuf),
 }
 
-#[derive(Debug)]
-pub struct ProjectResolver {
-    engine: Engine,
-    parsed: RefCell<AHashMap<PathBuf, Rc<Project>>>,
-    resolved: RefCell<AHashMap<PathBuf, Rc<ResolvedProject>>>,
-    resolving: RefCell<AHashMap<PathBuf, bool>>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageSourceKey {
+    source: InternedPackageSource,
+    context: ContextHandler,
 }
 
-impl ProjectResolver {
-    pub fn new(engine: Engine) -> Self {
-        ProjectResolver {
-            engine,
-            parsed: RefCell::new(AHashMap::default()),
-            resolved: RefCell::new(AHashMap::default()),
-            resolving: RefCell::new(AHashMap::default()),
+impl Hash for PackageSourceKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match &self.source {
+            InternedPackageSource::Registry { package } => {
+                package.hash(state);
+            }
+            InternedPackageSource::Git { repo, checkout } => {
+                repo.hash(state);
+                checkout.hash(state);
+            }
+            InternedPackageSource::Http { url } => {
+                url.hash(state);
+            }
+            InternedPackageSource::Path { path } => {
+                path.hash(state);
+            }
         }
-    }
-
-    #[instrument]
-    fn resolve_project_inner(
-        self: &mut Self,
-        project_file_path: &NeutralPath,
-    ) -> Result<Rc<Project>, ProjectResolveError> {
-        let file = <NeutralPath as AsRef<Path>>::as_ref(project_file_path).canonicalize()?;
-
-        if !file.exists() {
-            return Err(FileNotExists(file));
-        }
-
-        if !file.is_file() {
-            return Err(NotAFile(file));
-        }
-
-        if let Some(status) = self.resolving.borrow_mut().get(&file) {
-            return if *status {
-                Err(CircularDependency(file))
-            } else {
-                return Ok(self
-                    .parsed
-                    .borrow()
-                    .get(&file)
-                    .ok_or(ProjectResolveError::NoExpectedProjectFound(file.clone()))?)
-                .cloned();
-            };
-        } else {
-            self.resolving.borrow_mut().insert(file.clone(), true);
-        }
-
-        let project = self.engine.execute_module_and_then(
-            &ModuleSpecifier::new_file_module(&file)?,
-            |mut scope, _context, resolved_project| {
-                let object = resolved_project.into();
-                deno_core::serde_v8::from_v8::<Project>(&mut scope, object)
-            },
-        )??;
-
-        event!(
-            tracing::Level::INFO,
-            "resolved project file `{}` successfully,get `{}`",
-            file.display(),
-            format!("{:?}", project)
-        );
-
-        self.resolving.borrow_mut().insert(file.clone(), false);
-
-        Ok(Rc::new(project))
-    }
-
-    #[instrument]
-    pub fn resolve_project(
-        self: &mut Self,
-        project_file_path: &NeutralPath,
-    ) -> Result<(), ProjectResolveError> {
-        let resolved = self.resolve_project_inner(project_file_path)?;
-
-        let packageId = PackageId::from_str(&format!(
-            "{}:{}@{}",
-            resolved.group, resolved.artifact, resolved.version
-        ))?;
-
-        // process subpackages
-
-        Ok(())
     }
 }
+
+impl XXHash3 for PackageSourceKey {
+    fn xxhash3_128(&self) -> u128 {
+        match &self.source {
+            InternedPackageSource::Registry { package } => {
+                self.context.interner().resolve(package).xxhash3_128()
+            }
+            InternedPackageSource::Git { repo, checkout } => {
+                let hasher = xxhash_rust::xxh3::Xxh3::new();
+                hasher.update(self.context.interner().resolve(repo).as_bytes());
+                if let Some(checkout) = checkout {
+                    hasher.update(self.context.interner().resolve(checkout).as_bytes());
+                }
+                hasher.digest128()
+            }
+            InternedPackageSource::Http { url } => {
+                self.context.interner().resolve(url).xxhash3_128()
+            }
+            InternedPackageSource::Path { path } => {
+                self.context.interner().resolve(path).xxhash3_128()
+            }
+        }
+    }
+}
+
+impl Serialize for PackageSourceKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let raw = self.source.to_raw(self.context.interner());
+        raw.serialize(serializer)
+    }
+}
+/// 用于反序列化的 Seed
+pub struct DeserializeWithContext {
+    pub ctx: ContextHandler,
+}
+
+impl<'de> DeserializeSeed<'de> for PackageSourceKey {
+    type Value = PackageSourceKey;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = PackageSource::deserialize(deserializer)?;
+        Ok(PackageSourceKey {
+            source: InternedPackageSource::from_raw(&raw, self.context.clone().interner_mut()),
+            context: self.context.clone(),
+        })
+    }
+}
+
+impl Persistent<SharedBuildContext> for PackageSourceKey {
+    type Persisted = PackageSource;
+
+    fn to_persisted(&self, ctx: &SharedBuildContext) -> Self::Persisted {
+        self.source.to_raw(ctx.interner())
+    }
+
+    fn from_persisted(p: Self::Persisted, ctx: &SharedBuildContext) -> Self {
+        PackageSourceKey {
+            source: InternedPackageSource::from_raw(&p, ctx.interner_mut()),
+            context: ctx.get_handle(),
+        }
+    }
+}
+
+impl NodeKey<BuildContext> for PackageSourceKey {}

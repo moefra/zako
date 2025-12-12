@@ -1,15 +1,18 @@
 use serde::{Serialize, de::DeserializeOwned};
 use std::fmt::Debug;
 use std::hash::Hash;
+use zako_digest::hash::XXHash3;
 
-pub trait NodeKey:
-    Clone + Debug + Eq + Hash + Send + Sync + 'static + Serialize + DeserializeOwned
+pub trait Persistent<C> {
+    type Persisted: Serialize + DeserializeOwned + Send + Sync;
+
+    fn to_persisted(&self, ctx: &C) -> Self::Persisted;
+    fn from_persisted(p: Self::Persisted, ctx: &C) -> Self;
+}
+
+pub trait NodeKey<C>:
+    Clone + Debug + Eq + Hash + Send + Sync + 'static + XXHash3 + Persistent<C>
 {
 }
 
-impl<T> NodeKey for T where
-    T: Clone + Debug + Eq + Hash + Send + Sync + 'static + Serialize + DeserializeOwned
-{
-}
-
-pub trait NodeValue: Debug + Send + Sync + 'static {}
+pub trait NodeValue<C>: Debug + Send + Sync + 'static + XXHash3 + Persistent<C> {}
