@@ -15,6 +15,7 @@ missing_docs = "warn"
 zako-core = { path = "./zako_core" }
 hone = { path = "./hone" }
 zako-digest = { path = "./zako_digest" }
+zako-kagami = { path = "./kagami" }
 
 clap = { version = "4.5", default-features = true, features = [
     "derive",

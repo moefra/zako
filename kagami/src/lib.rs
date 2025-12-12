@@ -2,7 +2,6 @@ mod kagami;
 extern crate proc_macro2;
 
 use darling::FromDeriveInput;
-use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Data;
 
@@ -23,16 +22,16 @@ pub fn inverse_image_through(item: proc_macro::TokenStream) -> proc_macro::Token
             (
                 kagami::refract_internable(
                     &structure,
-                    struct_identifier.to_string().as_str(),
-                    kagami.interned_name.to_string().as_str(),
+                    &struct_identifier,
+                    &kagami.interned_name,
                     &kagami.interned_context,
                     &kagami.interned_derives,
                     &kagami.shared,
                 ),
-                kagami::refract_internable(
+                kagami::refract_persistent(
                     &structure,
-                    kagami.interned_name.to_string().as_str(),
-                    kagami.persisted_name.to_string().as_str(),
+                    &struct_identifier,
+                    &kagami.persisted_name,
                     &kagami.persisted_context,
                     &kagami.persisted_derives,
                     &kagami.shared,

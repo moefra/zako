@@ -55,6 +55,7 @@ pub mod mirror;
 pub mod package;
 pub mod path;
 pub mod pattern;
+pub mod persistent;
 mod platform;
 pub mod project;
 pub mod project_resolver;
