@@ -1,8 +1,14 @@
+use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::string::String;
 use thiserror::Error;
+
+use crate::intern::Interner;
+use crate::path::interned::InternedNeutralPath;
+
+pub mod interned;
 
 type StackString<'a> = smallvec::SmallVec<[&'a str; 8]>;
 
@@ -17,7 +23,7 @@ type StackString<'a> = smallvec::SmallVec<[&'a str; 8]>;
 /// - 不包含绝对路径前缀
 /// - 不包含诸如C:之类的驱动器前缀
 /// - 是有效的 UTF-8 字符串
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
 #[serde(try_from = "String", into = "String")]
 pub struct NeutralPath(String);
 
@@ -347,5 +353,9 @@ impl NeutralPath {
             return true;
         }
         false
+    }
+
+    pub fn intern(&self, interner: &mut Interner) -> interned::InternedNeutralPath {
+        unsafe { InternedNeutralPath::from_raw(interner.get_or_intern(self.as_ref())) }
     }
 }

@@ -20,6 +20,10 @@ thiserror.workspace = true
 cfg-if.workspace = true
 num_cpus.workspace = true
 
+smol_str.workspace = true
+
+im.workspace = true
+
 bytes.workspace = true
 
 async-stream.workspace = true
@@ -92,6 +96,8 @@ tokio-stream.workspace = true
 dashmap.workspace = true
 
 async-trait.workspace = true
+
+bitcode.workspace = true
 
 tokio-util.workspace = true
 

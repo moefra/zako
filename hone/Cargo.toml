@@ -17,14 +17,12 @@ xxhash-rust.workspace = true
 eyre.workspace = true
 dashmap.workspace = true
 ahash.workspace = true
-rayon.workspace = true
-serde.workspace = true
 hex.workspace = true
 futures.workspace = true
 im.workspace = true
 zako-digest.workspace = true
 redb.workspace = true
-bincode.workspace = true
+bitcode.workspace = true
 
 [lints]
 workspace = true

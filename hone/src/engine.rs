@@ -1,4 +1,5 @@
 use crate::dependency::DependencyGraph;
+use crate::node::Persistent;
 use crate::{FastMap, HoneResult, SharedHoneResult, context::Context, status::NodeData};
 use crate::{FastSet, TABLE_NODES};
 use ahash::{AHashMap, HashSet, HashSetExt};
@@ -6,8 +7,8 @@ use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
 use eyre::Error;
 use futures::StreamExt;
-use rayon::iter::IntoParallelRefIterator;
-use redb::TransactionError;
+use redb::{TableError, TransactionError};
+use std::ops::Not;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -17,6 +18,22 @@ use crate::{
     node::{NodeKey, NodeValue},
     status::{self, NodeStatus},
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum EngineError {
+    #[error("Redb Database error: {0}")]
+    DatabaseError(#[from] TransactionError),
+    #[error("Redb Table error: {0}")]
+    TableError(#[from] TableError),
+    #[error("Redb Commit error: {0}")]
+    CommitError(#[from] redb::CommitError),
+    #[error("Redb Storage error: {0}")]
+    StorageError(#[from] redb::StorageError),
+    #[error("Other error: {0}")]
+    Other(#[from] eyre::Report),
+    #[error("Invalid pollute action for node `{0}`: {1}")]
+    InvalidPolluteAction(String, String),
+}
 
 #[derive(Debug)]
 pub struct Engine<C, K: NodeKey<C>, V: NodeValue<C>> {
@@ -64,8 +81,47 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         }
     }
 
-    pub fn pollute(&self, key: K, status: NodeStatus<C, V>) {
-        self.status_map.insert(key, status);
+    pub fn pollute(&self, key: K, status: NodeStatus<C, V>) -> Result<(), EngineError> {
+        if self.status_map.contains_key(&key).not() {
+            return Err(EngineError::InvalidPolluteAction(
+                format!("{:?}", key),
+                "Key not found".to_string(),
+            ));
+        }
+        if let NodeStatus::Dirty(_) = status {
+            self.status_map.insert(key.clone(), status);
+        }
+        return Err(EngineError::InvalidPolluteAction(
+            format!("{:?}", key),
+            "Only Dirty status can be used to pollute".to_string(),
+        ));
+    }
+
+    /// Write node to the database, persisting only Verified and Dirty nodes.
+    ///
+    /// [NodeStatus::Computing] and [NodeStatus::Failed] are not persisted.
+    ///
+    /// All written node will seems as dirty.
+    pub fn write(&self, ctx: &C) -> Result<(), EngineError> {
+        let txn = self.database.begin_write()?;
+        {
+            let mut table = txn.open_table(TABLE_NODES)?;
+
+            for entry in self.status_map.iter() {
+                let key_bytes = bitcode::encode(&entry.key().to_persisted(ctx));
+
+                let value_bytes = match entry.value() {
+                    NodeStatus::Verified(data) => bitcode::encode(&data.to_persisted(ctx)),
+                    NodeStatus::Dirty(data) => bitcode::encode(&data.to_persisted(ctx)),
+                    _ => {
+                        continue;
+                    }
+                };
+                table.insert(key_bytes.as_slice(), value_bytes.as_slice())?;
+            }
+        }
+        txn.commit()?;
+        Ok(())
     }
 
     pub fn get_computer(&self) -> Arc<dyn Computer<C, K, V>> {

@@ -18,7 +18,6 @@ pub fn inverse_image_through(item: proc_macro::TokenStream) -> proc_macro::Token
     let (interned, persisted) = match &original_ast.data {
         Data::Struct(structure) => {
             let kagami = Kagami::from_derive_input(&original_ast).unwrap();
-
             (
                 kagami::refract_internable(
                     &structure,
@@ -38,6 +37,7 @@ pub fn inverse_image_through(item: proc_macro::TokenStream) -> proc_macro::Token
                 ),
             )
         }
+        Data::Enum(enum_) => todo!(),
         _ => panic!("Unsupported use `kagami` in enum other than struct"),
     };
 

@@ -1,133 +1,200 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
+use crate::id::{InternedAtom, InternedLabel};
+use crate::package_source::ResolvedPackageSource;
+use crate::pattern::{InternedPattern, Pattern};
 use crate::{
-    Pattern,
     author::{Author, InternedAuthor},
     config::Config,
-    dependency::Dependency,
-    id::InternedString,
-    package::{InternedArtifactName, InternedGroup, InternedVersion},
+    context::BuildContext,
+    intern::{Internable, InternedString},
+    package::{InternedGroup, InternedVersion},
+    package_source::PackageSource,
 };
 use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
 use ts_rs::TS;
+
+#[derive(thiserror::Error, Debug)]
+pub enum ProjectResolveError {
+    #[error("the project dependecies key `{0}` is not a valid xid_loose_ident")]
+    InvalidDependencyKey(String),
+    #[error("the project config key `{0}` is not a valid xid_loose_ident")]
+    InvalidConfigKey(String),
+    #[error("failed to parse package id of project: {0}")]
+    PackageParseError(#[from] crate::package::PackageParseError),
+    #[error("failed to resolve package source of the project: {0}")]
+    PackageSourceResolveError(#[from] crate::package_source::PackageSourceResolveError),
+    #[error("failed to parse the id `{0}` of project part `{1}`: {2}")]
+    IdParseError(String, &'static str, #[source] crate::id::IdParseError),
+}
 
 #[derive(TS, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[ts(export, export_to = "project.d.ts")]
 #[ts(optional_fields)]
 pub struct Project {
     pub group: String,
-    pub artifact: String,
+    #[ts(as = "::std::option::Option<::std::string::String>")]
+    pub artifact: SmolStr,
     pub version: String,
-    pub description: Option<String>,
-    pub author: Option<Vec<Author>>,
+    #[ts(as = "::std::option::Option<::std::string::String>")]
+    pub description: Option<SmolStr>,
+    pub authors: Option<Vec<Author>>,
     pub license: Option<String>,
-    pub build: Option<Pattern>,
-    pub rule: Option<Pattern>,
-    pub toolchain: Option<Pattern>,
-    pub subproject: Option<Pattern>,
-    pub dependency: Option<HashMap<String, Dependency>>,
-    /// Default mount config to `config`
-    pub mount_config: Option<String>,
-    pub config: Option<HashMap<String, Config>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct InternedProject {
-    pub group: InternedGroup,
-    pub artifact: InternedArtifactName,
-    pub version: InternedVersion,
-    pub description: Option<InternedString>,
-    pub authors: Option<Vec<InternedAuthor>>,
-    pub license: Option<InternedString>,
     pub builds: Option<Pattern>,
     pub rules: Option<Pattern>,
     pub toolchains: Option<Pattern>,
     pub subprojects: Option<Pattern>,
-    pub dependencies: Option<HashMap<InternedString, Dependency>>,
-    pub mount_configuration: Option<InternedString>,
-    pub configurations: Option<HashMap<InternedString, Config>>,
+    /// The key will be checked by [crate::id::is_xid_loose_ident]
+    #[ts(as = "::std::option::Option<::std::collections::HashMap<::std::string::String, Config>>")]
+    pub dependencies: Option<HashMap<SmolStr, PackageSource>>,
+    /// Default mount config to `config`
+    pub mount_config: Option<String>,
+    /// The key will be checked by [crate::id::is_xid_loose_ident]
+    #[ts(as = "::std::option::Option<::std::collections::HashMap<::std::string::String, Config>>")]
+    pub config: Option<HashMap<SmolStr, Config>>,
 }
 
-impl InternedProject {
-    pub fn from_raw(project: &Project, interner: &mut crate::id::Interner) -> Result<Self, String> {
-        Ok(InternedProject {
-            group: InternedGroup::try_parse(&project.group, interner)?,
-            artifact: InternedArtifactName::try_parse(&project.artifact, interner)?,
-            version: InternedVersion::try_parse(&project.version, interner)?,
-            description: project
-                .description
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedProject {
+    pub group: InternedGroup,
+    pub artifact: SmolStr,
+    pub version: InternedVersion,
+    pub description: Option<SmolStr>,
+    pub authors: Option<Vec<InternedAuthor>>,
+    pub license: Option<InternedString>,
+    pub builds: Option<InternedPattern>,
+    pub rules: Option<InternedPattern>,
+    pub toolchains: Option<InternedPattern>,
+    pub subprojects: Option<InternedPattern>,
+    pub dependencies: Option<HashMap<SmolStr, ResolvedPackageSource>>,
+    pub mount_config: Option<InternedAtom>,
+    pub config: Option<HashMap<SmolStr, Config>>,
+}
+
+impl Project {
+    pub fn resolve(
+        self,
+        context: &BuildContext,
+        current_path: &PathBuf,
+    ) -> Result<ResolvedProject, ProjectResolveError> {
+        let authors = if let Some(authors) = self.authors {
+            let mut interned_authors: Vec<InternedAuthor> = Vec::with_capacity(authors.len());
+            for author in authors.into_iter() {
+                interned_authors.push(author.intern(context));
+            }
+            Some(interned_authors)
+        } else {
+            None
+        };
+
+        if let Some(wrong_dependency_key) = self.dependencies.as_ref().and_then(|deps| {
+            deps.keys().find(|k| {
+                let parsed = crate::id::is_xid_loose_ident(k);
+                parsed == false
+            })
+        }) {
+            return Err(ProjectResolveError::InvalidDependencyKey(
+                wrong_dependency_key.to_string(),
+            ));
+        }
+
+        if let Some(wrong_config_key) = self.config.as_ref().and_then(|cfg| {
+            cfg.keys().find(|k| {
+                let parsed = crate::id::is_xid_loose_ident(k);
+                parsed == false
+            })
+        }) {
+            return Err(ProjectResolveError::InvalidConfigKey(
+                wrong_config_key.to_string(),
+            ));
+        }
+
+        Ok(ResolvedProject {
+            group: InternedGroup::try_parse(&self.group, context.interner())?,
+            artifact: self.artifact,
+            version: InternedVersion::try_parse(&self.version, context.interner())?,
+            description: self.description,
+            authors,
+            license: self
+                .license
                 .as_ref()
-                .map(|d| interner.get_or_intern(d)),
-            authors: project
-                .author
-                .as_ref()
-                .map(|authors| authors.iter().map(|a| a.intern(interner)).collect()),
-            license: project.license.as_ref().map(|l| interner.get_or_intern(l)),
-            builds: project.build.clone(),
-            rules: project.rule.clone(),
-            toolchains: project.toolchain.clone(),
-            subprojects: project.subproject.clone(),
-            dependencies: project.dependency.as_ref().map(|deps| {
-                deps.iter()
-                    .map(|(k, v)| (interner.get_or_intern(k), v.clone()))
-                    .collect()
-            }),
-            mount_configuration: project
+                .map(|s| context.interner().get_or_intern(s)),
+            builds: self.builds.map(|pattern| pattern.intern(context)),
+            rules: self.rules.map(|pattern| pattern.intern(context)),
+            toolchains: self.toolchains.map(|pattern| pattern.intern(context)),
+            subprojects: self.subprojects.map(|pattern| pattern.intern(context)),
+            dependencies: self
+                .dependencies
+                .map(|deps| {
+                    deps.into_iter()
+                        .map(|(k, v)| {
+                            v.resolve(current_path, context.interner())
+                                .map(|resolved| (k, resolved))
+                        })
+                        .collect::<Result<HashMap<_, _>, _>>()
+                })
+                .transpose()?,
+            mount_config: self
                 .mount_config
+                .map(|s| {
+                    InternedAtom::try_parse(&s, context.interner()).map_err(|err| {
+                        ProjectResolveError::IdParseError(s.clone(), "mount_config", err)
+                    })
+                })
+                .transpose()?,
+            config: self
+                .config
                 .as_ref()
-                .map(|m| interner.get_or_intern(m)),
-            configurations: project.config.as_ref().map(|cfg| {
-                cfg.iter()
-                    .map(|(k, v)| (interner.get_or_intern(k), v.clone()))
-                    .collect()
-            }),
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
         })
     }
+}
 
-    pub fn into_raw(&self, interner: &crate::id::Interner) -> Project {
+impl ResolvedProject {
+    pub fn to_raw(&self, context: &BuildContext) -> Project {
         Project {
-            group: interner.resolve(&self.group.0).to_string(),
-            artifact: interner.resolve(&self.artifact.0).to_string(),
-            version: interner.resolve(&self.version.0).to_string(),
-            description: self
-                .description
-                .as_ref()
-                .map(|d| interner.resolve(d).to_string()),
-            author: self.authors.as_ref().map(|authors| {
-                authors
-                    .iter()
-                    .map(|a| {
-                        let s = interner.resolve(&a.0);
-                        // 解析回 Author 结构
-                        s.parse().unwrap_or(Author {
-                            name: s.to_string(),
-                            email: "".to_string(),
-                        })
-                    })
+            group: context.interner().resolve(&self.group.0).to_string(),
+            artifact: self.artifact.clone(),
+            version: context.interner().resolve(&self.version.0).to_string(),
+            description: self.description.clone(),
+            authors: self.authors.as_ref().map(|v| {
+                v.iter()
+                    .map(|a| InternedAuthor::resolve(a, context))
                     .collect()
             }),
             license: self
                 .license
                 .as_ref()
-                .map(|l| interner.resolve(l).to_string()),
-            build: self.builds.clone(),
-            rule: self.rules.clone(),
-            toolchain: self.toolchains.clone(),
-            subproject: self.subprojects.clone(),
-            dependency: self.dependencies.as_ref().map(|deps| {
+                .map(|s| context.interner().resolve(&s).to_string()),
+            builds: self
+                .builds
+                .as_ref()
+                .map(|p| InternedPattern::resolve(p, context)),
+            rules: self
+                .rules
+                .as_ref()
+                .map(|p| InternedPattern::resolve(p, context)),
+            toolchains: self
+                .toolchains
+                .as_ref()
+                .map(|p| InternedPattern::resolve(p, context)),
+            subprojects: self
+                .subprojects
+                .as_ref()
+                .map(|p| InternedPattern::resolve(p, context)),
+            dependencies: self.dependencies.as_ref().map(|deps| {
                 deps.iter()
-                    .map(|(k, v)| (interner.resolve(k).to_string(), v.clone()))
+                    .map(|(k, v)| (k.clone(), v.to_raw(context.interner())))
                     .collect()
             }),
             mount_config: self
-                .mount_configuration
+                .mount_config
+                .map(|s| context.interner().resolve(&s.0).to_string()),
+            config: self
+                .config
                 .as_ref()
-                .map(|m| interner.resolve(m).to_string()),
-            config: self.configurations.as_ref().map(|cfg| {
-                cfg.iter()
-                    .map(|(k, v)| (interner.resolve(k).to_string(), v.clone()))
-                    .collect()
-            }),
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
         }
     }
 }

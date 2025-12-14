@@ -1,4 +1,4 @@
-use crate::platform::get_set_platform_or_default;
+use crate::v8_platform::get_set_platform_or_default;
 use crate::v8error::{ExecutionResult, V8Error};
 use crate::zako_module_loader::{LoaderOptions, ModuleSpecifier, ZakoModuleLoader};
 use crate::{builtin, v8error, v8utils};

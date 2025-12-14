@@ -1,13 +1,12 @@
-
-import * as syscall from "zako:syscall";
-
-syscall.log("trace","hello world");
-
 import * as core from "zako:core";
+import * as project from "zako:project";
 
-console.trace(core.version);
-console.debug(core.version);
-console.log(core.version);
-console.info(core.version);
-console.warn(core.version);
-console.error(core.version);
+core.trace(`Benchmark version is ${project.config.version}`);
+
+core.requireZakoVersion(">=1.0.0 && <3.0.0");
+
+if(project.config.log){
+    project.builds.push("./logging");
+}
+
+export default project;

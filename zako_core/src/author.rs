@@ -3,7 +3,10 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::id::{InternedString, Interner};
+use crate::{
+    context::BuildContext,
+    intern::{Internable, InternedString},
+};
 
 #[derive(TS, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[ts(export, export_to = "author.d.ts", as = "AuthorTS")]
@@ -12,12 +15,27 @@ pub struct Author {
     pub email: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct InternedAuthor(pub InternedString);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InternedAuthor {
+    pub name: InternedString,
+    pub email: InternedString,
+}
 
 impl Author {
-    pub fn intern(&self, interner: &mut Interner) -> InternedAuthor {
-        InternedAuthor(interner.get_or_intern(format!("{} <{}>", self.name, self.email).as_str()))
+    pub fn intern(self, context: &BuildContext) -> InternedAuthor {
+        InternedAuthor {
+            name: context.interner().get_or_intern(self.name.as_str()),
+            email: context.interner().get_or_intern(self.email.as_str()),
+        }
+    }
+}
+
+impl InternedAuthor {
+    pub fn resolve(interned: &InternedAuthor, context: &BuildContext) -> Author {
+        Author {
+            name: context.interner().resolve(&interned.name).to_string(),
+            email: context.interner().resolve(&interned.email).to_string(),
+        }
     }
 }
 

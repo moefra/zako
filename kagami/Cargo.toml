@@ -10,7 +10,7 @@ edition.workspace = true
 license.workspace = true
 
 [lib]
-name = "my_app_macros"
+name = "kagami"
 path = "src/lib.rs"
 proc-macro = true
 

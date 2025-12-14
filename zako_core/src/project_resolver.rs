@@ -1,9 +1,8 @@
-use crate::context::{BuildContext, ContextHandler, SharedBuildContext};
-use crate::dependency::{InternedPackageSource, PackageSource};
+use crate::context::{BuildContext, ContextHandler};
 use crate::engine::{Engine, EngineError};
-use crate::id::{PackageId, PackageIdError};
+use crate::package_source::PackageSource;
 use crate::path::NeutralPath;
-use crate::project::{Project, ResolvedProject};
+use crate::project::Project;
 use crate::project_resolver::ProjectResolveError::{CircularDependency, FileNotExists, NotAFile};
 use crate::sandbox::SandboxError;
 use crate::v8error::V8Error;
@@ -43,8 +42,8 @@ pub enum ProjectResolveError {
     V8Error(V8Error),
     #[error("get an serde_v8 error")]
     V8SerdeError(#[from] deno_core::serde_v8::Error),
-    #[error("get an error when try to prase the id of the package")]
-    ParseError(#[from] PackageIdError),
+    #[error("get an error when try to prase the id of the package:{0}")]
+    ParseError(String),
     #[error("try to get parsed project `{0}` but not found in ProjectResolver.parsed")]
     NoExpectedProjectFound(PathBuf),
 }
@@ -76,26 +75,24 @@ impl Hash for PackageSourceKey {
 }
 
 impl XXHash3 for PackageSourceKey {
-    fn xxhash3_128(&self) -> u128 {
-        match &self.source {
+    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        let _none: () = match &self.source {
             InternedPackageSource::Registry { package } => {
-                self.context.interner().resolve(package).xxhash3_128()
+                self.context.interner().resolve(package).hash_into(hasher)
             }
             InternedPackageSource::Git { repo, checkout } => {
-                let hasher = xxhash_rust::xxh3::Xxh3::new();
                 hasher.update(self.context.interner().resolve(repo).as_bytes());
                 if let Some(checkout) = checkout {
                     hasher.update(self.context.interner().resolve(checkout).as_bytes());
                 }
-                hasher.digest128()
             }
             InternedPackageSource::Http { url } => {
-                self.context.interner().resolve(url).xxhash3_128()
+                self.context.interner().resolve(url).hash_into(hasher)
             }
             InternedPackageSource::Path { path } => {
-                self.context.interner().resolve(path).xxhash3_128()
+                self.context.interner().resolve(path).hash_into(hasher)
             }
-        }
+        };
     }
 }
 

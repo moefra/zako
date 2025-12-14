@@ -1,10 +1,10 @@
-use serde::{Serialize, de::DeserializeOwned};
+use bitcode::{Decode, Encode};
 use std::fmt::Debug;
 use std::hash::Hash;
 use zako_digest::hash::XXHash3;
 
 pub trait Persistent<C> {
-    type Persisted: Serialize + DeserializeOwned + Send + Sync;
+    type Persisted: Encode + for<'a> Decode<'a> + Send + Sync;
 
     fn to_persisted(&self, ctx: &C) -> Self::Persisted;
     fn from_persisted(p: Self::Persisted, ctx: &C) -> Self;

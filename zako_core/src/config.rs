@@ -24,7 +24,7 @@ pub enum ConfigDefault {
 #[ts(export, export_to = "config_operation.d.ts")]
 #[ts(optional_fields)]
 pub struct ConfigOperation {
-    pub from: String,
+    pub inherit: String,
     pub action: Option<String>,
 }
 

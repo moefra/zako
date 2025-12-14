@@ -1,4 +1,4 @@
-use std::{ops::Deref, sync::Arc};
+use std::{ops::Deref, path::PathBuf, sync::Arc};
 
 use ahash::AHashMap;
 use hone::FastMap;
@@ -6,47 +6,86 @@ use lasso::{Capacity, ThreadedRodeo};
 use thiserror::Error;
 
 use crate::{
-    dependency::InternedPackageSource, id::InternedString, package::InternedPackage,
-    project::InternedProject,
+    global_state::GlobalState,
+    intern::{InternedAbsolutePath, InternedString, Interner},
+    package::InternedPackage,
+    package_source::{PackageSource, ResolvedPackageSource},
+    project::ResolvedProject,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum BuildContextError {
+    #[error("the project root path `{0}` is not an absolute path")]
+    ProjectRootNotAbsolute(PathBuf),
     #[error("failed to call getrandom::u64 to get random context id")]
     FailedToGetRandomNumber(#[from] ::getrandom::Error),
+    #[error("failed to intern package source: {0}")]
+    FailedToResolvePackageSource(String),
 }
 
 #[derive(Debug)]
 pub struct BuildContext {
-    context_id: u64,
-    interner: ThreadedRodeo<InternedString, ::ahash::RandomState>,
-    packages: FastMap<InternedPackage, InternedProject>,
-    package_source: FastMap<InternedPackage, InternedPackageSource>,
+    project_root: InternedAbsolutePath,
+    project_entry_name: InternedString,
+    project_source: ResolvedPackageSource,
+    env: Arc<GlobalState>,
 }
 
 impl BuildContext {
-    pub fn new() -> Result<Self, BuildContextError> {
+    /// Create a new BuildContext
+    ///
+    /// `project_source`: The package source of the project, it should be absolute path to the project,
+    /// in the internal of zako it will be used as a unique id to identify the project.
+    ///
+    /// `project_root`: The root path of the project,it was usually built from the project_source
+    ///
+    /// `project_entry_name`: The entry point file name of the project,
+    /// If it is None, use [crate::consts::PROJECT_MANIFEST_FILE_NAME] as entry point
+    ///
+    /// `env`: The global state
+    pub fn new(
+        project_root: PathBuf,
+        project_source: PackageSource,
+        project_entry_name: Option<String>,
+        env: Arc<GlobalState>,
+    ) -> Result<Self, BuildContextError> {
+        let interner = env.interner();
+
+        let resolved = project_source
+            .resolve(&project_root, interner)
+            .map_err(|err| BuildContextError::FailedToResolvePackageSource(err.to_string()))?;
+
+        let entry = project_entry_name
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or(crate::consts::PROJECT_MANIFEST_FILE_NAME);
+
         Ok(Self {
-            context_id: getrandom::u64()?,
-            interner: ThreadedRodeo::with_capacity_and_hasher(
-                Capacity::for_strings(1024),
-                ::ahash::RandomState::new(),
-            ),
-            packages: FastMap::default(),
-            package_source: FastMap::default(),
+            project_root: InternedAbsolutePath::from_interned(
+                interner.get_or_intern(project_root.to_string_lossy().to_string().as_str()),
+                interner,
+            )
+            .ok_or_else(|| BuildContextError::ProjectRootNotAbsolute(project_root.clone()))?,
+            project_entry_name: interner.get_or_intern(entry),
+            project_source: resolved,
+            env,
         })
     }
 
-    pub fn interner(&self) -> &ThreadedRodeo<InternedString, ::ahash::RandomState> {
-        &self.interner
+    pub fn project_root(&self) -> InternedAbsolutePath {
+        self.project_root
     }
 
-    pub fn interner_mut(&self) -> &mut ThreadedRodeo<InternedString, ::ahash::RandomState> {
-        unsafe { &mut *(&self.interner as *const _ as *mut _) }
+    pub fn project_entry_name(&self) -> InternedString {
+        self.project_entry_name
     }
 
-    pub fn context_id(&self) -> u64 {
-        self.context_id
+    pub fn project_source(&self) -> &ResolvedPackageSource {
+        &self.project_source
+    }
+
+    pub fn interner<'c>(&'c self) -> &'c mut Interner {
+        self.env.interner()
     }
 
     pub fn get_handle(self: Arc<Self>) -> ContextHandler {
@@ -73,7 +112,7 @@ impl Eq for BuildContext {}
 
 impl PartialEq for BuildContext {
     fn eq(&self, other: &Self) -> bool {
-        self.context_id() == other.context_id()
+        self.project_root() == other.project_root()
     }
 }
 
@@ -81,7 +120,7 @@ impl Eq for ContextHandler {}
 
 impl PartialEq for ContextHandler {
     fn eq(&self, other: &Self) -> bool {
-        self.context.context_id() == other.context.context_id()
+        self.context.project_root() == other.context.project_root()
     }
 }
 

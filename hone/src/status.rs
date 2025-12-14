@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use crate::{error::HoneError, node::NodeValue};
+use bitcode::{Decode, Encode};
+
+use crate::{
+    error::HoneError,
+    node::{NodeValue, Persistent},
+};
 
 #[derive(Debug)]
 pub struct NodeData<C, V: NodeValue<C>> {
@@ -8,6 +13,30 @@ pub struct NodeData<C, V: NodeValue<C>> {
     output_xxhash3: u128,
     input_xxhash3: u128,
     _marker: std::marker::PhantomData<C>,
+}
+
+impl<C, V: NodeValue<C>> Persistent<C> for NodeData<C, V>
+where
+    V: NodeValue<C>,
+{
+    type Persisted = (V::Persisted, u128, u128);
+
+    fn to_persisted(&self, ctx: &C) -> Self::Persisted {
+        (
+            self.value.to_persisted(ctx),
+            self.output_xxhash3,
+            self.input_xxhash3,
+        )
+    }
+
+    fn from_persisted(p: Self::Persisted, ctx: &C) -> Self {
+        Self {
+            value: Arc::new(V::from_persisted(p.0, ctx)),
+            output_xxhash3: p.1,
+            input_xxhash3: p.2,
+            _marker: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<C, V: NodeValue<C>> Clone for NodeData<C, V> {
