@@ -1,0 +1,49 @@
+[
+  {
+    "language": "Rust",
+    "extensions": [
+      ".rs"
+    ],
+    "markers": [
+      {
+        "type": "line",
+        "pattern": "//"
+      },
+        {
+        "type": "block",
+        "pattern": {
+          "start": "/\\*",
+          "end": "\\*/"
+        }
+      },
+      {
+        "type": "block",
+        "pattern": {
+          "start": "///",
+          "end": "\n"
+        }
+      },
+        {
+            "type": "block",
+            "pattern": {
+            "start": "//!",
+            "end": "\n"
+            }
+        },
+        {
+            "type": "block",
+            "pattern": {
+            "start": "\\/*!",
+            "end": "\\*/"
+            }
+        },
+        {
+            "type": "block",
+            "pattern": {
+                "start": "todo!(",
+                "end": ")"
+            }
+        }
+    ]
+  }
+]
