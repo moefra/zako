@@ -18,7 +18,7 @@ jobs:
                   PROJECT: "organization/moefra/ZMake PLAN"
                   AUTO_ASSIGN: "true"
                   PROJECTS_SECRET: "${{ secrets.PROJECTS_SECRET }}"
-                  LANGUAGES: "LANGUAGES"
+                  LANGUAGES: "LANGUAGES.json"
             - name: Set Git user
               run: |
                   git config --global user.name "github-actions[bot(alstr/todo-to-issue-action@v5)]"
