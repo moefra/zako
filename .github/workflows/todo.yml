@@ -16,6 +16,7 @@ jobs:
                   INSERT_ISSUE_URLS: "true"
                   CLOSE_ISSUES: "true"
                   PROJECT: "organization/moefra/ZMake PLAN"
+                  AUTO_ASSIGN: "true"
                   PROJECTS_SECRET: "${{ secrets.PROJECTS_SECRET }}"
             - name: Set Git user
               run: |
