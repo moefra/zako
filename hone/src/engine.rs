@@ -102,17 +102,28 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
     /// [NodeStatus::Computing] and [NodeStatus::Failed] are not persisted.
     ///
     /// All written node will seems as dirty.
+    ///
+    /// It will also skip nodes key or value that return None when calling [Persistent::to_persisted].
     pub fn write(&self, ctx: &C) -> Result<(), EngineError> {
         let txn = self.database.begin_write()?;
         {
             let mut table = txn.open_table(TABLE_NODES)?;
 
             for entry in self.status_map.iter() {
-                let key_bytes = bitcode::encode(&entry.key().to_persisted(ctx));
+                let key_bytes = bitcode::encode(&match entry.key().to_persisted(ctx) {
+                    Some(k) => k,
+                    None => continue,
+                });
 
                 let value_bytes = match entry.value() {
-                    NodeStatus::Verified(data) => bitcode::encode(&data.to_persisted(ctx)),
-                    NodeStatus::Dirty(data) => bitcode::encode(&data.to_persisted(ctx)),
+                    NodeStatus::Verified(data) => match &data.to_persisted(ctx) {
+                        Some(persisted) => bitcode::encode(persisted),
+                        None => continue,
+                    },
+                    NodeStatus::Dirty(data) => match &data.to_persisted(ctx) {
+                        Some(persisted) => bitcode::encode(persisted),
+                        None => continue,
+                    },
                     _ => {
                         continue;
                     }
@@ -203,13 +214,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
 
             // --- 步骤 5: 执行计算 (无锁状态！) ---
             // 创建一个新的 Context，标记当前节点为 caller
-            let ctx: Context<'_, C, K, V> = Context {
-                engine: self,
-                caller: caller,
-                this: &key,
-                stack: stack,
-                old_data: old,
-            };
+            let ctx: Context<'_, C, K, V> = Context::new(self, caller, &key, stack, old);
 
             // 真正的运行用户逻辑
             let computed = self.computer.compute(&ctx).await;

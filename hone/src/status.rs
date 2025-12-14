@@ -21,21 +21,21 @@ where
 {
     type Persisted = (V::Persisted, u128, u128);
 
-    fn to_persisted(&self, ctx: &C) -> Self::Persisted {
-        (
-            self.value.to_persisted(ctx),
+    fn to_persisted(&self, ctx: &C) -> Option<Self::Persisted> {
+        Some((
+            self.value.to_persisted(ctx)?,
             self.output_xxhash3,
             self.input_xxhash3,
-        )
+        ))
     }
 
-    fn from_persisted(p: Self::Persisted, ctx: &C) -> Self {
-        Self {
-            value: Arc::new(V::from_persisted(p.0, ctx)),
+    fn from_persisted(p: Self::Persisted, ctx: &C) -> Option<Self> {
+        Some(Self {
+            value: Arc::new(V::from_persisted(p.0, ctx)?),
             output_xxhash3: p.1,
             input_xxhash3: p.2,
             _marker: std::marker::PhantomData,
-        }
+        })
     }
 }
 

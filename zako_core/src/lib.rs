@@ -31,6 +31,7 @@ pub mod build_constants;
 pub mod builtin;
 mod cas;
 mod cas_server;
+pub mod computer;
 pub mod config;
 pub mod consts;
 pub mod context;

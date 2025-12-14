@@ -23,7 +23,7 @@ pub enum BuildContextError {
     FailedToResolvePackageSource(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BuildContext {
     project_root: InternedAbsolutePath,
     project_entry_name: InternedString,
