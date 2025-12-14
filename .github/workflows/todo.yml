@@ -14,6 +14,8 @@ jobs:
               with:
                   INSERT_ISSUE_URLS: "true"
                   CLOSE_ISSUES: "true"
+                  PROJECT: "organization/moefra/ZMake PLAN"
+                  PROJECTS_SECRET: "${{ secrets.PROJECTS_SECRET }}"
             - name: Set Git user
               run: |
                   git config --global user.name "github-actions[bot(alstr/todo-to-issue-action@v5)]"
