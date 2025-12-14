@@ -98,8 +98,10 @@ pub struct RawResourcePool {
 }
 
 // TODO: Implement priority based resource allocation
+// Issue URL: https://github.com/moefra/zako/issues/6
 //
 // TODO: Implement better task scheduling
+// Issue URL: https://github.com/moefra/zako/issues/5
 #[derive(Debug)]
 pub struct ResourcePool(Mutex<RawResourcePool>);
 
