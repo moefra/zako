@@ -97,9 +97,9 @@ pub struct RawResourcePool {
     requested: VecDeque<(ResourceRequest, Sender<()>)>,
 }
 
-/// TODO: Implement priority based resource allocation
-///
-/// TODO: Implement better task scheduling
+// TODO: Implement priority based resource allocation
+//
+// TODO: Implement better task scheduling
 #[derive(Debug)]
 pub struct ResourcePool(Mutex<RawResourcePool>);
 
