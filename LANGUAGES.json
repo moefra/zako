@@ -17,18 +17,12 @@
         }
       },
       {
-        "type": "block",
-        "pattern": {
-          "start": "///",
-          "end": "\n"
-        }
+        "type": "line",
+        "pattern": "///"
       },
         {
-            "type": "block",
-            "pattern": {
-            "start": "//!",
-            "end": "\n"
-            }
+            "type": "line",
+            "pattern": "//!"
         },
         {
             "type": "block",
