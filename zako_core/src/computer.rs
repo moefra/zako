@@ -1,15 +1,20 @@
-use std::{f32::consts::E, pin::Pin};
-
 use async_trait::async_trait;
-use hone::{HoneResult, context::Context, error::HoneError, status::NodeData};
+use hone::{HoneResult, context::Context, status::NodeData};
 
-use crate::{context::BuildContext, node_key::ZakoKey, node_value::ZakoValue};
+use crate::{
+    compute::{compute_glob, compute_resolve_project},
+    context::BuildContext,
+    node_key::ZakoKey,
+    node_value::ZakoValue,
+    path::interned::InternedNeutralPath,
+};
 
 #[derive(Debug)]
 pub struct Compuer {}
 
 pub type ZakoComputer = dyn hone::context::Computer<BuildContext, ZakoKey, ZakoValue>;
 pub type ZakoComputeContext<'c> = Context<'c, BuildContext, ZakoKey, ZakoValue>;
+pub type ZakoResult = HoneResult<NodeData<BuildContext, ZakoValue>>;
 
 #[async_trait]
 impl hone::context::Computer<BuildContext, ZakoKey, ZakoValue> for Compuer {
@@ -17,6 +22,9 @@ impl hone::context::Computer<BuildContext, ZakoKey, ZakoValue> for Compuer {
         &self,
         ctx: &'c ZakoComputeContext<'c>,
     ) -> HoneResult<NodeData<BuildContext, ZakoValue>> {
-        todo!()
+        match ctx.this() {
+            ZakoKey::Glob { base_path, pattern } => compute_glob(ctx, &base_path, &pattern).await,
+            ZakoKey::ResolveProject { path } => compute_resolve_project(ctx, &path).await,
+        }
     }
 }

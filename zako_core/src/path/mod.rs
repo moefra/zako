@@ -1,16 +1,27 @@
 use bitcode::{Decode, Encode};
+use phf::phf_set;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::string::String;
 use thiserror::Error;
+use zako_digest::hash::XXHash3;
 
 use crate::intern::Interner;
 use crate::path::interned::InternedNeutralPath;
 
 pub mod interned;
 
-type StackString<'a> = smallvec::SmallVec<[&'a str; 8]>;
+type StackString<'a> = smallvec::SmallVec<[&'a str; 16]>;
+
+/// From [Microsoft's document](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file)
+///
+/// Note that `¹`,`²`,`³` takes two bytes in UTF-8 encoding, but it's still a single character.
+pub static WINDOWS_RESERVED: phf::Set<&'static str> = phf_set! {
+    "CON" , "PRN" , "AUX" , "NUL" , "COM1" , "COM2" , "COM3" , "COM4" , "COM5" , "COM6",
+    "COM7" , "COM8" , "COM9" , "LPT1" , "LPT2" , "LPT3" , "LPT4" , "LPT5" , "LPT6",
+    "LPT7" , "LPT8" , "LPT9" , "COM¹" , "COM²" , "COM³" , "LPT¹" , "LPT²" , "LPT³"
+};
 
 /// NeutralPath 代表一个平台无关的、标准化的、相对的路径。
 ///
@@ -167,27 +178,31 @@ impl NeutralPath {
         }
 
         // NUL NUL.gzip NUL.tar.gz is all invalid
-        let strip = if let Some((left, _right)) = part.split_once(".") {
-            left
-        } else {
-            part
-        };
+        let stem = part.split_once('.').map(|(l, _)| l).unwrap_or(part);
 
-        let strip = strip.to_ascii_uppercase();
+        let len = stem.len();
+        // 3 for COM ...
+        // 4 for COM1 ...
+        // 5 for COM¹ ...
+        if len == 3 || len == 4 || len == 5 {
+            let mut buf = [0u8; 5];
 
-        match strip.as_str() {
-            "CON" | "PRN" | "AUX" | "NUL" | "COM1" | "COM2" | "COM3" | "COM4" | "COM5" | "COM6"
-            | "COM7" | "COM8" | "COM9" | "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" | "LPT6"
-            | "LPT7" | "LPT8" | "LPT9" | "COM¹" | "COM²" | "COM³" | "LPT¹" | "LPT²" | "LPT³" =>
-            {
-                return Err(PathError::InvalidCharacter(
-                    "reserved name from windows(e.g. NUL COM or LPT¹",
-                ));
+            // 将 bytes 复制到 buffer 并转大写
+            // 这里假设是 ASCII，因为 unicode 保留字很少见
+            for (i, b) in stem.bytes().enumerate() {
+                buf[i] = b.to_ascii_uppercase();
             }
-            _ => {}
+
+            // 将 buffer 转为 &str (unsafe 是安全的，因为我们只处理了 ASCII)
+            let upper_stem = std::str::from_utf8(&buf[0..len]).unwrap_or("");
+
+            // 4. PHF 查表 (O(1))
+            if WINDOWS_RESERVED.contains(upper_stem) {
+                return Err(PathError::InvalidCharacter("Windows reserved name"));
+            }
         }
 
-        // limitation from my thought
+        // limitation from my brain
         if part.contains("\'") {
             return Err(PathError::InvalidCharacter("\'"));
         }
@@ -355,7 +370,13 @@ impl NeutralPath {
         false
     }
 
-    pub fn intern(&self, interner: &mut Interner) -> interned::InternedNeutralPath {
-        unsafe { InternedNeutralPath::from_raw(interner.get_or_intern(self.as_ref())) }
+    pub fn intern(&self, interner: &Interner) -> interned::InternedNeutralPath {
+        unsafe { InternedNeutralPath::from_raw(interner.get_or_intern(self)) }
+    }
+}
+
+impl XXHash3 for NeutralPath {
+    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        hasher.update(self.0.as_bytes());
     }
 }

@@ -1,0 +1,1476 @@
+Skip to main content
+Copy of 设计
+187,902 tokens
+
+User
+帮我总结一下Bazel，CMake，Meson，Buck2，please.build他们的特点和他们之间的区别。
+请你在网上搜索最新资料。
+
+一下是我给你的一些附加资料：
+
+------
+please.build官网的FAQ。
+```
+Why use Please instead of go build / Maven / Gradle?
+Cross-language support is a big advantage; we have four main languages in use at Thought Machine (Javascript, Python, Java and Go) plus several smaller pieces (some C++ and Thrax grammars) and having to invoke different compilers and/or test tools for each one would be extremely tiresome.
+
+Please can also integrate many different kinds of build steps; for example a code generation step using go generate or protoc can be invoked dynamically without having to check the resulting code into the repository.
+
+We've tried other tools (notably Gradle and Buck) internally and ultimately decided that we could build something that would either better fit our needs, be considerably faster, or both.
+
+Why use Please instead of Bazel, Buck or Pants?
+All four of these systems are quite closely related in the scheme of things, being inspired by (or in Bazel's case, a direct open sourcing of) Google's Blaze.
+
+Several of us had worked at Google and used Blaze extensively there; we were excited about it being open sourced as Bazel but by then we were already using Please internally. It's a great system but we have slightly different goals, specifically we're aiming Please at being lighter weight and pushing the boundaries of what can be done within the BUILD language. Since Please is written in Go there's no runtime dependency on the JVM.
+
+We actually used Buck for some months internally before deciding to write Please and before it was capable of building our repo. We preferred it to other options available, but again we're focused on different goals; Please is easier to extend to new languages, has a bunch of features that we specifically wanted (e.g. test sandboxing) and has a stronger focus on BUILD language correctness. Conversely we have much less support for mobile development.
+
+We're least familiar with Pants; one of our developers briefly tried it and while we liked many aspects we didn't think it was the ideal fit for us at the time.
+
+What inspired the design of Please?
+Originally Blaze, since a number of us had used it at Google. More recently we'd used Buck internally so many things superficially resemble that for compatibility reasons (e.g. python_binary instead of py_binary etc).
+
+Some of the advanced features are based on things we would have liked to do with Blaze, for example being able to defer creation of some build rules until they actually need to be built. This is only really of interest for spectacularly large trees of targets or especially esoteric use cases though.
+
+Mostly, of course, it was inspired by our fearless leader Paul, specifically the point when he told us "you absolutely cannot write your own build system". After that it was really inevitable...
+
+Why is it so fast?
+Firstly, all the rules explicitly declare their dependencies, so Please can aggressively parallelise build rules wherever possible. It can also cache & reuse previous outputs when they haven't changed, and it hashes all input files to make sure it's correct.
+
+Also BUILD files encourage you to break projects into smaller components, which can then be compiled in parallel. It's still possible to define a project with a single BUILD file in the traditional Java way that one would use in Gradle etc, and this works fine for smaller projects, but for larger ones parallelising the compilation can be a big advantage.
+
+There are no separate steps inside Please; parsing BUILD files, building targets and running tests can all happen simultaneously, so there's no down time waiting for the last thing to compile before the tests begin. The parsing process is also very fast due to having an in-process Python interpreter.
+
+It being written in Go and being an entirely native binary means great performance and fast startup times; internally it's also highly parallelised and can take full advantage of the underlying hardware.
+
+Finally, the rules themselves are optimised in various ways; for example, the construction of the final .jar from a java_binary is an efficient concatenation of other .jar files without any recompression. Similarly the output .pex from a python_binary is built up piecemeal throughout the python_library rules and assembled at the end so we don't have to recompress an entire zip file every time you change one .py file.
+```
+------
+来自`Blog System 5`的博文`You are holding BUILD files wrong`：
+```
+I’ve heard it from people new to Bazel but also from people very familiar with the Bazel ecosystem: BUILD files must go away. And they must go away because they are redundant: they just repeat the dependency information that’s already encoded in the in-code import/use statements.
+
+Hearing this from newcomers to Bazel isn’t surprising: after all, most newcomers are used to build tools that provide zero facilities to express dependencies across the sources of your own project. Hearing it from old-timers, however, is disappointing because it misses the point of what BUILD files can truly offer.
+
+In my opinion: if that’s how you are writing BUILD files, you are holding them wrong. There is much more to BUILD files than mindlessly repeating import statement dependencies. Let’s see why.
+
+The problem
+Suppose you are given the following change to review:
+
+--- a/src/main/com/example/compiler/parser/Parser.java
++++ b/src/main/com/example/compiler/parser/Parser.java
+@@ -1,8 +1,10 @@
+ package com.example.compiler.parser;
+
+ import com.example.compiler.ast.Ast;
++import com.example.compiler.ast.Statement;
+ import com.example.compiler.lexer.Lexer;
+ import com.example.compiler.lexer.Token;
++import com.example.compiler.utils.FileReader;
+
+ // Parser for a simple language.
+ class Parser {
+By looking at this diff, possibly from a Pull Request (PR) review, you can guess the following:
+
+The com.example.compiler.parser Java package already depends on the com.example.compiler.ast package.
+
+The com.example.compiler.parser Java package already depends on the com.example.compiler.lexer package.
+
+The addition of the import com.example.compiler.ast.Statement line does not modify the dependency graph: the edge from the parser package to the ast package existed beforehand, and this new import statement is just leveraging it.
+
+The addition of the import com.example.compiler.utils.FileReader line is… uh, well, given this limited context, you just can’t tell! Is it OK or is it not? Did com.example.compiler.parser already depend on com.example.compiler.utils via some other file in the same package—in which case this new import changes nothing dependency-wise—or did it not—in which case this new import deserves questioning from a high-level architecture perspective?
+
+Software architecture
+The snippet I presented above is for Java but, in reality, the problem I described applies to every other language: all languages out there have some sort of import/use statements and all languages have some sort of mechanism to group code in module-like entities. By inspecting standalone changes at the file level, we cannot tell whether new cross-module dependencies are being introduced or not.
+
+And being able to reason about modules is critical: we humans work best when we can reason about higher level relationships than files. We think of software as a collection of modules with layered dependencies and constraints that should not be violated. Enforcing these conceptual models via import/use statements is impossible, but the build graph—the very thing that BUILD files define—is the best place to encode them in a programmatic manner.
+
+So: my point is that BUILD files give you a chance to encode the high-level architecture of your software project as a graph of dependencies that lives outside of the code. If you keep your BUILD files lean and human-managed, you have a good chance of detecting invalid dependencies from a layering perspective as soon as they are introduced.
+
+The word “lean” in the previous paragraph is doing a lot of the heavy lifting though because by “lean” I mean simple BUILD files that define targets that map to concepts. This bypasses “best practices” that dictate one BUILD file per directory because you may need to use recursive globs to group sources into larger conceptual units, and this can also result in reduced build performance because you end up with fewer, larger targets. And that’s fine.
+
+For one, if recursive globs are a problem because they end up bundling too many related concepts in one target, you have got a problem with your directory structure and you should fix that. And for another, if larger targets end up hurting build performance, you have got a problem with your modularity and you should work towards breaking those big targets apart. At the end of the day, these two issues are symptoms of having too many unrelated concepts in one module. Simplifying the build structure may result in a transient performance regression, but working towards breaking those apart will help everyone in your organization.
+
+None of this is novel though, as these ideas can be found outside of Bazel. Think about shared libraries in large C or C++ projects, multiple Maven modules in a large Java code base, or multiple crates in a large Rust project. If you have ever done any of these, you know that manually defining modules is useful because it forces you and your fellow developers to think in terms of APIs at the module boundaries.
+
+Changing the module-level architecture of a project is something that happens infrequently and, when it does, you want the more senior people in the team to question and review such changes. And, for that, you must make these changes visible as soon as they happen.
+
+Reverse dependencies
+Expressing modules in your build graph is great, but people seem to like having tools to automatically update dependencies based on code changes. This is not incompatible with what I have said so far, but in order to keep a clean software architecture, you will need to have a strong code review culture because any undesirable new edges introduced in a change will have to be vetted up at code review. But… what if they aren’t? Can we do better?
+
+Of course we can! Bazel gives us a way to express restrictions via reverse dependencies: aka visibility rules. When you maintain a conceptual dependency graph by hand, you will find cases where you want to express things like:
+
+com.example.compiler.utils can be consumed from com.example.compiler.lexer, which is the lowest level layer of the compiler.
+
+com.example.compiler.utils cannot be consumed from any other layer unless we discuss the implications.
+
+Visibility rules allow you to express these restrictions programmatically. The difference with forward dependencies is that, if you ever wanted to use com.example.compiler.utils from a module that has not been pre-declared as an allowed consumer, you would need to modify the BUILD file definitions in com.example.compiler.utils to widen the visibility rules. This would require talking to the owners of such module, either in person or via the code review, to be allowed as a consumer of those APIs.
+
+Putting it all together
+Now that we know the theory behind my proposal, let’s revisit the utils package from the earlier example. To enforce our desired architecture, the BUILD file in src/main/com/example/compiler/utils/BUILD might look like this:
+
+java_library(
+    name = “utils”,
+    srcs = glob([”*.java”]),
+    visibility = [
+        “//src/main/com/example/compiler/lexer:__pkg__”,
+    ],
+)
+This is a “lean” BUILD file. It defines a single, conceptual utils library, and doesn’t bother about specifying source files: it trusts that whatever you throw into the com/example/compiler/utils/ directory truly belongs to that module. Most importantly, the visibility attribute declares that only code within the lexer package is allowed to depend on this utils library.
+
+With this rule in place, the problematic code change we saw earlier (adding an import of FileReader to the parser) would no longer be a silent, ambiguous change. The moment the developer (or the CI system) tries to build the code, they would get an immediate, explicit error from Bazel stating that the parser target is not allowed to see the utils target.
+
+The architectural violation is caught automatically. The desired conversation with the module owners is now forced to happen, exactly as intended.
+
+Helping AI models
+Finally, we get to the most hyped topic of all times: AI agents. Remember when I said above that a clean conceptual module-based architecture is critical for humans to understand how a project works? Well, guess what, the same applies to AI models.
+
+If you try to use AI agents on an existing codebase, you will notice that they try to reason about the current architecture by reading individual file names and their contents, and then chasing through their file-level dependencies.
+
+But what if you could make these AI agents to follow your conceptual dependency chain by teaching them, via an MCP server, to follow your build graph? Presumably, their ability to reason would increase because they’d be faced with cleaner concepts that explain the story behind your codebase in big blocks.
+
+Your turn
+I hope to have convinced you that manually managing your BUILD files in a Bazel project is a good idea for long-term maintainability and for the successful use of AI tools. For this to be possible, you have to forego the “standard practice” of having very small BUILD targets and instead capture your conceptual modular architecture in the build graph. And once you do that, BUILD files magically become manageable by humans, without the need for fancy automation that pushes complexity under the rug.
+
+But that’s just my opinion.
+```
+------
+From buck2 website:
+```
+Why does Buck2 exist?
+Meta employs a very large monorepo, consisting of a variety of programming languages, including C++, Python, Rust, Kotlin, Swift, Objective-C, Haskell, OCaml, and more. Google employs a different but functionally similar monorepo.
+
+These large scale and multi-language repositories are generally beyond the capabilities of traditional build systems like make. To optimize the build and performance of these large systems, Facebook and Google developed their own build systems, respectively Buck and Bazel. While the internal version of Bazel was started first (also known as Blaze), Buck was open sourced first (back in March 2013), followed by Bazel a few years later (March 2015).
+
+The retroactively named Buck1 was a capable build system, but had significant limitations and has been entirely phased out at Meta today. Buck2 is a rewrite that aims to keep the best bits of Buck1 (with a high degree of target compatibility) but also borrows ideas from academic research and build systems, including Bazel, Pants, Shake, Tup, and more.
+
+Following are aspects common to Buck1 and Buck2 (and in most cases, Bazel):
+
+Targets that can be queried - the build is defined as a series of targets, specified in BUCK files, that depend on other targets. This graph of targets can be queried to understand how they relate to each other and what the potential impact of a change might be.
+Remote execution - the build can send actions to a set of remote servers to be executed, increasing the parallelism significantly.
+Multi-language composability - there can be lots of different languages in a single build, and they can be put together. For example, you could have a Python library that depends on a Rust library, which, in turn depends on a C library.
+File watching - at large enough scale, simply looking for changed files is prohibitively expensive. Buck can integrate with Watchman to discover which files have changed efficiently. However, for simplicity of setup, the open-source version defaults to using inotify or similar functionality.
+Uses Starlark - Starlark is a deterministic Python-like language used to specify the targets, enabling the definition of targets as literals and more advanced manipulation/sharing.
+What's different about Buck2?
+Buck2 has several major differences (as well as many minor differences) from Buck1. Of particular note, there are a number that give new efficiency or expressiveness (most of these are also different from Bazel).
+
+Buck2 is written in Rust - Buck1 was written in Java. One of the advantages of using Rust is the absence of GC pauses, However, Java also has advantages, such as better memory profiling tools.
+Buck2 is remote execution first - local execution is considered a special case of remote execution, in contrast to Buck1 where it was added after. That means that things such as directory hashes can be pre-computed ready to send to remote execution, giving efficiency benefits.
+All Buck2 rules are written in Starlark - whereas, in Buck1, they were written in Java as part of the binary, which makes iteration on rules much faster.
+The Buck2 binary is entirely language agnostic - as a consequence of having all the rules external to the binary, the most important and complex rule (such as in C++), don't have access to magic internal features. As a result, features have been made available to all rules, including:
+Dep files - the ability to declare that a subset of the files weren't actually used, and thus not be sensitive to changes within them.
+Incremental actions - the ability to have the action short-circuit some subset of the work if run again.
+Buck2 uses a dynamic (aka monadic) graph as its underlying computation engine - while most dependencies are specified statically, there are two particular features that expose dynamic power to rule authors:
+Dynamic dependencies - enable rules to build a file then look at its contents before specifying the dependencies and steps in future actions. Common uses are languages where the dependency structure within a project must follow imports (e.g. Haskell, OCaml) and distributed ThinLTO (where the best optimization plan is generated from summaries).
+Anonymous targets - enable rules to create a graph that has more sharing than the original user graph. As a result, two unrelated binaries can compile shared code only once, despite the shared code not knowing about this commonality. This feature is useful for rules like Swift feature resolution.
+Transitive-sets - similar in purpose to Bazel's depset. But, instead of being just a memory optimization, are also wired into the dependency graph, providing a reduction in the size of the dependency graph.
+Buck2 is not phased - there are no target graph/action graph phases, just a series of dependencies in a single graph on DICE that result in whatever the user requested. That means that Buck2 can sometimes parallelise different phases and track changes very precisely.
+Buck2 can integrate with the virtual filesystem Eden - this provides good performance, even when the file system is backed by source control fetches. However, Eden is not required, and a normal file system will also work well.
+The Buck2 Starlark implementation is available as a standalone library - this provides features such as IDE integration (both LSP and DAP bindings), linters, typecheckers, and more. These features are integrated into Buck2 to give a better developer experience (which is still evolving).
+Buck2 supports configurations - (such as select) to provide multi-platform/architecture builds, which are heavily inspired by Bazel. Within that space, there is a number of small differences, such as toolchain_deps.
+Buck2 is fast - in our internal tests, we observed that Buck2 completed builds 2x as fast as Buck1.
+For a comprehensive list of benefits, see Benefits Compared to Buck1.
+
+Why use Buck2?
+It would be delightful if you tried out Buck2! But it is early-stage software, so users may run into unexpected issues. If you encounter an issue, please report it via Github issues.
+
+Buck2 is being used internally within Meta and is available as open-source from 2023.
+
+There are several differences between the internal and open-source versions:
+
+Meta uses an internal version of remote execution with builds always hooked up to remote execution. The open-source binding, which uses Buck2 without remote execution, may be less polished.
+There are some configuration differences between the open source and internal versions. For example, file changes default to inotify in open-source, and to Watchman internally.
+The prelude (containing all the rules) is the same for open-source as internal, but toolchains are not open-sourced. The required custom toolchains may not work as well.
+There are also some things that aren't quite yet finished:
+
+There are not yet mechanisms to build in release mode (that should be achieved by modifying the toolchain).
+Windows/Mac builds are still in progress; open-source code is mostly tested on Linux.
+If none of that puts you off, give Buck2 a go!
+```
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+这是一个非常关键的架构决策，直接关系到你的构建系统是否支持 **远程缓存 (Remote Caching)** 和 **跨机器复用**。
+
+简短的回答是：**一定要区分。千万不要在构建图的核心 Key 中强制存储绝对路径。**
+
+你应该创建两个明确的类型：
+1.  **`InternedRelativePath`**：用于构建图、Artifacts、依赖关系。
+2.  **`InternedAbsolutePath`**：用于 GlobalState 的 Key、物理 IO 操作。
+
+---
+
+### 1. 为什么要区分？（缓存的黄金法则）
+
+构建系统的一个核心目标是 **“位置无关性 (Relocatability)”**。
+
+**场景**：
+*   **开发机 A**: 项目在 `/home/alice/zako-project`
+*   **开发机 B**: 项目在 `/Users/bob/work/zako-project`
+*   **CI 服务器**: 项目在 `/jenkins/workspace/job-123`
+
+**如果你只存绝对路径**：
+*   A 的 `main.o` 的 Input Hash 包含了 `/home/alice/...`。
+*   B 的 `main.o` 的 Input Hash 包含了 `/Users/bob/...`。
+*   **后果**：Hash 不同，**缓存无法复用**。B 必须重新编译 A 已经编译过的东西。
+
+**如果你存相对路径**：
+*   A, B, CI 的路径都是 `src/main.rs` (相对于项目根目录)。
+*   **后果**：Hash 相同，**缓存完美命中**。
+
+---
+
+### 2. 推荐的类型设计
+
+利用 Rust 的 NewType 模式，防止混淆。
+
+```rust
+use crate::id::{Interner, InternedString};
+use std::path::{Path, PathBuf};
+
+/// 1. 相对路径 (Relative Path)
+/// 语义: 相对于 Workspace Root 的路径
+/// 用途: 构建图 Key, Artifact 属性, 远程缓存 Key
+/// 例子: "src/utils/lib.rs"
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct InternedRelativePath(InternedString);
+
+impl InternedRelativePath {
+    pub fn new(path: &str, interner: &Interner) -> Self {
+        // 建议在这里做规范化：去除 "./", 解析 "../", 统一分隔符
+        // 确保 "src/./main.rs" 和 "src/main.rs" 是同一个 ID
+        Self(interner.get_or_intern(normalize_relative(path)))
+    }
+}
+
+/// 2. 绝对路径 (Absolute Path)
+/// 语义: 物理磁盘上的真实位置
+/// 用途: GlobalState Key (区分不同项目), fs::read 入口
+/// 例子: "/home/user/project/src/utils/lib.rs"
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct InternedAbsolutePath(InternedString);
+
+impl InternedAbsolutePath {
+    pub fn new(path: &Path, interner: &Interner) -> Self {
+        let abs = path.canonicalize().unwrap_or(path.to_path_buf());
+        Self(interner.get_or_intern(abs.to_string_lossy().as_ref()))
+    }
+
+    /// 核心功能：拼接相对路径
+    pub fn join(&self, rel: InternedRelativePath, interner: &Interner) -> PathBuf {
+        let root = interner.resolve(&self.0);
+        let child = interner.resolve(&rel.0); // 假设这里需要暴露内部字段或提供 getter
+        Path::new(root).join(child)
+    }
+}
+```
+
+### 3. 如何在架构中使用？
+
+你需要一个 **“锚点 (Anchor)”** 将两者联系起来。这个锚点通常在 `BuildContext` 中。
+
+#### A. 在 `GlobalState` 中
+使用绝对路径来区分不同的项目。
+
+```rust
+pub struct GlobalState {
+    // Key: 项目的物理根目录 (Absolute)
+    // Value: 项目的解析缓存
+    projects: FastMap<InternedAbsolutePath, InternedProject>,
+}
+```
+
+#### B. 在 `ZakoKey` (构建图) 中
+使用相对路径，保证 Hash 稳定性。
+
+```rust
+pub enum ZakoKey {
+    // 这里的 path 必须是相对路径！
+    SourceFile(InternedRelativePath),
+    // ...
+}
+```
+
+#### C. 在 `Computer` (执行层) 中
+在执行的最后一刻，进行 **"Rebasing" (变基)**。
+
+```rust
+struct ZakoComputer {
+    // 当前构建的根目录 (物理位置)
+    workspace_root: InternedAbsolutePath,
+}
+
+impl Computer for ZakoComputer {
+    async fn compute(&self, ctx: &Context, key: ZakoKey) -> ... {
+        match key {
+            ZakoKey::SourceFile(rel_path) => {
+                // 1. 只有在需要 IO 时，才拼接出绝对路径
+                let abs_path = self.workspace_root.join(rel_path, ctx.interner());
+
+                // 2. 读取文件
+                let content = fs::read(abs_path).await?;
+
+                // 3. 计算 Hash (注意：Input Hash 只包含 rel_path，不包含 abs_path)
+                // ...
+            }
+        }
+    }
+}
+```
+
+### 4. 什么时候 `Relative` 不够用？
+
+有些特殊的依赖来源（`PackageSource`）确实需要绝对路径：
+
+1.  **本地路径依赖 (`path = "../libs/utils"`)**:
+    *   在 `zako.lock` 或 `PackageSource` 中，你可以存 `InternedAbsolutePath`。
+    *   但在加载该依赖后，该依赖内部的源文件引用，依然应该是相对于**该依赖根目录**的 `InternedRelativePath`。
+
+2.  **系统工具链**:
+    *   `/usr/bin/gcc`。这必须是绝对路径。
+    *   对于这种情况，可以在 `ZakoKey` 中增加一个 `SystemTool(InternedAbsolutePath)` 变体，或者要求工具链必须在 Workspace 内。
+
+### 总结
+
+*   **创建 `InternedRelativePath`**：这是构建图的通用语言。
+*   **保留 `InternedAbsolutePath`**：这是 Daemon 管理多项目的索引键。
+*   **BuildContext 持有 Root**：`BuildContext` 充当了“转换器”，它知道 `Relative + Root = Absolute`。
+
+这样做，你的 `zako` 就能完美支持远程缓存，同时还能在同一个 Daemon 进程中正确隔离多个物理路径不同的项目。
+User
+我有一个平台无关的NeutralPath:
+```rust
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+use std::path::{Path, PathBuf};
+use std::string::String;
+use thiserror::Error;
+
+pub mod interned;
+
+type StackString<'a> = smallvec::SmallVec<[&'a str; 8]>;
+
+/// NeutralPath 代表一个平台无关的、标准化的、相对的路径。
+///
+/// 内部保证：
+///
+/// - 总是使用 '/' 作为分隔符
+/// - 不包含多余的 `.` 或 `..` 组件，除非路径本身就是 `..` 开头或者路径只有 `.`
+/// - 所有路径在Unix或者Windows上都合法
+/// - 不包含多余的/分隔符
+/// - 不包含绝对路径前缀
+/// - 不包含诸如C:之类的驱动器前缀
+/// - 是有效的 UTF-8 字符串
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct NeutralPath(String);
+
+#[derive(Error, Debug)]
+pub enum PathError {
+    #[error("The file path is empty")]
+    EmptyPath,
+    #[error("Invalid path format: {0}")]
+    InvalidFormat(&'static str),
+    #[error("Invalid path character: {0}")]
+    InvalidCharacter(&'static str),
+    #[error("Invalid unicode data detected")]
+    InvalidUnicodeData(),
+    #[error(
+        "Path is absolute, but a relative path is required for zmake::path::NeutralPath to construct or join"
+    )]
+    PathIsAbsolute(),
+}
+
+impl Display for NeutralPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Default for NeutralPath {
+    fn default() -> Self {
+        NeutralPath::new(".").unwrap()
+    }
+}
+
+impl AsRef<str> for NeutralPath {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for NeutralPath {
+    fn as_ref(&self) -> &Path {
+        Path::new(&self.0)
+    }
+}
+
+impl AsRef<NeutralPath> for NeutralPath {
+    fn as_ref(&self) -> &NeutralPath {
+        &self
+    }
+}
+
+impl TryFrom<&str> for NeutralPath {
+    type Error = PathError;
+
+    fn try_from(path: &str) -> Result<Self, Self::Error> {
+        NeutralPath::new(path)
+    }
+}
+
+impl TryFrom<&Path> for NeutralPath {
+    type Error = PathError;
+
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        let path = path.to_str().ok_or(Self::Error::InvalidUnicodeData())?;
+        NeutralPath::new(path)
+    }
+}
+
+impl TryFrom<String> for NeutralPath {
+    type Error = PathError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        NeutralPath::new(s)
+    }
+}
+
+impl Into<String> for NeutralPath {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
+impl Into<PathBuf> for NeutralPath {
+    fn into(self) -> PathBuf {
+        PathBuf::from(self.0)
+    }
+}
+
+impl std::fmt::Debug for NeutralPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NeutralPath({})", self.0)
+    }
+}
+
+impl NeutralPath {
+    fn check_if_absolute(part: &str) -> Result<(), PathError> {
+        // check if starts with / or \ or \\
+        if part.starts_with('/') || part.starts_with("\\") {
+            return Err(PathError::PathIsAbsolute());
+        }
+
+        if let Some((left, _right)) = part.split_once(":") {
+            // check if like C: or d:
+            if left.chars().all(|c| c.is_ascii_alphabetic()) {
+                return Err(PathError::PathIsAbsolute());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn check_path_name_is_valid(part: &str) -> Result<(), PathError> {
+        // limitation from unix
+        if part.contains('\0') {
+            return Err(PathError::InvalidCharacter("\\0"));
+        }
+
+        // limitation from windows
+        if part.contains("<") {
+            return Err(PathError::InvalidCharacter("<"));
+        }
+        if part.contains(">") {
+            return Err(PathError::InvalidCharacter(">"));
+        }
+        if part.contains(":") {
+            return Err(PathError::InvalidCharacter(":"));
+        }
+        if part.contains("\"") {
+            return Err(PathError::InvalidCharacter("\""));
+        }
+        if part.contains("|") {
+            return Err(PathError::InvalidCharacter("|"));
+        }
+        if part.contains("?") {
+            return Err(PathError::InvalidCharacter("?"));
+        }
+        if part.contains("*") {
+            return Err(PathError::InvalidCharacter("*"));
+        }
+
+        if part.ends_with(" ") {
+            return Err(PathError::InvalidFormat("space ` ` at the end"));
+        }
+
+        // NUL NUL.gzip NUL.tar.gz is all invalid
+        let strip = if let Some((left, _right)) = part.split_once(".") {
+            left
+        } else {
+            part
+        };
+
+        let strip = strip.to_ascii_uppercase();
+
+        match strip.as_str() {
+            "CON" | "PRN" | "AUX" | "NUL" | "COM1" | "COM2" | "COM3" | "COM4" | "COM5" | "COM6"
+            | "COM7" | "COM8" | "COM9" | "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" | "LPT6"
+            | "LPT7" | "LPT8" | "LPT9" | "COM¹" | "COM²" | "COM³" | "LPT¹" | "LPT²" | "LPT³" =>
+            {
+                return Err(PathError::InvalidCharacter(
+                    "reserved name from windows(e.g. NUL COM or LPT¹",
+                ));
+            }
+            _ => {}
+        }
+
+        // limitation from my thought
+        if part.contains("\'") {
+            return Err(PathError::InvalidCharacter("\'"));
+        }
+
+        return Ok(());
+    }
+
+    fn internal_normalize(path: &str, check: bool) -> Result<NeutralPath, PathError> {
+        let split = path.split(['/', '\\']);
+        let mut components: StackString = StackString::new();
+
+        for part in split {
+            if part == "." || part.is_empty() {
+                continue;
+            } else if part == ".." {
+                if let Some(last) = components.last() {
+                    if *last == ".." {
+                        components.push("..");
+                    } else {
+                        components.pop();
+                    }
+                } else {
+                    components.push(part);
+                }
+            } else {
+                if check {
+                    Self::check_path_name_is_valid(part)?;
+                }
+                components.push(part);
+            }
+        }
+
+        if components.is_empty() {
+            components.push(".")
+        }
+
+        Ok(NeutralPath(components.join("/")))
+    }
+
+    fn checked_normalize(path: &str) -> Result<NeutralPath, PathError> {
+        Self::internal_normalize(path, true)
+    }
+
+    fn unchecked_normalize(path: &NeutralPath) -> NeutralPath {
+        // skip check for invalid path component
+        Self::internal_normalize(&path.0, false).unwrap()
+    }
+
+    pub fn new<S: AsRef<str>>(s: S) -> Result<Self, PathError> {
+        let s = s.as_ref();
+
+        if s.is_empty() {
+            return Err(PathError::EmptyPath);
+        }
+
+        Self::check_if_absolute(s)?;
+
+        Self::checked_normalize(s)
+    }
+
+    pub fn current_dir() -> Self {
+        NeutralPath::new(".").unwrap()
+    }
+
+    pub fn join<P: AsRef<str>>(&self, part: P) -> Result<Self, PathError> {
+        let part_str = part.as_ref();
+        Self::check_if_absolute(part_str)?;
+
+        let mut all_parts: StackString = StackString::new();
+        all_parts.push(&self.0);
+        all_parts.push(part_str);
+
+        NeutralPath::new(all_parts.join("/"))
+    }
+
+    pub fn join_all<P: AsRef<str>>(&self, parts: &[P]) -> Result<Self, PathError> {
+        let mut all_parts: StackString = StackString::new();
+
+        all_parts.push(&self.0);
+
+        for part in parts {
+            let part_str = part.as_ref();
+            Self::check_if_absolute(part_str)?;
+            all_parts.push(part_str);
+        }
+
+        NeutralPath::new(all_parts.join("/"))
+    }
+
+    pub fn parent(&self) -> Self {
+        self.join("..").unwrap() // should not fail
+    }
+
+    pub fn filename(&self) -> Option<&str> {
+        if let Some((_, filename)) = self.0.rsplit_once('/') {
+            if filename == "." || filename == ".." {
+                // in case of ../..
+                None
+            } else {
+                Some(filename)
+            }
+        } else {
+            if self.0 == "." || self.0 == ".." {
+                None
+            } else {
+                Some(&self.0)
+            }
+        }
+    }
+
+    pub fn extname(&self) -> Option<&str> {
+        if let Some(filename) = self.filename() {
+            if let Some((_, ext)) = filename.rsplit_once('.') {
+                Some(ext)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn normalize(&self) -> Self {
+        Self::unchecked_normalize(self)
+    }
+
+    pub fn get_relative_path_to(&self, to: &NeutralPath) -> Option<NeutralPath> {
+        let from_parts: StackString = self.0.split('/').collect();
+        let to_parts: StackString = to.0.split('/').collect();
+
+        let mut common_length = 0;
+        let max_common_length = std::cmp::min(from_parts.len(), to_parts.len());
+
+        while common_length < max_common_length
+            && from_parts[common_length] == to_parts[common_length]
+        {
+            common_length += 1;
+        }
+
+        let mut relative_parts: StackString = StackString::new();
+
+        for _ in common_length..from_parts.len() {
+            relative_parts.push("..");
+        }
+
+        for part in &to_parts[common_length..] {
+            relative_parts.push(part);
+        }
+
+        if relative_parts.is_empty() {
+            relative_parts.push(".");
+        }
+
+        Some(NeutralPath(relative_parts.join("/")))
+    }
+
+    pub fn is_in_dir(&self, dir: &NeutralPath) -> bool {
+        let relative = dir.get_relative_path_to(self);
+        if let Some(rel_path) = relative {
+            if rel_path.0.starts_with("..") {
+                return false;
+            }
+            return true;
+        }
+        false
+    }
+}
+
+```
+使用InteredNeutralPath替代`pub struct InternedRelativePath(InternedPath)`如何？
+Model
+这是一个非常棒的决定。你不仅应该替代，而且应该**全面采用**。
+
+你的 `NeutralPath` 实现得非常扎实，它解决了一个构建系统中极其隐蔽但致命的问题：**跨平台路径一致性**。
+
+以下是详细的评审和整合建议：
+
+### 1. 为什么 `NeutralPath` 优于普通的 `InternedRelativePath`？
+
+#### A. 跨平台确定性 (Determinism)
+*   **普通 Path**: 在 Windows 上可能是 `src\main.rs`，在 Linux 上是 `src/main.rs`。
+    *   如果不处理，这意味着同一个文件在不同 OS 上会有不同的 Hash ID。
+    *   **后果**：缓存无法跨平台复用，甚至会导致 `zako.lock` 在不同 OS 上生成不同的内容。
+*   **NeutralPath**: 强制规范化为 `src/main.rs`。
+    *   **后果**：无论在哪跑，ID 永远一致。
+
+#### B. 安全性 (Sanitization)
+你的 `check_path_name_is_valid` 逻辑非常全面（甚至考虑了 Windows 的 `CON`, `NUL` 保留字）。
+*   这防止了恶意构造的路径（如包含 `..` 或绝对路径）逃逸出沙盒。
+*   这对于构建系统来说是核心安全需求。
+
+#### C. 逻辑清晰
+`NeutralPath` 明确宣称：**“我只是一个相对路径的逻辑表示，我不绑定任何物理文件系统。”**
+这使得它非常适合作为构建图（Build Graph）中的 Key。
+
+---
+
+### 2. 整合建议：`InternedNeutralPath`
+
+你需要定义一个 `Interned` 版本，因为 `NeutralPath` 内部是 `String`，不适合直接做 Key。
+
+```rust
+use crate::interner::{InternedString, Interner};
+use serde::{Serialize, Deserialize};
+
+// 1. 定义 NewType
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct InternedNeutralPath(InternedString);
+
+impl InternedNeutralPath {
+    /// 核心构造方法
+    /// 这里执行所有的规范化逻辑
+    pub fn new(path: &str, interner: &Interner) -> Result<Self, PathError> {
+        // 1. 使用你的 NeutralPath 逻辑进行清洗和规范化
+        let neutral = NeutralPath::new(path)?;
+
+        // 2. 驻留规范化后的字符串
+        // neutral.as_ref() 返回的是规范化后的 "src/main.rs"
+        Ok(Self(interner.get_or_intern(neutral.as_ref())))
+    }
+
+    /// 零拷贝还原为 &str (规范化形式)
+    pub fn as_str<'a>(&self, interner: &'a Interner) -> &'a str {
+        interner.resolve(&self.0)
+    }
+
+    /// 还原为 NeutralPath 对象 (如果需要进一步操作如 join)
+    pub fn to_neutral_path(&self, interner: &Interner) -> NeutralPath {
+        // 这里可以使用 unchecked，因为存进去的时候已经 check 过了
+        // 但为了代码复用，直接 TryFrom 也可以，虽然有一点点重复 check 的开销
+        NeutralPath::try_from(self.as_str(interner)).unwrap()
+    }
+}
+```
+
+### 3. 一个微小的逻辑漏洞：`..` (Parent Directory)
+
+看这一段代码：
+```rust
+// NeutralPath::internal_normalize
+} else if part == ".." {
+    if let Some(last) = components.last() {
+        if *last == ".." {
+            components.push("..");
+        } else {
+            components.pop();
+        }
+    } else {
+        components.push(part);
+    }
+}
+```
+
+*   **问题**：这允许路径以 `..` 开头，例如 `../utils/lib.rs`。
+*   **场景**：
+    *   如果这个路径是用作 **Artifact 路径**（产物），这是非法的（产物不能逃出输出目录）。
+    *   如果这个路径是用作 **Source 路径**（源码），这可能意味着引用了 Repo 外部的文件，通常也是危险的。
+*   **建议**：
+    *   对于 **Target Key** 和 **Output Artifact**，强制禁止 `..` 开头。
+    *   对于 **Source File**，也许可以宽容一点（比如引用了 workspace 兄弟目录），但最好也限制在 Workspace Root 内。
+
+如果你的 `NeutralPath` 允许 `..`，那么你需要在使用它的地方（比如 `Computer`）做额外的边界检查。
+
+### 4. 替换策略
+
+将原来的 `InternedRelativePath` 完全替换为 `InternedNeutralPath`。
+
+*   **ZakoKey::SourceFile(InternedNeutralPath)**
+*   **FileArtifact.path: InternedNeutralPath**
+
+这样，整个构建系统内部流通的路径 ID 都是**经过清洗、跨平台一致**的。
+
+### 总结
+
+你的 `NeutralPath` 代码质量很高，逻辑严密。把它包装成 `InternedNeutralPath` 并作为核心类型使用，是架构上的**加分项**。
+
+它保证了：
+1.  **Windows/Linux 构建指纹一致**。
+2.  **非法路径无法进入图引擎**。
+3.  **内存占用极低（Interned）**。
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+**完全正确。你的理解非常精准。**
+
+这就是构建系统架构中 **“物理世界”** 与 **“逻辑世界”** 的完美分界线。
+
+### 1. 为什么你的设计是对的？
+
+我们来看一下这两个路径在系统中的不同职责：
+
+#### A. `InternedAbsolutePath` (项目根目录 / `zako.json` 所在目录)
+*   **角色**：**锚点 (Anchor)**。
+*   **属性**：**物理的、机器相关的**。
+*   **用途**：
+    1.  **GlobalState Key**：Daemon 需要知道 `/home/user/project-a` 和 `/home/user/project-b` 是两个不同的项目，即使它们内部的代码完全一样。
+    2.  **IO 入口**：当你真正要调用 `fs::read` 时，操作系统只认绝对路径。
+*   **如果不存绝对路径**：Daemon 根本找不到文件在哪。
+
+#### B. `InternedNeutralPath` (源码引用 / `src/main.rs`)
+*   **角色**：**标识符 (Identifier)**。
+*   **属性**：**逻辑的、跨平台一致的、相对的**。
+*   **用途**：
+    1.  **构建图 Key**：`ZakoKey::SourceFile`。
+    2.  **哈希计算**：`Input Hash` 必须只包含这个路径。
+    3.  **远程缓存**：决定了缓存能否在 Alice 的 Mac 和 Bob 的 Windows 之间共享。
+*   **如果不存 Neutral 路径**：
+    *   Alice 的 Key 是 `/Users/alice/proj/src/main.rs`。
+    *   Bob 的 Key 是 `C:\Users\bob\proj\src\main.rs`。
+    *   **缓存彻底失效**。
+
+---
+
+### 2. 实战演练：它们是如何协作的？
+
+在 `Computer` 执行阶段，你需要把这两者结合起来（这个过程叫 **Rebasing / Resolve**）。
+
+```rust
+// 假设在 zako_core/src/computer.rs
+
+impl ZakoComputer {
+    async fn compute(&self, ctx: &Context, key: ZakoKey) -> Result<...> {
+        match key {
+            ZakoKey::SourceFile(neutral_path) => {
+                // 1. 获取物理世界的锚点 (从 Context 或 Computer 自身获取)
+                // 这是一个 InternedAbsolutePath
+                let workspace_root = self.env.workspace_root;
+
+                // 2. 结合：物理 = 锚点 + 逻辑
+                // 这里需要解包两个 InternedString，拼接成 PathBuf
+                let real_path = self.resolve_path(workspace_root, neutral_path);
+
+                // 3. 执行 IO (物理操作)
+                let content = fs::read(&real_path).await?;
+
+                // 4. 返回结果 (逻辑操作)
+                // 注意：NodeData 里的 input_hash 只能基于 neutral_path 计算！
+                Ok(NodeData {
+                    value: ZakoValue::File(content),
+                    input_hash: neutral_path.xxhash3_128(), // <--- 关键！只 Hash 逻辑路径
+                    output_hash: content.xxhash3_128(),
+                })
+            }
+        }
+    }
+
+    /// 辅助函数：拼接路径
+    fn resolve_path(&self, root: InternedAbsolutePath, rel: InternedNeutralPath) -> PathBuf {
+        let root_str = self.env.interner.resolve(root.0);
+        let rel_str = self.env.interner.resolve(rel.0);
+
+        // NeutralPath 保证了 rel_str 是干净的 (没有 ./, ../, 且是 / 分隔)
+        // 但为了适配 Windows 的 fs::read，Path::new 会自动处理分隔符
+        Path::new(root_str).join(rel_str)
+    }
+}
+```
+
+### 3. 唯一的特例：Lockfile 中的路径
+
+在 `zako.lock` 文件中：
+
+*   **本地依赖 (`path = "../libs"`)**：
+    *   虽然用户写的是相对路径，但在 `zako.lock` 解析后，**建议将其解析为绝对路径 (`InternedAbsolutePath`) 存储在内存中**。
+    *   **原因**：如果你在 `/a/b/zako.json` 里引用了 `../lib`，然后在 `/a/b/c/zako.json` 里也引用了 `../../lib`，它们指的是同一个物理位置。只有化简为绝对路径，你才能在 `GlobalState` 里正确地去重。
+
+### 总结
+
+你的架构非常清晰：
+
+1.  **GlobalState / Session**: 使用 `InternedAbsolutePath` 来区分物理项目。
+2.  **Graph / Cache / Hash**: 使用 `InternedNeutralPath` 来保证逻辑一致性和复用性。
+3.  **Computer**: 在最后一刻将两者结合 (`join`) 进行 IO。
+
+这正是现代构建系统的标准答案。
+Model
+ThinkingThoughts
+Expand to view model thoughts
+
+chevron_right
+结论先行：**Glob 的结果必须是 `InternedNeutralPath` (相对路径)。**
+
+**绝对不要**在 `ZakoValue`（构建结果）中存储 `InternedAbsolutePath`。
+
+以下是这一决策的逻辑链条，以及它如何影响你的缓存系统：
+
+### 1. 缓存一致性 (The Cache Rule)
+
+这是构建系统设计的铁律：**任何进入 `ZakoValue` 的数据，都必须是“位置无关”的 (Relocatable)。**
+
+*   **场景**：
+    *   机器 A: `/home/user/project`
+    *   机器 B: `/jenkins/workspace/project`
+*   **动作**：`glob(["src/**/*.rs"])`
+*   **如果返回绝对路径**：
+    *   Value A: `["/home/user/project/src/main.rs"]` -> Hash A
+    *   Value B: `["/jenkins/workspace/project/src/main.rs"]` -> Hash B
+    *   **结果**：Hash 不同，**缓存无法复用**。
+*   **如果返回 Neutral 路径**：
+    *   Value A: `["src/main.rs"]` -> Hash X
+    *   Value B: `["src/main.rs"]` -> Hash X
+    *   **结果**：Hash 相同，**完美命中**。
+
+### 2. 衔接后续流程 (The Data Flow)
+
+Glob 的结果通常会直接作为下游 Target 的输入（`srcs`）。
+
+1.  **Glob 节点**：
+    *   `ctx.get(GlobKey)` 返回 `Vec<InternedNeutralPath>`。
+    *   例如：`[id("src/main.rs"), id("src/lib.rs")]`。
+
+2.  **Compile 节点**：
+    *   它拿到这些 ID，直接生成依赖 Key：
+    *   `ZakoKey::SourceFile(id("src/main.rs"))`。
+
+**关键点**：我们在之前的讨论中已经确定，`ZakoKey::SourceFile` **必须** 接受 `InternedNeutralPath`。
+如果 Glob 返回的是绝对路径，你还得把绝对路径反向计算回相对路径才能生成下一个 Key，这是多此一举且容易出错的。
+
+### 3. 实现细节：排序与确定性
+
+在实现 Glob 逻辑时，有一个极其重要的细节：**必须按文件名排序**。
+
+`glob` 系统调用（或 crate）返回的文件顺序通常是不确定的（依赖于文件系统的 inode 顺序或 OS 实现）。
+
+```rust
+// zako_core/src/computer.rs
+
+async fn compute_glob(&self, base: InternedAbsolutePath, pattern: InternedPattern) -> Vec<InternedNeutralPath> {
+    let base_path = base.to_path_buf(self.env.interner());
+
+    // 1. 执行物理扫描
+    let mut paths = scan_directory(&base_path, &pattern).await?;
+
+    // 2. ⚠️ 关键：必须排序 (Deterministic)
+    // 必须基于字符串内容排序，不能基于 Intern ID 排序！
+    // 因为 Intern ID 的分配顺序在不同次运行中可能不同。
+    paths.sort();
+
+    // 3. 转换为 Neutral Path 并驻留
+    let mut result = Vec::new();
+    for p in paths {
+        // 这里必须保证 p 是相对于 base_path 的相对路径
+        let relative_p = p.strip_prefix(&base_path).unwrap();
+        // 使用你的 InternedNeutralPath::new 进行规范化和驻留
+        result.push(InternedNeutralPath::new(relative_p, self.env.interner())?);
+    }
+
+    result
+}
+```
+
+### 4. 唯一的特例：引用了仓库外部的文件？
+
+如果用户的 Glob 模式是 `../../shared/**/*.cpp`（指向了 Workspace 外部），怎么办？
+
+*   **原则上**：现代构建系统（Buck2/Bazel）通常**禁止** Glob 越过 Workspace 边界。
+*   **如果允许**：
+    *   依然要返回 `NeutralPath`。
+    *   `NeutralPath` 允许 `..` 开头吗？
+        *   如果你之前的 `NeutralPath` 定义允许 `..`，那是 OK 的。
+        *   如果你禁止了 `..`，那么你需要通过 `PackageSource::Path`（本地依赖）的方式将外部目录挂载为一个逻辑包，而不是直接 Glob 外部文件。
+    *   **推荐做法**：**禁止越界 Glob**。要求用户在外部目录放一个 `zako.json`，然后通过依赖引用。
+
+### 总结
+
+*   **输入**：`Glob { base: InternedAbsolutePath, pattern: ... }`
+    *   (注意：Key 里的 base 如果是绝对路径，这个 Key 本身不能跨机器缓存，但这是由 `ZakoKey` 的设计决定的，通常 Glob Key 包含的是 PackageId，而 PackageId 映射到绝对路径)。
+*   **输出**：`Vec<InternedNeutralPath>`。
+*   **特性**：**相对的**、**规范化的**、**按字母序排序的**。
+
+这样你的整个构建链路——从文件扫描到编译指令——都是“浮动”的，不绑定在具体的硬盘扇区上。
+User
+使用`bitcode`自带的Encode,Decode替代serde如何？他们的文档提到：
+```txt
+Serde
+Finn Bear edited this page on Aug 29 · 7 revisions
+Introduction
+A serde integration is gated behind the "serde" feature flag. It is slower, produces slightly larger output, and (by extension) is not compatible with the native bitcode::{Encode, Decode}.
+
+Unsupported features
+bitcode isn't self-describing, so it doesn't support serde features that rely on self-description:
+
+enum's with #[serde(untagged)] or #[serde(tag = ...)].
+Fields with #[serde(skip_serializing_if = ...)], #[serde(default)], etc.
+Types like serde_json::Value, which internally serialize different types (numbers, arrays, etc.) without a normal enum discriminant.
+The serde version of bitcode only supports up to 256 variants per enum.
+
+Compatibility notes
+The serde version omits the flowinfo and scope_id fields of std::net::SocketAddrV6, but the derive version keeps them.
+The serde version supports recursive types, but the derive version (as of version 0.6) does not.
+```
+Use Arrow Up and Arrow Down to select a turn, Enter to jump to it, and Escape to return to the chat.
+Start typing a prompt
+
+Run
+1
+
+
+Response ready.

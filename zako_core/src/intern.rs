@@ -34,7 +34,7 @@ impl InternedString {
     }
 }
 
-pub type Interner = dyn ::lasso::Interner<InternedString>;
+pub type Interner = ::lasso::ThreadedRodeo<InternedString>;
 
 /// A path that has been interned.
 ///

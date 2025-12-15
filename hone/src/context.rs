@@ -24,6 +24,7 @@ pub struct Context<'c, C, K: NodeKey<C>, V: NodeValue<C>> {
     this: &'c K,
     stack: im::Vector<K>,
     old_data: Option<NodeData<C, V>>,
+    context: &'c C,
 }
 
 impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
@@ -33,6 +34,7 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
         this: &'c K,
         stack: im::Vector<K>,
         old_data: Option<NodeData<C, V>>,
+        context: &'c C,
     ) -> Self {
         Self {
             engine,
@@ -40,6 +42,7 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
             this,
             stack,
             old_data,
+            context,
         }
     }
 
@@ -57,6 +60,10 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
 
     pub fn old_data(&'c self) -> Option<&'c NodeData<C, V>> {
         self.old_data.as_ref()
+    }
+
+    pub fn context(&'c self) -> &'c C {
+        self.context
     }
 
     /// 请求一个依赖项
@@ -91,6 +98,8 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
             .add_parent(key.clone(), self.this.clone());
 
         // 2. 触发获取（如果 key 还没算，会在这里触发计算；如果正在算，会等待）
-        self.engine.get(key, Some(self.this.clone()), stack).await
+        self.engine
+            .get(key, Some(self.this.clone()), stack, self.context)
+            .await
     }
 }

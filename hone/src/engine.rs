@@ -148,6 +148,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         key: K,
         caller: Option<K>,
         stack: im::Vector<K>,
+        ctx: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
         let mut result: Option<SharedHoneResult<NodeData<C, V>>> = None;
 
@@ -214,7 +215,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
 
             // --- 步骤 5: 执行计算 (无锁状态！) ---
             // 创建一个新的 Context，标记当前节点为 caller
-            let ctx: Context<'_, C, K, V> = Context::new(self, caller, &key, stack, old);
+            let ctx: Context<'_, C, K, V> = Context::new(self, caller, &key, stack, old, ctx);
 
             // 真正的运行用户逻辑
             let computed = self.computer.compute(&ctx).await;
@@ -237,6 +238,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         caller: Option<K>,
         search_stack: &mut im::Vector<K>,
         buffered_count: usize,
+        ctx: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
         // check circular dependency
         if search_stack.contains(&key) {
@@ -262,7 +264,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                         let caller = Some(key.clone());
                         return async move {
                             match engine_ref
-                                .resolve_inner(child.clone(), caller, &mut search_stack, 1)
+                                .resolve_inner(child.clone(), caller, &mut search_stack, 1, ctx)
                                 .await
                             {
                                 Ok(_) => Ok(()),
@@ -292,16 +294,23 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
             _ => {}
         };
 
-        let result = self.get(key.clone(), caller, search_stack.clone()).await;
+        let result = self
+            .get(key.clone(), caller, search_stack.clone(), ctx)
+            .await;
 
         search_stack.pop_back();
 
         result
     }
 
-    pub async fn resolve(&self, key: K, buffered_count: usize) -> SharedHoneResult<NodeData<C, V>> {
+    pub async fn resolve(
+        &self,
+        key: K,
+        buffered_count: usize,
+        ctx: &C,
+    ) -> SharedHoneResult<NodeData<C, V>> {
         let mut search_stack = im::Vector::<K>::new();
-        self.resolve_inner(key, None, &mut search_stack, buffered_count)
+        self.resolve_inner(key, None, &mut search_stack, buffered_count, ctx)
             .await
     }
 }

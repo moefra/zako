@@ -26,7 +26,7 @@ pub enum PackageParseError {
 pub struct InternedVersion(pub InternedString);
 
 impl InternedVersion {
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, PackageParseError> {
+    pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, PackageParseError> {
         _ = ::semver::Version::parse(s)
             .map_err(|err| PackageParseError::VersionError(s.to_string(), err))?;
         Ok(Self(interner.get_or_intern(s)))
@@ -42,7 +42,7 @@ impl InternedVersion {
 pub struct InternedGroup(pub InternedString);
 
 impl InternedGroup {
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, PackageParseError> {
+    pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, PackageParseError> {
         if s.is_empty() {
             return Err(PackageParseError::InvalidFormat(
                 s.to_string(),
@@ -77,7 +77,7 @@ pub struct InternedArtifactId {
 
 impl InternedArtifactId {
     /// 解析 "group:name" 格式字符串
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, PackageParseError> {
+    pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, PackageParseError> {
         let (g_str, n_str) = s.split_once(':').ok_or_else(|| {
             PackageParseError::InvalidFormat(
                 s.to_string(),
@@ -118,7 +118,7 @@ impl InternedPackage {
         Self { name, version }
     }
 
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, PackageParseError> {
+    pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, PackageParseError> {
         let (id_str, ver_str) = s.rsplit_once('@').ok_or_else(|| {
             PackageParseError::InvalidFormat(
                 s.to_string(),

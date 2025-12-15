@@ -99,9 +99,12 @@ async-trait.workspace = true
 
 bitcode.workspace = true
 
+phf.workspace = true
+
 tokio-util.workspace = true
 
 smallvec.workspace = true
+pathdiff.workspace = true
 
 zako-digest.workspace = true
 

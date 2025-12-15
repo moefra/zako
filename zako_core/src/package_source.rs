@@ -63,7 +63,7 @@ impl PackageSource {
     pub fn resolve(
         self,
         current_path: &PathBuf,
-        interner: &mut Interner,
+        interner: &Interner,
     ) -> Result<ResolvedPackageSource, PackageSourceResolveError> {
         match self {
             PackageSource::Registry { package } => {

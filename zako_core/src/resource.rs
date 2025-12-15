@@ -33,6 +33,10 @@ impl ResourceRequest {
         requested.insert(ResourceType::Processor, count);
         Self { requested }
     }
+    pub fn cpu_range(least: u64, most: u64) -> Self {
+        // TODO: Implement range based resource request
+        Self::cpu(least)
+    }
     pub fn fs_io(count: u64) -> Self {
         let mut requested = im::HashMap::new();
         requested.insert(ResourceType::DiskIO, count);

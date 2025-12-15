@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use bitcode::{Decode, Encode};
 use ignore::WalkState;
@@ -9,7 +9,7 @@ use zako_digest::hash::XXHash3;
 
 use crate::{
     context::BuildContext,
-    intern::{Internable, InternedString},
+    intern::{Internable, InternedString, Interner},
 };
 
 /// The pattern to match file paths.
@@ -88,8 +88,8 @@ impl InternedPattern {
 
     pub fn walk(
         &self,
-        context: &BuildContext,
-        current: PathBuf,
+        interner: &Interner,
+        current: &Path,
         threads: usize,
     ) -> Result<Vec<PathBuf>, std::io::Error> {
         let mut walker = ignore::WalkBuilder::new(current);
@@ -99,7 +99,7 @@ impl InternedPattern {
         walker.hidden(self.ignore_hidden_files);
 
         for pattern in &self.patterns {
-            walker.add(context.interner().resolve(pattern));
+            walker.add(interner.resolve(pattern));
         }
 
         let bag = orx_concurrent_bag::ConcurrentBag::new();

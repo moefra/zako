@@ -31,11 +31,8 @@ impl GlobalState {
         }
     }
 
-    pub fn interner<'c>(&'c self) -> &'c mut Interner {
-        // it is thread safe to mutably borrow the interner here
-        let interner = self.interner.as_ref();
-        let interner = interner as &Interner;
-        unsafe { &mut *(interner as *const _ as *mut _) }
+    pub fn interner<'c>(&'c self) -> &'c Interner {
+        &self.interner
     }
 
     pub fn resource_pool(&self) -> &ResourcePool {

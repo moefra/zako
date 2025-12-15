@@ -77,7 +77,7 @@ pub enum IdParseError {
 pub struct InternedAtom(pub InternedString);
 
 impl InternedAtom {
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, IdParseError> {
+    pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
         if !is_xid_loose_ident(s) {
             return Err(IdParseError::NotMatchLooseXid(s.to_string(), None));
         }

@@ -84,7 +84,11 @@ impl BuildContext {
         &self.project_source
     }
 
-    pub fn interner<'c>(&'c self) -> &'c mut Interner {
+    pub fn resource_pool(&self) -> &crate::resource::ResourcePool {
+        self.env.resource_pool()
+    }
+
+    pub fn interner<'c>(&'c self) -> &'c Interner {
         self.env.interner()
     }
 
