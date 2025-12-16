@@ -23,18 +23,18 @@ pub static WINDOWS_RESERVED: phf::Set<&'static str> = phf_set! {
     "LPT7" , "LPT8" , "LPT9" , "COM¹" , "COM²" , "COM³" , "LPT¹" , "LPT²" , "LPT³"
 };
 
-/// NeutralPath 代表一个平台无关的、标准化的、相对的路径。
+/// NeutralPath is a neutral, normalized, relative file path representation.
 ///
-/// 内部保证：
+/// It is designed to be used in cross-platform applications where file paths need to be handled.
 ///
-/// - 总是使用 '/' 作为分隔符
-/// - 不包含多余的 `.` 或 `..` 组件，除非路径本身就是 `..` 开头或者路径只有 `.`
-/// - 所有路径在Unix或者Windows上都合法
-/// - 不包含多余的/分隔符
-/// - 不包含绝对路径前缀
-/// - 不包含诸如C:之类的驱动器前缀
-/// - 是有效的 UTF-8 字符串
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
+/// - Always uses '/' as the separator
+/// - Does not contain redundant `.` or `..` components, unless the path itself starts with `..` or is just `.`
+/// - All paths are valid on both Unix and Windows
+/// - Does not contain redundant '/' separators
+/// - Does not contain absolute path prefixes
+/// - Does not contain drive prefixes like C:
+/// - Is a valid UTF-8 string
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode, PartialOrd, Ord)]
 #[serde(try_from = "String", into = "String")]
 pub struct NeutralPath(String);
 

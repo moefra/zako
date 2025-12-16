@@ -27,6 +27,8 @@ use oxc_span::SourceType;
 use oxc_transformer::{TransformOptions, Transformer};
 use thiserror::Error;
 
+use crate::consts;
+
 #[derive(Debug, Error)]
 pub enum TransformerError {
     #[error("Failed to parse es target `{0}`: {1}")]
@@ -63,9 +65,9 @@ pub fn transform_typescript(
 
     let mut program = ret.program;
 
-    // TODO: it seems es2026 means esnext. switch to es2025 once they release it.
-    let options = TransformOptions::from_target("es2026")
-        .map_err(|err| TransformerError::ESTargetError("es2026".to_string(), err.to_string()))?;
+    let options = TransformOptions::from_target(consts::TRANSPILE_TARGET).map_err(|err| {
+        TransformerError::ESTargetError(consts::TRANSPILE_TARGET.to_string(), err.to_string())
+    })?;
 
     let transformer = Transformer::new(&allocator, &path, &options);
 

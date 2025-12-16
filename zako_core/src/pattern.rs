@@ -73,8 +73,7 @@ impl InternedPattern {
         self.patterns.is_empty()
     }
 
-    pub fn resolve(&self, context: &BuildContext) -> Pattern {
-        let interner = context.interner();
+    pub fn resolve(&self, interner: &Interner) -> Pattern {
         Pattern {
             patterns: self
                 .patterns

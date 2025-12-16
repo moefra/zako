@@ -108,9 +108,12 @@ pathdiff.workspace = true
 
 zako-digest.workspace = true
 
+flume.workspace = true
+
 evalexpr.workspace = true
 
 getrandom.workspace = true
 
+zako-cancel.workspace = true
 [build-dependencies]
 tonic-prost-build.workspace = true

@@ -17,4 +17,6 @@ pub enum HoneError {
     UnexpectedError(String),
     #[error("Aggregative error:{0:?}")]
     AggregativeError(Vec<Arc<HoneError>>),
+    #[error("Invalid database state: {0}")]
+    InvalidDatabaseState(String),
 }

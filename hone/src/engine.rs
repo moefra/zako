@@ -1,5 +1,6 @@
 use crate::dependency::DependencyGraph;
 use crate::node::Persistent;
+use crate::status::{NodeStatusCode, get_node_status_code};
 use crate::{FastMap, HoneResult, SharedHoneResult, context::Context, status::NodeData};
 use crate::{FastSet, TABLE_NODES};
 use ahash::{AHashMap, HashSet, HashSetExt};
@@ -7,10 +8,12 @@ use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
 use eyre::Error;
 use futures::StreamExt;
+use redb::{ReadableDatabase, ReadableTable};
 use redb::{TableError, TransactionError};
 use std::ops::Not;
 use std::rc::Rc;
 use std::sync::Arc;
+use tracing::event;
 
 use crate::{
     context::Computer,
@@ -49,14 +52,132 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         computer: Arc<dyn Computer<C, K, V>>,
         database: Arc<redb::Database>,
         context: Arc<C>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, EngineError> {
+        let this = Self {
             status_map: DashMap::new(),
             computer: computer,
             dependency_graph: Arc::new(DependencyGraph::new()),
             database,
             context,
+        };
+        this.fill_from_db()?;
+        Ok(this)
+    }
+
+    fn fill_from_db(&self) -> Result<(), EngineError> {
+        let txn = self.database.begin_read()?;
+        let table = txn.open_table(TABLE_NODES)?;
+        for entry in table.iter()? {
+            let (key_bytes, value_bytes) = entry?;
+
+            let key_bytes = key_bytes.value();
+
+            if key_bytes.is_empty() {
+                tracing::event!(
+                    tracing::Level::ERROR,
+                    "The key bytes is empty. We expect it has a one-byte key node status code. Skip",
+                );
+                continue;
+            }
+
+            let code: NodeStatusCode = match key_bytes[0].try_into() {
+                Ok(code) => code,
+                Err(_) => {
+                    tracing::event!(
+                        tracing::Level::ERROR,
+                        "Invalid node status code `{}`. Skip",
+                        key_bytes[0]
+                    );
+                    continue;
+                }
+            };
+            match code {
+                NodeStatusCode::Verified => {
+                    let value_bytes = value_bytes.value();
+
+                    // read the output_xxhash3 and input_xxhash3 from the value_bytes
+                    let output_xxhash3 = u128::from_le_bytes(match value_bytes[1..17].try_into() {
+                        Ok(ok) => ok,
+                        Err(err) => {
+                            tracing::event!(
+                                tracing::Level::ERROR,
+                                "Failed to call from_le_bytes() when decode output_xxhash3 `{:?}`. Skip",
+                                err
+                            );
+                            continue;
+                        }
+                    });
+                    let input_xxhash3 = u128::from_le_bytes(match value_bytes[17..33].try_into() {
+                        Ok(ok) => ok,
+                        Err(err) => {
+                            tracing::event!(
+                                tracing::Level::ERROR,
+                                "Failed to call from_le_bytes() when decode input_xxhash3 `{:?}`. Skip",
+                                err
+                            );
+                            continue;
+                        }
+                    });
+                    let value_bytes = &value_bytes[33..];
+
+                    let node_data = match bitcode::decode::<V::Persisted>(value_bytes) {
+                        Ok(ok) => ok,
+                        Err(err) => {
+                            tracing::event!(
+                                tracing::Level::ERROR,
+                                "Failed to call bitcode::decode() when decode node data `{:?}`. Skip",
+                                err
+                            );
+                            continue;
+                        }
+                    };
+
+                    let node_key = match bitcode::decode::<K::Persisted>(
+                        // skip the first byte, which is the node status code
+                        &key_bytes[1..],
+                    ) {
+                        Ok(ok) => ok,
+                        Err(err) => {
+                            tracing::event!(
+                                tracing::Level::ERROR,
+                                "Failed to call bitcode::decode() when decode node key `{:?}`. Skip",
+                                err
+                            );
+                            continue;
+                        }
+                    };
+
+                    let node_key = K::from_persisted(node_key, self.context.clone().as_ref());
+                    let node_data = V::from_persisted(node_data, self.context.clone().as_ref());
+
+                    if let Some(node_data) = node_data
+                        && let Some(node_key) = node_key
+                    {
+                        let node_status = NodeStatus::Verified(NodeData::new(
+                            Arc::new(node_data),
+                            output_xxhash3,
+                            input_xxhash3,
+                        ));
+                        self.insert(node_key, node_status, None, None);
+                    } else {
+                        tracing::event!(
+                            tracing::Level::ERROR,
+                            "Failed to decode node key or data. Skip",
+                        );
+                        continue;
+                    }
+                }
+                // TODO: Support Dirty and Failure
+                _ => {
+                    event!(
+                        tracing::Level::ERROR,
+                        "Unsupported node status code `{}`. Skip",
+                        code as u8
+                    );
+                }
+            }
         }
+        Ok(())
     }
 
     pub fn peek_status(&self, key: &K) -> Option<NodeStatus<C, V>> {
@@ -104,30 +225,59 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
     /// All written node will seems as dirty.
     ///
     /// It will also skip nodes key or value that return None when calling [Persistent::to_persisted].
-    pub fn write(&self, ctx: &C) -> Result<(), EngineError> {
+    ///
+    /// TODO: Implement negative cache.
+    pub fn write(&self) -> Result<(), EngineError> {
+        let context = self.context.clone();
         let txn = self.database.begin_write()?;
         {
             let mut table = txn.open_table(TABLE_NODES)?;
 
             for entry in self.status_map.iter() {
-                let key_bytes = bitcode::encode(&match entry.key().to_persisted(ctx) {
-                    Some(k) => k,
-                    None => continue,
-                });
-
                 let value_bytes = match entry.value() {
-                    NodeStatus::Verified(data) => match &data.to_persisted(ctx) {
-                        Some(persisted) => bitcode::encode(persisted),
+                    NodeStatus::Verified(data) => match &data.to_persisted(context.as_ref()) {
+                        Some(persisted) => (
+                            bitcode::encode(persisted),
+                            data.output_xxhash3(),
+                            data.input_xxhash3(),
+                        ),
                         None => continue,
                     },
-                    NodeStatus::Dirty(data) => match &data.to_persisted(ctx) {
-                        Some(persisted) => bitcode::encode(persisted),
+                    NodeStatus::Dirty(data) => match &data.to_persisted(context.as_ref()) {
+                        Some(persisted) => (
+                            bitcode::encode(persisted),
+                            data.output_xxhash3(),
+                            data.input_xxhash3(),
+                        ),
                         None => continue,
                     },
+                    NodeStatus::Failed(err) => (
+                        format!("Failed node `{:?}`: {:?}", entry.key(), err)
+                            .as_bytes()
+                            .to_vec(),
+                        0,
+                        0,
+                    ),
                     _ => {
                         continue;
                     }
                 };
+
+                let value_bytes = vec![
+                    value_bytes.0.as_slice(),
+                    &value_bytes.1.to_le_bytes(),
+                    &value_bytes.2.to_le_bytes(),
+                ]
+                .concat();
+
+                let mut key_bytes = vec![get_node_status_code(entry.value()) as u8];
+                key_bytes.extend(bitcode::encode(
+                    &match entry.key().to_persisted(context.as_ref()) {
+                        Some(k) => k,
+                        None => continue,
+                    },
+                ));
+
                 table.insert(key_bytes.as_slice(), value_bytes.as_slice())?;
             }
         }
@@ -148,9 +298,9 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         key: K,
         caller: Option<K>,
         stack: im::Vector<K>,
-        ctx: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
         let mut result: Option<SharedHoneResult<NodeData<C, V>>> = None;
+        let context = self.context.clone();
 
         loop {
             let notify = Arc::new(tokio::sync::Notify::new());
@@ -215,7 +365,8 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
 
             // --- 步骤 5: 执行计算 (无锁状态！) ---
             // 创建一个新的 Context，标记当前节点为 caller
-            let ctx: Context<'_, C, K, V> = Context::new(self, caller, &key, stack, old, ctx);
+            let ctx: Context<'_, C, K, V> =
+                Context::new(self, caller, &key, stack, old, context.as_ref());
 
             // 真正的运行用户逻辑
             let computed = self.computer.compute(&ctx).await;
@@ -238,7 +389,6 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         caller: Option<K>,
         search_stack: &mut im::Vector<K>,
         buffered_count: usize,
-        ctx: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
         // check circular dependency
         if search_stack.contains(&key) {
@@ -264,7 +414,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                         let caller = Some(key.clone());
                         return async move {
                             match engine_ref
-                                .resolve_inner(child.clone(), caller, &mut search_stack, 1, ctx)
+                                .resolve_inner(child.clone(), caller, &mut search_stack, 1)
                                 .await
                             {
                                 Ok(_) => Ok(()),
@@ -294,23 +444,16 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
             _ => {}
         };
 
-        let result = self
-            .get(key.clone(), caller, search_stack.clone(), ctx)
-            .await;
+        let result = self.get(key.clone(), caller, search_stack.clone()).await;
 
         search_stack.pop_back();
 
         result
     }
 
-    pub async fn resolve(
-        &self,
-        key: K,
-        buffered_count: usize,
-        ctx: &C,
-    ) -> SharedHoneResult<NodeData<C, V>> {
+    pub async fn resolve(&self, key: K, buffered_count: usize) -> SharedHoneResult<NodeData<C, V>> {
         let mut search_stack = im::Vector::<K>::new();
-        self.resolve_inner(key, None, &mut search_stack, buffered_count, ctx)
+        self.resolve_inner(key, None, &mut search_stack, buffered_count)
             .await
     }
 }

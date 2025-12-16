@@ -1,6 +1,6 @@
-use std::sync::Arc;
-
 use bitcode::{Decode, Encode};
+use phf::phf_map;
+use std::{fmt::Display, sync::Arc};
 
 use crate::{
     error::HoneError,
@@ -68,6 +68,10 @@ impl<C, V: NodeValue<C>> NodeData<C, V> {
         self.value
     }
 
+    pub fn input_xxhash3(&self) -> u128 {
+        self.input_xxhash3
+    }
+
     pub fn output_xxhash3(&self) -> u128 {
         self.output_xxhash3
     }
@@ -80,6 +84,38 @@ pub enum NodeStatus<C, V: NodeValue<C>> {
     Dirty(NodeData<C, V>),
     Failed(Arc<HoneError>),
     Unreachable(std::marker::PhantomData<C>),
+}
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, PartialOrd, Eq, Ord)]
+pub enum NodeStatusCode {
+    Unreachable = 0,
+    Computing = 1,
+    Verified = 2,
+    Dirty = 3,
+    Failed = 4,
+}
+impl TryFrom<u8> for NodeStatusCode {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, ()> {
+        match value {
+            0 => Ok(NodeStatusCode::Unreachable),
+            1 => Ok(NodeStatusCode::Computing),
+            2 => Ok(NodeStatusCode::Verified),
+            3 => Ok(NodeStatusCode::Dirty),
+            4 => Ok(NodeStatusCode::Failed),
+            _ => Err(()),
+        }
+    }
+}
+pub fn get_node_status_code<C, V: NodeValue<C>>(status: &NodeStatus<C, V>) -> u8 {
+    match status {
+        NodeStatus::Computing(_) => NodeStatusCode::Computing as u8,
+        NodeStatus::Verified(_) => NodeStatusCode::Verified as u8,
+        NodeStatus::Dirty(_) => NodeStatusCode::Dirty as u8,
+        NodeStatus::Failed(_) => NodeStatusCode::Failed as u8,
+        NodeStatus::Unreachable(_) => NodeStatusCode::Unreachable as u8,
+    }
 }
 
 impl<C, V: NodeValue<C>> Clone for NodeStatus<C, V> {

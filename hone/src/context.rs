@@ -98,8 +98,6 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
             .add_parent(key.clone(), self.this.clone());
 
         // 2. 触发获取（如果 key 还没算，会在这里触发计算；如果正在算，会等待）
-        self.engine
-            .get(key, Some(self.this.clone()), stack, self.context)
-            .await
+        self.engine.get(key, Some(self.this.clone()), stack).await
     }
 }

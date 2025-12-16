@@ -42,7 +42,7 @@ impl Persistent<BuildContext> for ZakoKey {
         Some(match self {
             ZakoKey::Glob { base_path, pattern } => Self::Persisted::Glob {
                 base_path: ctx.interner().resolve(&base_path.interned()).to_string(),
-                pattern: pattern.resolve(ctx),
+                pattern: pattern.resolve(ctx.interner()),
             },
             ZakoKey::ResolveProject { path: _ } => return None,
         })

@@ -30,15 +30,26 @@ use thiserror::Error;
 use tracing::trace_span;
 use url::{ParseError, Url};
 
+/// If a module start with this, it will seem as a builtin module.
+///
+/// The builtin module is provided by Zako in memory.
 pub static BUILTIN_MODULE_PREFIX: &str = "zako:";
+/// The schema of builtin module.
 pub static BUILTIN_MODULE_SCHEMA: &str = "zako";
 
+/// If a module start with this, it will seem as a memory module.
+///
+/// The memory module can not load any other module.
 pub static MEMORY_MODULE_PREFIX: &str = "__zako_memory:";
+/// The schema of memory module.
 pub static MEMORY_MODULE_SCHEMA: &str = "zako-memory";
 
+/// If a module start with this, it will seem as an import map module.
 pub static IMPORT_MAP_MODULE_PREFIX: &str = "@";
+/// The schema of import map module.
 pub static IMPORT_MAP_MODULE_SCHEMA: &str = "zako-import-map";
 
+/// The schema of file module.
 pub static FILE_MODULE_SCHEMA: &str = "file";
 
 #[derive(Error, Debug, deno_error::JsError)]
