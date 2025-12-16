@@ -10,6 +10,7 @@ pub async fn compute_resolve_project<'c>(
     path: &PathBuf,
 ) -> HoneResult<NodeData<BuildContext, ZakoValue>> {
     // TODO: Implement project resolution logic here
+    // Issue URL: https://github.com/moefra/zako/issues/11
     // 1. Read project file (zako.toml)
     // 2. Parse configuration
     // 3. Create BuildContext from config
