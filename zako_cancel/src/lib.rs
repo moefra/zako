@@ -86,7 +86,7 @@ impl SharedState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CancelSource {
     state: Arc<SharedState>,
 }
@@ -120,7 +120,7 @@ impl CancelSource {
 
 // --- 3. 接收端 (C# 的 CancellationToken) ---
 // 只有它能被传递给底层函数
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CancelToken {
     state: Arc<SharedState>,
 }

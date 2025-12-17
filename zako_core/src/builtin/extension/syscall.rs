@@ -35,7 +35,7 @@ fn syscall_log(#[string] level: String, #[string] message: String) {
             error!("FROM SCRIPT {}", message);
         }
         _ => {
-            error!("UNKNOWN LOG LEVEL FROM SCRIPT {}", message);
+            error!("UNKNOWN LOG LEVEL `{}` FROM SCRIPT {}", level, message);
         }
     }
 }
