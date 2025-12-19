@@ -1,5 +1,4 @@
 
-
 export interface Console {
     trace(...args: any[]): void;
     debug(...args: any[]): void;

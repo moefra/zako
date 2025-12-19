@@ -27,10 +27,12 @@
 //! An faster way is that, if a file is under `scripts` directory,it is treated as script file(In `tsconfig.json`).
 pub mod access_control;
 pub mod author;
+pub mod blob_handle;
 pub mod build_constants;
 pub mod builtin;
 pub mod cas;
 pub mod cas_server;
+pub mod cas_store;
 pub mod compute;
 pub mod computer;
 pub mod config;
@@ -47,16 +49,17 @@ pub mod intern;
 pub mod local_cas;
 mod make_builtin;
 pub mod mirror;
+pub mod module_loader;
 pub mod node_key;
 pub mod node_value;
-pub mod oxc_worker;
 pub mod package;
 pub mod package_source;
 pub mod path;
 pub mod pattern;
 pub mod persistent;
 pub mod project;
-pub mod project_resolver;
+//pub mod project_resolver;
+pub mod file_artifact;
 pub mod resource;
 pub mod sandbox;
 pub mod socket_address;
@@ -65,13 +68,10 @@ pub mod tool;
 pub mod transformer;
 pub mod transport_server;
 pub mod v8_platform;
-pub mod v8_worker;
 pub mod v8error;
 pub mod v8utils;
 pub mod version_extractor;
 pub mod worker;
-pub mod worker_pool;
-pub mod zako_module_loader;
 
 /// The result of iteration of this map is not ordered.
 ///

@@ -62,6 +62,7 @@ pub enum FileType {
 /// Different context types have different permissions and capabilities.
 ///
 /// The `Script` was not processed by zako. It usually create a new bun process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum V8ContextType {
     /// Enable `zako:project` for
     ///

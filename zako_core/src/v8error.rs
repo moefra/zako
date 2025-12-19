@@ -7,7 +7,7 @@
 //! Result<ExecutionResult,V8Error>.
 //! //-----^result---------^fatal error that can not continue
 //! ```
-use crate::zako_module_loader::ModuleSpecifier;
+use crate::module_loader::specifier::ModuleSpecifier;
 
 #[derive(Clone, Debug, Default)]
 pub struct V8Error {
@@ -28,6 +28,4 @@ pub enum ExecutionResult<T> {
     Value(T),
     /// JS 代码抛出了异常 (throw error)
     Exception(Global<Value>),
-    /// 需要支持 TLA
-    Promise(Global<Promise>),
 }

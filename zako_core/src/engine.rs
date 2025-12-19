@@ -1,7 +1,7 @@
+use crate::module_loader::{LoaderOptions, ModuleLoader, specifier::ModuleSpecifier};
 use crate::v8_platform::get_set_platform_or_default;
 use crate::v8error::{ExecutionResult, V8Error};
-use crate::zako_module_loader::{LoaderOptions, ModuleSpecifier, ZakoModuleLoader};
-use crate::{builtin, v8error, v8utils};
+use crate::{builtin, consts, v8error, v8utils};
 use deno_core::error::CoreError;
 use deno_core::v8::{HandleScope, PinnedRef, TryCatch};
 use deno_core::{JsRuntime, RuntimeOptions, v8};
@@ -16,17 +16,10 @@ use tracing::trace_span;
 use tracing_attributes::instrument;
 use v8::{Context, Global, Isolate, Local, Object, PinScope, PromiseResolver, Value};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum EngineMode {
-    Project,
-    Rule,
-    Build,
-}
-
 #[derive(Debug)]
 pub struct EngineOptions {
     pub tokio_handle: tokio::runtime::Handle,
-    pub mode: EngineMode,
+    pub context_type: crate::consts::V8ContextType,
 }
 
 #[derive(Error, Debug)]
@@ -56,9 +49,17 @@ impl Engine {
     pub fn new(options: EngineOptions) -> Result<Self, EngineError> {
         JsRuntime::init_platform(Some(get_set_platform_or_default()), false);
 
-        let loader = Rc::new(ZakoModuleLoader::new(LoaderOptions {
+        let loader = Rc::new(ModuleLoader::new(LoaderOptions {
             ..Default::default()
         }));
+
+        // TODO: add extensions for different context types
+        match options.context_type {
+            consts::V8ContextType::Project => {}
+            consts::V8ContextType::Build => {}
+            consts::V8ContextType::Rule => {}
+            consts::V8ContextType::Toolchain => {}
+        }
 
         let runtime = JsRuntime::try_new(RuntimeOptions {
             module_loader: Some(loader.clone()),
@@ -81,6 +82,36 @@ impl Engine {
         //engine.execute_build_script()?;
 
         Ok(engine)
+    }
+
+    pub fn execute_module(
+        &mut self,
+        module_specifier: &ModuleSpecifier,
+        source_code: Option<String>,
+    ) -> Result<deno_core::v8::Global<deno_core::v8::Object>, EngineError> {
+        let _span =
+            trace_span!("Engine::execute_module", module_specifier = %module_specifier).entered();
+        let js_runtime = self.runtime.clone();
+
+        let future = async move {
+            let mut js_runtime = js_runtime.borrow_mut();
+            let module_id = if let Some(source_code) = source_code {
+                js_runtime
+                    .load_main_es_module_from_code(&module_specifier.url, source_code)
+                    .await?
+            } else {
+                js_runtime
+                    .load_main_es_module(&module_specifier.url)
+                    .await?
+            };
+            let result = js_runtime.mod_evaluate(module_id);
+            js_runtime.run_event_loop(Default::default()).await?;
+            result.await?;
+            Ok::<deno_core::v8::Global<deno_core::v8::Object>, EngineError>(
+                js_runtime.get_module_namespace(module_id)?,
+            )
+        };
+        Ok(self.options.tokio_handle.block_on(future)?)
     }
 
     pub fn execute_module_and_then<F, R>(
@@ -143,11 +174,6 @@ impl Engine {
                         EngineError::V8Error(error)
                     },
                 )),
-                ExecutionResult::Promise(promise) => {
-                    unreachable!(
-                        "promise should have been resolved after JsRuntime::run_event_loop"
-                    )
-                }
             };
         };
 

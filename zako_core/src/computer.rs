@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use hone::{HoneResult, context::Context, status::NodeData};
 
 use crate::{
-    compute::{compute_glob, compute_resolve_project},
+    compute::{compute_file, compute_glob, compute_resolve_project},
     context::BuildContext,
     node_key::ZakoKey,
     node_value::ZakoValue,
@@ -25,6 +25,7 @@ impl hone::context::Computer<BuildContext, ZakoKey, ZakoValue> for Compuer {
         match ctx.this() {
             ZakoKey::Glob { base_path, pattern } => compute_glob(ctx, &base_path, &pattern).await,
             ZakoKey::ResolveProject { path } => compute_resolve_project(ctx, &path).await,
+            ZakoKey::File { path } => compute_file(ctx, &path).await,
         }
     }
 }

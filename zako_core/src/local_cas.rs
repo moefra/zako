@@ -1,8 +1,9 @@
 use crate::cas::{Cas, CasError};
 use async_trait::async_trait;
 use std::path::PathBuf;
+use std::pin::Pin;
 use tokio::fs;
-use tokio::io::{AsyncRead, AsyncSeekExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeekExt};
 use zako_digest::Digest;
 use zako_digest::DigestError;
 
@@ -83,24 +84,51 @@ impl Cas for LocalCas {
         &self,
         digest: &Digest,
         offset: u64,
-    ) -> Result<Box<dyn AsyncRead + Send + Unpin>, CasError> {
+        length: Option<u64>,
+    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, CasError> {
         let hex = digest.hex_fast_xxhash3_128();
 
         let path = self.root.join(&hex[0..2]).join(&hex[2..4]).join(&hex[4..]);
 
         let mut file = tokio::fs::File::open(path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                CasError::NotFound(digest.hex_fast_xxhash3_128())
+                CasError::NotFound(digest.clone())
             } else {
                 CasError::Io(e)
             }
         })?;
 
+        let file_size = file.metadata().await.map_err(CasError::Io)?.len();
+
+        if offset > file_size {
+            return Err(CasError::RequestedIndexOutOfRange {
+                requested_offset: offset,
+                requested_length: length,
+                blob_digest: digest.clone(),
+                blob_length: file_size,
+            });
+        }
+
+        let length = if let Some(length) = length {
+            if offset + length > file_size {
+                return Err(CasError::RequestedIndexOutOfRange {
+                    requested_offset: offset,
+                    requested_length: Some(file_size - offset),
+                    blob_digest: digest.clone(),
+                    blob_length: file_size,
+                });
+            } else {
+                length
+            }
+        } else {
+            file_size - offset
+        };
+
         file.seek(std::io::SeekFrom::Start(offset))
             .await
             .map_err(CasError::Io)?;
 
-        Ok(Box::from(file))
+        Ok(Box::pin(file.take(length)))
     }
 
     async fn get_local_path(&self, digest: &Digest) -> Option<PathBuf> {

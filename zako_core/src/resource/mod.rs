@@ -1,3 +1,5 @@
+pub mod heuristics;
+
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -9,8 +11,6 @@ use parking_lot::Mutex;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 use tokio::sync::oneshot::{Sender, error::RecvError};
-
-use crate::intern::InternedString;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ResourceType {
@@ -154,16 +154,28 @@ impl ResourcePool {
         }
     }
 
+    pub fn get_cpu_count(&self) -> u64 {
+        self.0.lock().all_resources[&ResourceType::Processor]
+    }
+
     /// Make sure that we can process a request at least once.
     fn make_sure_capacity(locked: &mut RawResourcePool, request: &ResourceRequest) {
         for (resource_type, count) in request.requested.iter() {
-            let rest = locked
+            let all = locked
                 .all_resources
                 .entry(resource_type.clone())
-                .or_insert(1);
+                .or_insert(0);
 
-            if *rest < *count {
-                *rest = *count;
+            let increase = u64::checked_sub(*count, *all).unwrap_or(0);
+
+            if *all < *count {
+                *all = *count;
+
+                let rest = locked
+                    .rest_resources
+                    .entry(resource_type.clone())
+                    .or_insert(0);
+                *rest += increase;
             }
         }
     }

@@ -1,7 +1,16 @@
+pub mod oxc_worker;
+pub mod protocol;
+pub mod v8_worker;
+pub mod worker_pool;
+
+use std::sync::Arc;
+
 use zako_cancel::CancelToken;
 
 /// A worker and its behavior definition.
 pub trait WorkerBehavior: Send + Sync + 'static {
+    /// Context provided when init
+    type Context: Send + Sync + 'static;
     /// Input type for processing.
     type Input: Send + 'static;
     /// Output type for processing.
@@ -10,7 +19,7 @@ pub trait WorkerBehavior: Send + Sync + 'static {
     type State;
 
     /// Initiate the worker
-    fn init() -> Self::State;
+    fn init(ctx: &Arc<Self::Context>) -> Self::State;
 
     /// Process the worker
     fn process(
@@ -19,6 +28,10 @@ pub trait WorkerBehavior: Send + Sync + 'static {
         cancel_token: CancelToken,
     ) -> Self::Output;
 
-    /// Clean the resources
-    fn clean(_state: Self::State) {}
+    /// Garbage collect the resources to free memory,
+    ///
+    /// but not drop the state itself, so that it can be reused.
+    fn gc(_state: &mut Self::State) {
+        // By default, do nothing
+    }
 }

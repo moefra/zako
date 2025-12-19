@@ -1,4 +1,5 @@
 use crate::consts;
+use crate::context::BuildContext;
 use crate::worker::WorkerBehavior;
 use oxc_allocator::Allocator;
 use oxc_codegen::{Codegen, CodegenOptions};
@@ -10,6 +11,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 use tracing::instrument;
@@ -39,6 +41,7 @@ pub struct OxcTranspilerOutput {
 }
 
 /// A worker that transpiles code using Oxc
+#[derive(Debug, Clone)]
 pub struct OxcTranspilerWorker;
 
 /// State for Oxc Worker, including a cache for transpilation results
@@ -47,11 +50,12 @@ pub struct OxcState {
 }
 
 impl WorkerBehavior for OxcTranspilerWorker {
+    type Context = BuildContext;
     type Input = OxcTranspilerInput;
     type Output = Result<OxcTranspilerOutput, TransformerError>;
     type State = OxcState;
 
-    fn init() -> Self::State {
+    fn init(_: &Arc<Self::Context>) -> Self::State {
         OxcState {
             allocator: Allocator::with_capacity(128 * 1024), // 128kb for each buffer
         }
@@ -132,7 +136,7 @@ impl WorkerBehavior for OxcTranspilerWorker {
         return Ok(output);
     }
 
-    fn clean(mut state: Self::State) {
-        state.allocator.reset();
+    fn gc(mut state: &mut Self::State) {
+        std::mem::replace(&mut state.allocator, Allocator::with_capacity(128 * 1024));
     }
 }

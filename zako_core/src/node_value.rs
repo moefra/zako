@@ -5,7 +5,9 @@ use strum::IntoStaticStr;
 use zako_digest::hash::XXHash3;
 
 use crate::{
+    blob_handle::BlobHandle,
     context::BuildContext,
+    file_artifact::{FileArtifact, RawFileArtifact},
     path::{NeutralPath, interned::InternedNeutralPath},
 };
 
@@ -13,12 +15,14 @@ use crate::{
 pub enum ZakoValue {
     Glob(Vec<InternedNeutralPath>),
     ResolvedProject(BuildContext),
+    FileResult(FileArtifact),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, IntoStaticStr, Decode, Encode)]
 pub enum RawZakoValue {
     GlobResult(Vec<String>),
     ResolvedProjectResult,
+    FileResult(RawFileArtifact),
 }
 
 impl Persistent<BuildContext> for ZakoValue {
@@ -33,6 +37,7 @@ impl Persistent<BuildContext> for ZakoValue {
                     .collect(),
             ),
             ZakoValue::ResolvedProject(_) => return None,
+            ZakoValue::FileResult(file) => Self::Persisted::FileResult(file.to_persisted(ctx)?),
         })
     }
 
@@ -47,6 +52,9 @@ impl Persistent<BuildContext> for ZakoValue {
                     .collect(),
             ),
             RawZakoValue::ResolvedProjectResult => return None,
+            RawZakoValue::FileResult(file) => {
+                ZakoValue::FileResult(FileArtifact::from_persisted(file, ctx)?)
+            }
         })
     }
 }
@@ -64,6 +72,9 @@ impl XXHash3 for ZakoValue {
             }
             ZakoValue::ResolvedProject(context) => {
                 hasher.update(&context.project_root().as_u64().to_le_bytes());
+            }
+            ZakoValue::FileResult(file) => {
+                file.hash_into(hasher);
             }
         }
     }

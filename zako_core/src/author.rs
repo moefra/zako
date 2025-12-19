@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
+use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use ts_rs::TS;
 
 use crate::{
@@ -8,11 +10,16 @@ use crate::{
     intern::{Internable, InternedString},
 };
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// The `Author` should be a string with format `Author Name <emabil@example.com>`
+///
+/// The space between Author name and `<` must not be omitted.The author name can not contains `<` or `>`.
+///
+/// We use [::email_address::EmailAddress::from_str] to check input email address.
+#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[ts(export, export_to = "author.d.ts", as = "AuthorTS")]
 pub struct Author {
-    pub name: String,
-    pub email: String,
+    name: String,
+    email: email_address::EmailAddress,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -21,7 +28,38 @@ pub struct InternedAuthor {
     pub email: InternedString,
 }
 
+#[derive(Error, Debug)]
+pub enum AuthorError {
+    #[error("The author name can not contains `<` or `>`,or the `<` and `>` not found")]
+    AuthorNameError,
+    #[error("The email format is invalid")]
+    EmailFormatError(#[from] email_address::Error),
+}
+
 impl Author {
+    pub fn new(name: &str, email: &str) -> Result<Author, AuthorError> {
+        if name.contains("<") || name.contains(">") {
+            return Err(AuthorError::AuthorNameError);
+        }
+
+        Ok(Author {
+            name: name.to_string(),
+            email: EmailAddress::from_str(email)?,
+        })
+    }
+
+    pub fn author(&self) -> &str {
+        &self.name
+    }
+
+    pub fn email<'a>(&'a self) -> &'a str {
+        self.email.as_str()
+    }
+
+    pub fn get_output_format(&self) -> String {
+        format!("{} <{}>", self.name, self.email.as_str())
+    }
+
     pub fn intern(self, context: &BuildContext) -> InternedAuthor {
         InternedAuthor {
             name: context.interner().get_or_intern(self.name.as_str()),
@@ -34,31 +72,24 @@ impl InternedAuthor {
     pub fn resolve(interned: &InternedAuthor, context: &BuildContext) -> Author {
         Author {
             name: context.interner().resolve(&interned.name).to_string(),
-            email: context.interner().resolve(&interned.email).to_string(),
+            email: EmailAddress::new_unchecked(
+                context.interner().resolve(&interned.email).to_string(),
+            ),
         }
     }
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum AuthorParseError {
-    #[error("Invalid author format")]
-    InvalidFormat,
-}
-
 impl FromStr for Author {
-    type Err = AuthorParseError;
+    type Err = AuthorError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split('<').collect();
         if parts.len() != 2 {
-            return Err(AuthorParseError::InvalidFormat);
+            return Err(Self::Err::AuthorNameError);
         }
-        let name = parts[0].trim().to_string();
+        let name = parts[0].trim();
         let email_part = parts[1].trim().trim_end_matches('>').trim();
-        Ok(Author {
-            name,
-            email: email_part.to_string(),
-        })
+        return Self::new(name, email_part);
     }
 }
 

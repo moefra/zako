@@ -1,7 +1,11 @@
 use crate::intern::{InternedString, Interner};
 use serde::{Deserialize, Serialize};
 
-/// 判断字符串是否是合法的 XID 标识符
+/// Check a string match [Unicode Standard Annex #31](https://www.unicode.org/reports/tr31/)
+///
+/// Or more detailed,it reject empty string,and string with invalid xid start at first character or xid continue at following character.
+///
+/// This should be used all the way.
 pub fn is_xid_ident(s: &str) -> bool {
     if s.is_empty() {
         return false;
@@ -22,13 +26,11 @@ pub fn is_xid_ident(s: &str) -> bool {
     return true;
 }
 
-/// 判断字符串是否是宽松的 XID 标识符
+/// The is the loose version of function [is_xid_ident].
 ///
-/// 规则: 只能包含 XID 标识符,但是在首字符允许下划线 '_', 其他位置允许连字符 '-'
+/// It reject empty string too,but allow `-` and `_` in any place of the input string.
 ///
-/// 这个规则一般是给文件路径开洞的
-///
-/// 更严格的规则请使用[is_xid_ident]函数
+/// This should be used only when the system contact with physics world,like name a ident from a real file name.
 pub fn is_xid_loose_ident(s: &str) -> bool {
     if s.is_empty() {
         return false;
@@ -36,17 +38,14 @@ pub fn is_xid_loose_ident(s: &str) -> bool {
 
     let mut chars = s.chars();
 
-    // 检查首字符 (通常要求更严格)
     if let Some(first) = chars.next() {
-        if !unicode_ident::is_xid_start(first) && first != '_' {
+        if !unicode_ident::is_xid_start(first) && first != '_' && first != '-' {
             return false;
         }
     }
 
-    // 检查后续字符
     for c in chars {
-        // 我们显式允许 '-'，因为文件名常用 (kebab-case)
-        if !unicode_ident::is_xid_continue(c) && c != '-' {
+        if !unicode_ident::is_xid_continue(c) && c != '_' && c != '-' {
             return false;
         }
     }

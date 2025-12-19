@@ -6,7 +6,7 @@ use crate::project::Project;
 use crate::project_resolver::ProjectResolveError::{CircularDependency, FileNotExists, NotAFile};
 use crate::sandbox::SandboxError;
 use crate::v8error::V8Error;
-use crate::zako_module_loader::{ModuleLoadError, ModuleSpecifier, ModuleType};
+use crate::worker::module_loader::{ModuleLoadError, ModuleSpecifier, ModuleType};
 use ahash::AHashMap;
 use hone::node::{NodeKey, Persistent};
 use serde::de::{DeserializeOwned, DeserializeSeed};

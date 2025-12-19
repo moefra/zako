@@ -4,6 +4,7 @@ use ahash::AHashMap;
 use hone::FastMap;
 use lasso::{Capacity, ThreadedRodeo};
 use thiserror::Error;
+use tokio::runtime::Handle;
 
 use crate::{
     global_state::GlobalState,
@@ -94,6 +95,10 @@ impl BuildContext {
 
     pub fn get_handle(self: Arc<Self>) -> ContextHandler {
         crate::context::ContextHandler::new(self.clone())
+    }
+
+    pub fn handle(&self) -> &Handle {
+        self.env.handle()
     }
 }
 

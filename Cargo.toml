@@ -162,6 +162,8 @@ dashmap = { version = "6.1", features = ["inline", "rayon", "serde"] }
 
 rayon = "1.11.0"
 
+email_address = "0.2.9"
+
 uuid = { version = "1.18.1", features = ["v4"] }
 
 tokio-util = { version = "0.7.17", features = [
@@ -203,6 +205,10 @@ toml = "0.9.8"
 evalexpr = { version = "13.1.0", features = ["regex"] }
 
 getrandom = "0.3.4"
+
+moka = { version = "0.12.11", features = ["sync", "future"] }
+
+sysinfo = "0.37.2"
 
 [profile.dev]
 opt-level = 1

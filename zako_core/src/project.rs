@@ -153,6 +153,7 @@ impl Project {
 
 impl ResolvedProject {
     pub fn to_raw(&self, context: &BuildContext) -> Project {
+        let interner = context.interner();
         Project {
             group: context.interner().resolve(&self.group.0).to_string(),
             artifact: self.artifact.clone(),
@@ -170,19 +171,19 @@ impl ResolvedProject {
             builds: self
                 .builds
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, context)),
+                .map(|p| InternedPattern::resolve(p, interner)),
             rules: self
                 .rules
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, context)),
+                .map(|p| InternedPattern::resolve(p, interner)),
             toolchains: self
                 .toolchains
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, context)),
+                .map(|p| InternedPattern::resolve(p, interner)),
             subprojects: self
                 .subprojects
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, context)),
+                .map(|p| InternedPattern::resolve(p, interner)),
             dependencies: self.dependencies.as_ref().map(|deps| {
                 deps.iter()
                     .map(|(k, v)| (k.clone(), v.to_raw(context.interner())))

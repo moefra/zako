@@ -1,5 +1,5 @@
+use crate::module_loader::specifier::ModuleSpecifier;
 use crate::v8error::{ExecutionResult, V8Error};
-use crate::zako_module_loader;
 use deno_core::anyhow::Context;
 use deno_core::v8::{self, PinScope};
 use deno_core::v8::{
@@ -9,7 +9,6 @@ use std::borrow::BorrowMut;
 use std::cell::{RefCell, RefMut};
 use std::ops::DerefMut;
 use std::time::Duration;
-use zako_module_loader::ModuleSpecifier;
 
 pub fn check_try_catch<'s>(
     mut scope: &mut PinnedRef<v8::TryCatch<'s, '_, HandleScope>>,
@@ -145,10 +144,6 @@ where
                 ExecutionResult::Exception(exception) => Ok(ExecutionResult::Exception(
                     Global::new(&mut try_catch, exception),
                 )),
-                ExecutionResult::Promise(promise) => Ok(ExecutionResult::Promise(Global::new(
-                    &mut try_catch,
-                    promise,
-                ))),
             },
         }
     })

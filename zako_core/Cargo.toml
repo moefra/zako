@@ -91,6 +91,8 @@ tonic.workspace = true
 
 uuid.workspace = true
 
+email_address.workspace = true
+
 tokio-stream.workspace = true
 
 dashmap.workspace = true
@@ -115,5 +117,10 @@ evalexpr.workspace = true
 getrandom.workspace = true
 
 zako-cancel.workspace = true
+
+moka.workspace = true
+
+sysinfo.workspace = true
+
 [build-dependencies]
 tonic-prost-build.workspace = true
