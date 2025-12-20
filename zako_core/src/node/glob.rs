@@ -60,14 +60,6 @@ pub struct GlobResult {
     pub paths: Vec<InternedNeutralPath>,
 }
 
-impl XXHash3 for GlobResult {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
-        for path in self.paths.iter() {
-            path.hash_into(hasher);
-        }
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode, PartialEq, Eq, Hash)]
 pub struct RawGlobResult {
     pub paths: Vec<String>,

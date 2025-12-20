@@ -13,27 +13,21 @@ pub struct ResolveProject {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Decode, Encode)]
 pub struct RawResolveProject {
-    pub path: String,
+    pub package: String,
 }
 
 impl Persistent<BuildContext> for ResolveProject {
     type Persisted = RawResolveProject;
 
     fn from_persisted(p: Self::Persisted, ctx: &BuildContext) -> Option<Self> {
-        Some(ResolveProject {
-            package: unsafe { InternedPackageId::try_parse(p.path, ctx.interner())? },
+        Some(Self {
+            package: InternedPackageId::try_parse(p.package.as_str(), ctx.interner()).ok()?,
         })
     }
 
     fn to_persisted(&self, ctx: &BuildContext) -> Option<Self::Persisted> {
-        Some(RawResolveProject {
-            path: self.package.to_string(ctx.interner()),
+        Some(Self::Persisted {
+            package: self.package.resolved(ctx.interner()),
         })
-    }
-}
-
-impl XXHash3 for ResolveProject {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
-        hasher.update(&self.package.as_u64().to_le_bytes());
     }
 }

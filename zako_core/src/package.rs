@@ -93,7 +93,7 @@ impl InternedArtifactId {
     }
 
     /// 还原为字符串 (Display)
-    pub fn to_string(&self, interner: &Interner) -> String {
+    pub fn resolved(&self, interner: &Interner) -> String {
         format!(
             "{}:{}",
             interner.resolve(&self.group.0),
@@ -130,5 +130,13 @@ impl InternedPackageId {
         let version = InternedVersion::try_parse(ver_str, interner)?;
 
         Ok(Self { name, version })
+    }
+
+    pub fn resolved(&self, interner: &Interner) -> String {
+        format!(
+            "{}@{}",
+            self.name.resolved(interner),
+            interner.resolve(&self.version.0),
+        )
     }
 }

@@ -13,7 +13,7 @@ use crate::{
 pub async fn compute_resolve_project<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     key: &ResolveProject,
-) -> HoneResult<(u128, u128, ResolvedProject)> {
+) -> HoneResult<(u128, u128, ResolveProject)> {
     // TODO: Implement project resolution logic here
     // Issue URL: https://github.com/moefra/zako/issues/11
     // 1. Read project file (zako.toml)
