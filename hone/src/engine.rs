@@ -183,6 +183,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                     }
                 }
                 // TODO: Support Dirty and Failure
+                // Issue URL: https://github.com/moefra/zako/issues/9
                 _ => {
                     event!(
                         tracing::Level::ERROR,
@@ -242,6 +243,8 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
     /// It will also skip nodes key or value that return None when calling [Persistent::to_persisted].
     ///
     /// TODO: Implement negative cache.
+    //Issue URL: https://github.com/moefra/zako/issues/8
+    /// Issue URL: https://github.com/moefra/zako/issues/7
     pub fn write(&self) -> Result<(), EngineError> {
         let context = self.context.clone();
         let txn = self.database.begin_write()?;

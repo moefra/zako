@@ -20,6 +20,7 @@ pub static RULE_FILE_SUFFIX: &str = ".rule.ts";
 pub static TOOLCHAIN_FILE_SUFFIX: &str = ".toolchain.ts";
 
 // TODO: it seems es2026 means esnext. switch to es2025 once they release it.
+// Issue URL: https://github.com/moefra/zako/issues/12
 /// The target version for transpiling TypeScript code.
 pub static TRANSPILE_TARGET: &str = "es2026";
 
