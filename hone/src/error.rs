@@ -19,4 +19,10 @@ pub enum HoneError {
     AggregativeError(Vec<Arc<HoneError>>),
     #[error("Invalid database state: {0}")]
     InvalidDatabaseState(String),
+    #[error("Canceled: {reason:?}")]
+    Canceled {
+        reason: Option<zako_cancel::CancelReason>,
+    },
+    #[error("get IO error `{0}` when access `{1}`")]
+    IOError(#[source] std::io::Error, String),
 }

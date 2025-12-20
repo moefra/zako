@@ -1,6 +1,7 @@
 use crate::{
     context::BuildContext,
     engine::{Engine, EngineError, EngineOptions},
+    global_state::GlobalState,
     module_loader::specifier::ModuleSpecifier,
     worker::WorkerBehavior,
 };
@@ -66,7 +67,7 @@ impl Debug for V8State {
 }
 
 impl WorkerBehavior for V8Worker {
-    type Context = BuildContext;
+    type Context = GlobalState;
     type Input = V8WorkerInput;
     type Output = Result<V8WorkerOutput, V8WorkerError>;
     type State = V8State;

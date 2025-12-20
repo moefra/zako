@@ -25,6 +25,7 @@ redb.workspace = true
 bitcode.workspace = true
 phf.workspace = true
 tracing.workspace = true
+zako-cancel.workspace = true
 
 [lints]
 workspace = true

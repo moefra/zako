@@ -122,5 +122,7 @@ moka.workspace = true
 
 sysinfo.workspace = true
 
+dirs.workspace = true
+
 [build-dependencies]
 tonic-prost-build.workspace = true

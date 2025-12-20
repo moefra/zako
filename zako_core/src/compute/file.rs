@@ -1,26 +1,72 @@
-use hone::{HoneResult, status::NodeData};
+use std::{path::Path, sync::Arc};
+
+use hone::{HoneResult, error::HoneError, status::NodeData};
+#[cfg(unix)]
+use tokio::fs;
+use xxhash_rust::xxh3::xxh3_128;
+use zako_digest::hash::XXHash3;
 
 use crate::{
-    computer::ZakoComputeContext, context::BuildContext, file_artifact::FileArtifact,
-    intern::InternedAbsolutePath, node_value::ZakoValue, path::interned::InternedNeutralPath,
-    pattern::InternedPattern,
+    computer::ZakoComputeContext,
+    context::BuildContext,
+    node::{
+        file::{File, FileResult},
+        node_key::ZakoKey,
+        node_value::ZakoValue,
+    },
+    path::interned::InternedNeutralPath,
 };
 
 pub async fn compute_file<'c>(
     ctx: &'c ZakoComputeContext<'c>,
-    path: &InternedNeutralPath,
-) -> HoneResult<NodeData<BuildContext, ZakoValue>> {
-    // 1. 路径转换 (Logical -> Physical)
-    // 只有在这个函数内部，我们才关心绝对路径
-    // 2. 执行 IO (读取磁盘)
-    // 可以在这里加 fs watch 的订阅逻辑
-    // 检查权限 (Unix only)
-    // 3. 存入 CAS (Ingestion)
-    // 这一步计算了 Hash，并把数据放入了 BlobStore
-    // 4. 构造返回值
-    // 这里的 value 包含了 content hash。
-    // 如果文件内容变了 -> handle.local_hash 变了 -> value hash 变了 -> 下游触发重算。
-    // 5. 计算 Input Hash
-    // 对于源文件，Input Hash 就是路径本身的 Hash
-    todo!()
+    key: &File,
+) -> HoneResult<(u128, u128, FileResult)> {
+    let path = &key.path;
+
+    let build_ctx = ctx.context();
+    let interner = build_ctx.interner();
+    let abs_root = interner.resolve(build_ctx.project_root().interned());
+    let path_str = interner.resolve(path.interned());
+    let physical_path = Path::new(abs_root).join(path_str);
+
+    let bytes = tokio::fs::read(&physical_path).await.map_err(|e| {
+        HoneError::Other(eyre::Report::msg(format!(
+            "Failed to read source file {:?}: {}",
+            physical_path, e
+        )))
+    })?;
+
+    #[cfg(unix)]
+    let is_exec = std::os::unix::fs::MetadataExt::mode(
+        &fs::metadata(&physical_path)
+            .await
+            .map_err(|err| HoneError::IOError(err, physical_path.to_string_lossy().to_string()))?,
+    ) & 0o111
+        != 0;
+    #[cfg(not(unix))]
+    let is_exec = true;
+
+    let handle = build_ctx
+        .cas_store()
+        .put_bytes(bytes)
+        .await
+        .map_err(|err| {
+            HoneError::Other(eyre::Report::msg(format!(
+                "Failed to put bytes into cas store: {}",
+                err
+            )))
+        })?;
+
+    // The hash of input path is input hash
+    let input_hash = xxh3_128(path_str.as_bytes());
+
+    Ok((
+        input_hash,
+        handle.hash,
+        FileResult {
+            path: path.clone(),
+            is_executable: is_exec,
+            content: handle.clone(),
+        },
+    ))
 }

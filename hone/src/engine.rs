@@ -47,6 +47,21 @@ pub struct Engine<C, K: NodeKey<C>, V: NodeValue<C>> {
     context: Arc<C>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ResolveOptions {
+    pub buffered_count: usize,
+    pub keep_going: bool,
+}
+
+impl Default for ResolveOptions {
+    fn default() -> Self {
+        Self {
+            buffered_count: 10,
+            keep_going: true,
+        }
+    }
+}
+
 impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
     pub fn new(
         computer: Arc<dyn Computer<C, K, V>>,
@@ -154,9 +169,9 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                         && let Some(node_key) = node_key
                     {
                         let node_status = NodeStatus::Verified(NodeData::new(
-                            Arc::new(node_data),
-                            output_xxhash3,
                             input_xxhash3,
+                            output_xxhash3,
+                            Arc::new(node_data),
                         ));
                         self.insert(node_key, node_status, None, None);
                     } else {
@@ -298,6 +313,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         key: K,
         caller: Option<K>,
         stack: im::Vector<K>,
+        cancel_token: zako_cancel::CancelToken,
     ) -> SharedHoneResult<NodeData<C, V>> {
         let mut result: Option<SharedHoneResult<NodeData<C, V>>> = None;
         let context = self.context.clone();
@@ -363,10 +379,24 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                 }
             }; // 锁在这里释放
 
+            // check cancel token here
+            if cancel_token.is_cancelled() {
+                return Err(Arc::new(HoneError::Canceled {
+                    reason: cancel_token.reason().clone(),
+                }));
+            }
+
             // --- 步骤 5: 执行计算 (无锁状态！) ---
             // 创建一个新的 Context，标记当前节点为 caller
-            let ctx: Context<'_, C, K, V> =
-                Context::new(self, caller, &key, stack, old, context.as_ref());
+            let ctx: Context<'_, C, K, V> = Context::new(
+                self,
+                caller,
+                &key,
+                stack,
+                old,
+                context.as_ref(),
+                cancel_token.clone(),
+            );
 
             // 真正的运行用户逻辑
             let computed = self.computer.compute(&ctx).await;
@@ -388,8 +418,16 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         key: K,
         caller: Option<K>,
         search_stack: &mut im::Vector<K>,
-        buffered_count: usize,
+        cancel_token: zako_cancel::CancelToken,
+        options: ResolveOptions,
     ) -> SharedHoneResult<NodeData<C, V>> {
+        // check cancel token here
+        if cancel_token.is_cancelled() {
+            return Err(Arc::new(HoneError::Canceled {
+                reason: cancel_token.reason().clone(),
+            }));
+        }
+
         // check circular dependency
         if search_stack.contains(&key) {
             return Err(Arc::new(HoneError::CycleDetected {
@@ -407,14 +445,30 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                 let children: Vec<K> = locked.iter().map(|arc| arc.clone()).collect();
                 drop(children_entry); // 释放锁
 
-                let errors = futures::stream::iter(children)
+                let mut stream = futures::stream::iter(children)
                     .map(|child| {
                         let engine_ref = self;
                         let mut search_stack = search_stack.clone();
                         let caller = Some(key.clone());
+                        let cancel_token = cancel_token.clone();
+                        let options = options.clone();
                         return async move {
+                            // check cancel token here
+                            if cancel_token.is_cancelled() {
+                                return Err(Arc::new(HoneError::Canceled {
+                                    reason: cancel_token.reason().clone(),
+                                }));
+                            }
+
+                            // resolve child
                             match engine_ref
-                                .resolve_inner(child.clone(), caller, &mut search_stack, 1)
+                                .resolve_inner(
+                                    child.clone(),
+                                    caller,
+                                    &mut search_stack,
+                                    cancel_token,
+                                    options,
+                                )
                                 .await
                             {
                                 Ok(_) => Ok(()),
@@ -430,30 +484,65 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                             }
                         };
                     })
-                    .buffer_unordered(buffered_count)
-                    .collect::<Vec<SharedHoneResult<()>>>()
-                    .await
-                    .iter()
-                    .filter_map(|item| item.clone().err())
-                    .collect::<Vec<Arc<HoneError>>>();
+                    .buffer_unordered(options.buffered_count);
 
-                if !errors.is_empty() {
-                    return Err(Arc::new(HoneError::AggregativeError(errors)));
+                let mut errors = Vec::new();
+
+                while let Some(result) = stream.next().await {
+                    // 4. 检查取消 (运行时检查)
+                    // 很有可能在等待子任务时，外部触发了取消
+                    if cancel_token.is_cancelled() {
+                        return Err(Arc::new(HoneError::Canceled {
+                            reason: cancel_token.reason().clone(),
+                        }));
+                    }
+
+                    match result {
+                        Ok(_) => continue, // 成功，继续下一个
+                        Err(e) => {
+                            // 🔥 Fail-Fast 触发点！
+                            // 直接 return Err。
+                            // `stream` 变量会被 Drop。
+                            // stream 内部正在跑的其他 Future 也会被 Drop (即被取消)。
+
+                            if let HoneError::CycleDetected { .. } = &*e {
+                                return Err(e);
+                            }
+
+                            if options.keep_going {
+                                errors.push(e);
+                            } else {
+                                return Err(e);
+                            }
+                        }
+                    }
                 }
             }
             _ => {}
         };
 
-        let result = self.get(key.clone(), caller, search_stack.clone()).await;
+        let result = self
+            .get(
+                key.clone(),
+                caller,
+                search_stack.clone(),
+                cancel_token.clone(),
+            )
+            .await;
 
         search_stack.pop_back();
 
         result
     }
 
-    pub async fn resolve(&self, key: K, buffered_count: usize) -> SharedHoneResult<NodeData<C, V>> {
+    pub async fn resolve(
+        &self,
+        key: K,
+        cancel_token: zako_cancel::CancelToken,
+        options: ResolveOptions,
+    ) -> SharedHoneResult<NodeData<C, V>> {
         let mut search_stack = im::Vector::<K>::new();
-        self.resolve_inner(key, None, &mut search_stack, buffered_count)
+        self.resolve_inner(key, None, &mut search_stack, cancel_token.clone(), options)
             .await
     }
 }

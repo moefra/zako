@@ -51,7 +51,7 @@ impl<C, V: NodeValue<C>> Clone for NodeData<C, V> {
 }
 
 impl<C, V: NodeValue<C>> NodeData<C, V> {
-    pub fn new(value: Arc<V>, output_xxhash3: u128, input_xxhash3: u128) -> Self {
+    pub fn new(input_xxhash3: u128, output_xxhash3: u128, value: Arc<V>) -> Self {
         Self {
             value,
             output_xxhash3,

@@ -2,6 +2,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use crate::FastMap;
+use crate::blob_handle::BlobHandle;
 use crate::cas::{Cas, CasError};
 use futures::Stream;
 use moka::future::Cache;
@@ -50,7 +51,7 @@ impl CasStore {
     }
 
     #[instrument]
-    pub async fn read(
+    pub async fn open(
         &self,
         digest: &Digest,
         offset: u64,
@@ -101,5 +102,49 @@ impl CasStore {
         }
 
         return Err(CasStoreError::CasError(CasError::NotFound(digest.clone())));
+    }
+
+    pub async fn read(
+        &self,
+        digest: &Digest,
+        offset: u64,
+        length: Option<u64>,
+    ) -> Result<Vec<u8>, CasStoreError> {
+        let mut data = self.open(digest, offset, length).await?;
+        let mut bytes = Vec::with_capacity(length.unwrap_or(1024 * 64) as usize);
+        tokio::io::copy(&mut data, &mut bytes)
+            .await
+            .map_err(|err| CasStoreError::CasError(CasError::Io(err.into())))?;
+        Ok(bytes)
+    }
+
+    pub async fn put_bytes(&self, bytes: Vec<u8>) -> Result<BlobHandle, CasStoreError> {
+        let xxhash3 = xxhash_rust::xxh3::xxh3_128(&bytes);
+        let digest = Digest::new(xxhash3, bytes.len() as u64);
+
+        // check if the bytes can be cached
+        if bytes.len() <= 1024 * 64
+        /* 64kb maybe good */
+        {
+            self.memory
+                .insert(digest.fast_xxhash3_128, bytes.clone())
+                .await;
+        }
+
+        // put the bytes to the local cas
+        // TODO: clone data maybe too slow, find a new way!
+        self.local
+            .store(&digest, Box::new(std::io::Cursor::new(bytes.clone())))
+            .await?;
+
+        // put the bytes to the remote cas if exists
+        // TODO: add to remote maybe too slow, maybe we should add a individual task to do this
+        if let Some(remote) = self.remote.as_ref() {
+            remote
+                .store(&digest, Box::new(std::io::Cursor::new(bytes.clone())))
+                .await?;
+        }
+
+        Ok(BlobHandle::new(digest.fast_xxhash3_128, bytes.len() as u64))
     }
 }

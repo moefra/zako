@@ -10,9 +10,6 @@ pub trait Persistent<C>: Sized {
     fn from_persisted(p: Self::Persisted, ctx: &C) -> Option<Self>;
 }
 
-pub trait NodeKey<C>:
-    Clone + Debug + Eq + Hash + Send + Sync + 'static + XXHash3 + Persistent<C>
-{
-}
+pub trait NodeKey<C>: Clone + Debug + Eq + Hash + Send + Sync + 'static + Persistent<C> {}
 
-pub trait NodeValue<C>: Debug + Send + Sync + 'static + XXHash3 + Persistent<C> {}
+pub trait NodeValue<C>: Debug + Send + Sync + 'static + Persistent<C> {}

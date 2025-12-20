@@ -108,12 +108,12 @@ impl InternedArtifactId {
 ///
 /// 长得像 `domain.reverse.group:name@version`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InternedPackage {
+pub struct InternedPackageId {
     pub name: InternedArtifactId,
     pub version: InternedVersion,
 }
 
-impl InternedPackage {
+impl InternedPackageId {
     pub fn new(name: InternedArtifactId, version: InternedVersion) -> Self {
         Self { name, version }
     }

@@ -20,6 +20,8 @@ pub enum WorkerPoolError {
     StartMultipleTimes,
     #[error("Worker pool not started")]
     NotStarted,
+    #[error("Task cancelled or worker panicked")]
+    Canceled,
 }
 
 #[derive(Debug, Clone)]
@@ -104,7 +106,7 @@ impl<B: WorkerBehavior> WorkerPool<B> {
                     },
                     Err(e) => {
                         if e == RecvTimeoutError::Timeout {
-                            //
+                            continue;
                         } else {
                             break;
                         }
@@ -137,8 +139,8 @@ impl<B: WorkerBehavior> WorkerPool<B> {
 
     /// Create a new pool
     /// concurrency: count of cpu
-    pub fn new(config: PoolConfig, machine_concurrency: usize) -> Self {
-        let (tx, rx) = flume::bounded(machine_concurrency * 2);
+    pub fn new(config: PoolConfig) -> Self {
+        let (tx, rx) = flume::bounded(config.max_workers * 2);
         let (gc_tx, _) = broadcast::channel(1);
 
         Self {
@@ -156,7 +158,7 @@ impl<B: WorkerBehavior> WorkerPool<B> {
         &self,
         input: B::Input,
         cancel_token: CancelToken,
-    ) -> Result<B::Output, String> {
+    ) -> Result<B::Output, WorkerPoolError> {
         let (tx, rx) = oneshot::channel();
 
         let job = Job {
@@ -168,12 +170,11 @@ impl<B: WorkerBehavior> WorkerPool<B> {
         self.sender
             .send_async(Command::Process(job))
             .await
-            .map_err(|_| "Worker pool closed".to_string())?;
+            .map_err(|_| WorkerPoolError::NotStarted)?;
 
         self.maybe_spawn_worker();
 
-        rx.await
-            .map_err(|_| "Task cancelled or worker panicked".to_string())
+        rx.await.map_err(|_| WorkerPoolError::Canceled)
     }
 
     pub async fn gc(&self) -> Result<(), SendError<()>> {

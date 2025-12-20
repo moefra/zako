@@ -1,11 +1,11 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use crate::id::{InternedAtom, InternedLabel};
+use crate::id::{InternedAtom, InternedPath};
 use crate::package_source::ResolvedPackageSource;
 use crate::pattern::{InternedPattern, Pattern};
 use crate::{
     author::{Author, InternedAuthor},
-    config::Config,
+    config_value::ConfigValue,
     context::BuildContext,
     intern::{Internable, InternedString},
     package::{InternedGroup, InternedVersion},
@@ -46,13 +46,17 @@ pub struct Project {
     pub toolchains: Option<Pattern>,
     pub subprojects: Option<Pattern>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
-    #[ts(as = "::std::option::Option<::std::collections::HashMap<::std::string::String, Config>>")]
+    #[ts(
+        as = "::std::option::Option<::std::collections::HashMap<::std::string::String, crate::package_source::PackageSource>>"
+    )]
     pub dependencies: Option<HashMap<SmolStr, PackageSource>>,
     /// Default mount config to `config`
     pub mount_config: Option<String>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
-    #[ts(as = "::std::option::Option<::std::collections::HashMap<::std::string::String, Config>>")]
-    pub config: Option<HashMap<SmolStr, Config>>,
+    #[ts(
+        as = "::std::option::Option<::std::collections::HashMap<::std::string::String, crate::config_value::ConfigValue>>"
+    )]
+    pub config: Option<HashMap<SmolStr, ConfigValue>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +73,7 @@ pub struct ResolvedProject {
     pub subprojects: Option<InternedPattern>,
     pub dependencies: Option<HashMap<SmolStr, ResolvedPackageSource>>,
     pub mount_config: Option<InternedAtom>,
-    pub config: Option<HashMap<SmolStr, Config>>,
+    pub config: Option<HashMap<SmolStr, ConfigValue>>,
 }
 
 impl Project {

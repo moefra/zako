@@ -118,8 +118,13 @@ impl CancelSource {
     }
 }
 
-// --- 3. 接收端 (C# 的 CancellationToken) ---
-// 只有它能被传递给底层函数
+/// A token that can be used to cancel an operation.
+///
+/// The token is a wrapper around the shared state that contains the token and the reason.
+///
+/// The token can be used to check if the operation is cancelled, wait for the cancellation signal, and get the reason.
+///
+/// It should be seems as a costless cloneable object.
 #[derive(Clone, Debug)]
 pub struct CancelToken {
     state: Arc<SharedState>,

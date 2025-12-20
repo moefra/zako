@@ -94,14 +94,19 @@ impl InternedAtom {
 ///
 /// 例如: "src/ui/button", "core"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InternedLabel(InternedString);
+pub struct InternedPath(InternedString);
 
-impl InternedLabel {
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, IdParseError> {
+impl InternedPath {
+    pub fn try_parse<'s>(
+        s: &'s str,
+        interner: &Interner,
+    ) -> Result<(Self, Option<&'s str>), IdParseError> {
         // 路径允许为空。字符串是合法的根包路径
         if s.is_empty() {
-            return Ok(Self(interner.get_or_intern_static("")));
+            return Ok((Self(interner.get_or_intern_static("")), None));
         }
+
+        let mut last_segment = None;
 
         for segment in s.split('/') {
             if segment == "." || segment == ".." {
@@ -118,9 +123,10 @@ impl InternedLabel {
                     Some(segment.to_string()),
                 ));
             }
+            last_segment = Some(segment);
         }
 
-        Ok(Self(interner.get_or_intern(s)))
+        Ok((Self(interner.get_or_intern(s)), last_segment))
     }
 }
 
@@ -133,7 +139,7 @@ impl InternedLabel {
 pub struct InternedTarget(InternedAtom);
 
 impl InternedTarget {
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, IdParseError> {
+    pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
         let atom = InternedAtom::try_parse(s, interner)?;
         Ok(Self(atom))
     }
@@ -150,7 +156,7 @@ impl InternedTarget {
 pub struct InternedPackageRef(InternedString);
 
 impl InternedPackageRef {
-    pub fn try_parse(s: &str, interner: &mut Interner) -> Result<Self, IdParseError> {
+    pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
         if s.is_empty() {
             // 允许空字符串，代表当前包
             return Ok(Self(interner.get_or_intern_static("")));
@@ -176,28 +182,17 @@ impl InternedPackageRef {
 
 /// 一个贮存的ID，包含包引用、路径和目标名称，例如`@curl//src:main`
 ///
-/// 格式: `@<package_ref>//<path>/<subpath>/.../final_path:<target>`
-///
-/// 其中Path也叫做Label
-///
 /// 分别由[InternedPackageRef]、[InternedPath]和[InternedTarget]组成
-///
-/// NOTE AGAIN:其中@可为省略，代表当前包
-///
-/// NOTE AGAIN:其中//后面可以为空，代表包根路径
-///
-/// 最短的ID示例: `//:main` (当前包的根路径下的main目标)
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InternedId {
+pub struct Label {
     pub package_ref: InternedPackageRef,
-    pub path: InternedLabel,
+    pub path: InternedPath,
     pub target: InternedTarget,
 }
 
-impl InternedId {
+impl Label {
     pub fn new(
         package_ref: InternedPackageRef,
-        path: InternedLabel,
+        path: InternedPath,
         target: InternedTarget,
     ) -> Self {
         Self {
@@ -207,35 +202,50 @@ impl InternedId {
         }
     }
 
-    pub fn try_parse(id: &str, interner: &mut Interner) -> Result<Self, IdParseError> {
-        let parts: Vec<&str> = id.split(':').collect();
-        if parts.len() != 2 {
-            return Err(IdParseError::InvalidFormat(
+    /// 格式: `@<package_ref>//<path>/<subpath>/.../final_path:<target>`
+    ///
+    /// 输出始终是明确的，解析的，即不需要再补充输出。所有默认值已揭晓。
+    ///
+    /// NOTE:其中@可为省略，代表当前包
+    ///
+    /// NOTE again:其中//后面可以为空，代表包根路径
+    ///
+    /// NOTE again:其中:后面可以为空，默认为最后一个label的名字
+    ///
+    /// Examples:
+    /// - `//:main`: 当前包的根路径下的main目标
+    /// - `//src` 代表src路径下的`src`目标，即等价于`//src:src`
+    /// - `@curl//:main`: curl包的根路径下的main目标
+    /// - `@curl//src:lib`: curl包的src路径下的lib目标
+    /// - `@curl//crypto`: curl包的crypto路径下的crypto目标
+    /// - `@curl//crypto/src:core`: curl包的crypto路径下的src路径下的core目标
+    /// - `@curl//crypto/src:src`: curl包的crypto路径下的src路径下的src目标
+    pub fn try_parse(id: &str, interner: &Interner) -> Result<Self, IdParseError> {
+        let (package_ref, path) = id.split_once("//").ok_or_else(|| {
+            IdParseError::InvalidFormat(
                 id.to_string(),
-                "ID must contain exactly one ':' separating path and target".to_string(),
-            ));
-        }
+                "ID must contain exactly one '//' separating package_ref and path".to_string(),
+            )
+        })?;
+        let package_ref = InternedPackageRef::try_parse(package_ref, interner)?;
 
-        let path_part = parts[0];
-        let target_part = parts[1];
+        let (path, target) = path.split_once(':').unwrap_or((id, ""));
 
-        let target = InternedTarget::try_parse(target_part, interner)?;
+        let (path, last_segment) = InternedPath::try_parse(path, interner)?;
 
-        let path_parts: Vec<&str> = path_part.split("//").collect();
-
-        if path_parts.len() != 2 {
-            return Err(IdParseError::InvalidFormat(
-                id.to_string(),
-                "Path part must contain exactly one '//' separating package_ref and path"
-                    .to_string(),
-            ));
-        }
-
-        let package_ref_str = path_parts[0];
-        let path_str = path_parts[1];
-
-        let package_ref = InternedPackageRef::try_parse(package_ref_str, interner)?;
-        let path = InternedLabel::try_parse(path_str, interner)?;
+        let target = if target.is_empty() {
+            match last_segment {
+                Some(segment) => InternedTarget::try_parse(segment, interner)?,
+                None => {
+                    return Err(IdParseError::InvalidFormat(
+                        id.to_string(),
+                        "if no target provided, the label must not be empty".to_string(),
+                    ));
+                }
+            }
+        } else {
+            InternedTarget::try_parse(target, interner)?
+        };
 
         Ok(Self {
             package_ref,

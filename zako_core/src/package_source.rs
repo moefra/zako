@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use crate::{
     intern::{InternedString, Interner},
-    package::{InternedPackage, PackageParseError},
+    package::{InternedPackageId, PackageParseError},
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -45,7 +45,7 @@ pub enum PackageSource {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ResolvedPackageSource {
     Registry {
-        package: InternedPackage,
+        package: InternedPackageId,
     },
     Git {
         repo: SmolStr,
@@ -67,7 +67,7 @@ impl PackageSource {
     ) -> Result<ResolvedPackageSource, PackageSourceResolveError> {
         match self {
             PackageSource::Registry { package } => {
-                let interned_package = InternedPackage::try_parse(&package, interner)?;
+                let interned_package = InternedPackageId::try_parse(&package, interner)?;
                 Ok(ResolvedPackageSource::Registry {
                     package: interned_package,
                 })

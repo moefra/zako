@@ -1,12 +1,12 @@
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, OnceLock};
-use zako_digest::hash::XXHash3;
+use zako_digest::{Digest, hash::XXHash3};
 
 use crate::cas_store::CasStore;
 
 // TODO: Implement this for Deserialize
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize, Serialize, Decode, Encode)]
+#[derive(Debug, Clone, Hash, Copy, PartialEq, Eq, Deserialize, Serialize, Decode, Encode)]
 pub struct BlobHandle {
     /// 1. 身份 ID (XXH3)
     /// 冗余一份在外层，方便作为 Map Key，甚至不需要解引用 Arc
@@ -29,5 +29,17 @@ impl XXHash3 for BlobHandle {
         // Handle 的 Hash 就是内容的 Hash
         // 我们不需要再 Hash 一遍 size 或 inner 指针，只要内容 Hash 一样，它们就是同一个东西
         hasher.update(&self.hash.to_le_bytes());
+    }
+}
+
+impl From<BlobHandle> for Digest {
+    fn from(handle: BlobHandle) -> Self {
+        Digest::new(handle.hash, handle.size)
+    }
+}
+
+impl From<Digest> for BlobHandle {
+    fn from(digest: Digest) -> Self {
+        Self::new(digest.fast_xxhash3_128, digest.size_bytes)
     }
 }

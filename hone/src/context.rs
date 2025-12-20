@@ -4,6 +4,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 
 use crate::SharedHoneResult;
+use crate::error::HoneError;
 use crate::status::NodeData;
 use crate::{
     FastMap, FastSet, HoneResult,
@@ -25,6 +26,7 @@ pub struct Context<'c, C, K: NodeKey<C>, V: NodeValue<C>> {
     stack: im::Vector<K>,
     old_data: Option<NodeData<C, V>>,
     context: &'c C,
+    cancel_token: zako_cancel::CancelToken,
 }
 
 impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
@@ -35,6 +37,7 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
         stack: im::Vector<K>,
         old_data: Option<NodeData<C, V>>,
         context: &'c C,
+        cancel_token: zako_cancel::CancelToken,
     ) -> Self {
         Self {
             engine,
@@ -43,6 +46,7 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
             stack,
             old_data,
             context,
+            cancel_token,
         }
     }
 
@@ -64,6 +68,10 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
 
     pub fn context(&'c self) -> &'c C {
         self.context
+    }
+
+    pub fn cancel_token(&self) -> zako_cancel::CancelToken {
+        self.cancel_token.clone()
     }
 
     /// 请求一个依赖项
@@ -97,7 +105,21 @@ impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
             .get_dependency_graph()
             .add_parent(key.clone(), self.this.clone());
 
+        // Check cancel token here when we done prepare operation
+        if self.cancel_token.is_cancelled() {
+            return Err(Arc::new(HoneError::Canceled {
+                reason: self.cancel_token.reason().clone(),
+            }));
+        }
+
         // 2. 触发获取（如果 key 还没算，会在这里触发计算；如果正在算，会等待）
-        self.engine.get(key, Some(self.this.clone()), stack).await
+        self.engine
+            .get(
+                key,
+                Some(self.this.clone()),
+                stack,
+                self.cancel_token.clone(),
+            )
+            .await
     }
 }

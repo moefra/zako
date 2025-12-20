@@ -3,15 +3,18 @@ use std::{ops::Deref, path::PathBuf, sync::Arc};
 use ahash::AHashMap;
 use hone::FastMap;
 use lasso::{Capacity, ThreadedRodeo};
+use sysinfo::System;
 use thiserror::Error;
 use tokio::runtime::Handle;
 
 use crate::{
+    cas_store::CasStore,
     global_state::GlobalState,
     intern::{InternedAbsolutePath, InternedString, Interner},
-    package::InternedPackage,
+    package::InternedPackageId,
     package_source::{PackageSource, ResolvedPackageSource},
     project::ResolvedProject,
+    worker::{oxc_worker::OxcTranspilerWorker, v8_worker::V8Worker, worker_pool::WorkerPool},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -99,6 +102,22 @@ impl BuildContext {
 
     pub fn handle(&self) -> &Handle {
         self.env.handle()
+    }
+
+    pub fn cas_store(&self) -> &CasStore {
+        self.env.cas_store()
+    }
+
+    pub fn oxc_workers_pool(&self) -> &WorkerPool<OxcTranspilerWorker> {
+        self.env.oxc_workers_pool()
+    }
+
+    pub fn v8_workers_pool(&self) -> &WorkerPool<V8Worker> {
+        self.env.v8_workers_pool()
+    }
+
+    pub fn system(&self) -> &System {
+        self.env.system()
     }
 }
 

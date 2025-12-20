@@ -2,13 +2,18 @@ use std::path::PathBuf;
 
 use hone::{HoneResult, status::NodeData};
 
-use crate::{computer::ZakoComputeContext, context::BuildContext, node_value::ZakoValue};
+use crate::{
+    computer::ZakoComputeContext,
+    context::BuildContext,
+    node::{node_value::ZakoValue, resolve_project::ResolveProject},
+    project::ResolvedProject,
+};
 
 /// Compute and resolve a project file
 pub async fn compute_resolve_project<'c>(
     ctx: &'c ZakoComputeContext<'c>,
-    path: &PathBuf,
-) -> HoneResult<NodeData<BuildContext, ZakoValue>> {
+    key: &ResolveProject,
+) -> HoneResult<(u128, u128, ResolvedProject)> {
     // TODO: Implement project resolution logic here
     // 1. Read project file (zako.toml)
     // 2. Parse configuration

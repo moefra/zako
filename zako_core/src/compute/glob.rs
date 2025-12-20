@@ -5,16 +5,26 @@ use hone::{HoneResult, status::NodeData};
 use zako_digest::hash::XXHash3;
 
 use crate::{
-    computer::ZakoComputeContext, context::BuildContext, intern::InternedAbsolutePath,
-    node_value::ZakoValue, path::NeutralPath, pattern::InternedPattern, resource::ResourceRequest,
+    computer::ZakoComputeContext,
+    context::BuildContext,
+    intern::InternedAbsolutePath,
+    node::{
+        glob::{Glob, GlobResult},
+        node_value::ZakoValue,
+    },
+    path::NeutralPath,
+    pattern::InternedPattern,
+    resource::ResourceRequest,
 };
 
 /// Compute glob results for a given base path and pattern
 pub async fn compute_glob<'c>(
     ctx: &'c ZakoComputeContext<'c>,
-    base_path: &InternedAbsolutePath,
-    pattern: &InternedPattern,
-) -> HoneResult<NodeData<BuildContext, ZakoValue>> {
+    glob: &Glob,
+) -> HoneResult<(u128, u128, GlobResult)> {
+    let base_path = &glob.base_path;
+    let pattern = &glob.pattern;
+
     let old_data = ctx.old_data();
     let ctx = ctx.context();
     let _resource = ctx.resource_pool().occupy(ResourceRequest::cpu(1));
@@ -22,10 +32,12 @@ pub async fn compute_glob<'c>(
     let base_path = Path::new(base_path);
     let interner = ctx.interner();
 
+    let resolved_pattern = pattern.resolve(interner);
+
     let input_hash = {
         let mut input_hasher = xxhash_rust::xxh3::Xxh3::new();
         base_path.hash_into(&mut input_hasher);
-        pattern.hash_into(&mut input_hasher);
+        resolved_pattern.hash_into(&mut input_hasher);
         input_hasher.digest128()
     };
 
@@ -63,16 +75,21 @@ pub async fn compute_glob<'c>(
 
     let output_hash = hasher.digest128();
 
+    /*
+    TODO: Reuse old data
     if let Some(old) = old_data {
         if old.output_xxhash3() == output_hash {
             // 结果没变，复用旧数据！
-            return Ok(NodeData::new(old.value().clone(), output_hash, input_hash));
+
         }
     }
+    */
 
-    Ok(NodeData::new(
-        Arc::new(ZakoValue::Glob(interned_neutral_result)),
-        output_hash,
+    return Ok((
         input_hash,
-    ))
+        output_hash,
+        GlobResult {
+            paths: interned_neutral_result,
+        },
+    ));
 }

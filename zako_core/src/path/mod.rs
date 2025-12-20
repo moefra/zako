@@ -177,6 +177,10 @@ impl NeutralPath {
             return Err(PathError::InvalidFormat("space ` ` at the end"));
         }
 
+        if part.ends_with(".") {
+            return Err(PathError::InvalidFormat("dot `.` at the end"));
+        }
+
         // NUL NUL.gzip NUL.tar.gz is all invalid
         let stem = part.split_once('.').map(|(l, _)| l).unwrap_or(part);
 
@@ -205,6 +209,12 @@ impl NeutralPath {
         // limitation from my brain
         if part.contains("\'") {
             return Err(PathError::InvalidCharacter("\'"));
+        }
+        if part.contains("`") {
+            return Err(PathError::InvalidCharacter("`"));
+        }
+        if part.contains("$") {
+            return Err(PathError::InvalidCharacter("$"));
         }
 
         return Ok(());

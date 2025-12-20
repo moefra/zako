@@ -1,5 +1,6 @@
 use crate::consts;
 use crate::context::BuildContext;
+use crate::global_state::GlobalState;
 use crate::worker::WorkerBehavior;
 use oxc_allocator::Allocator;
 use oxc_codegen::{Codegen, CodegenOptions};
@@ -16,6 +17,7 @@ use std::time::{Duration, Instant};
 use thiserror::Error;
 use tracing::instrument;
 use zako_cancel::CancelToken;
+use zako_digest::hash::XXHash3;
 
 #[derive(Debug, Error)]
 pub enum TransformerError {
@@ -40,6 +42,13 @@ pub struct OxcTranspilerOutput {
     pub map: Option<String>,
 }
 
+impl XXHash3 for OxcTranspilerOutput {
+    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        self.code.hash_into(hasher);
+        self.map.hash_into(hasher);
+    }
+}
+
 /// A worker that transpiles code using Oxc
 #[derive(Debug, Clone)]
 pub struct OxcTranspilerWorker;
@@ -50,7 +59,7 @@ pub struct OxcState {
 }
 
 impl WorkerBehavior for OxcTranspilerWorker {
-    type Context = BuildContext;
+    type Context = GlobalState;
     type Input = OxcTranspilerInput;
     type Output = Result<OxcTranspilerOutput, TransformerError>;
     type State = OxcState;

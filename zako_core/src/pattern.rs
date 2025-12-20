@@ -46,6 +46,16 @@ pub struct Pattern {
     pub ignore_hidden_files: bool,
 }
 
+impl XXHash3 for Pattern {
+    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        for pattern in &self.patterns {
+            pattern.hash_into(hasher);
+        }
+        self.following_ignore_files.hash_into(hasher);
+        self.ignore_hidden_files.hash_into(hasher);
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InternedPattern {
     pub patterns: Vec<InternedString>,

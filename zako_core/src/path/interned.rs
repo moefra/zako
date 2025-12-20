@@ -1,6 +1,6 @@
 use crate::intern::InternedString;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Copy)]
 pub struct InternedNeutralPath {
     interned: InternedString,
 }

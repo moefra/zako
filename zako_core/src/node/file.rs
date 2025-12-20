@@ -5,8 +5,40 @@ use zako_digest::hash::XXHash3;
 
 use crate::{blob_handle::BlobHandle, context::BuildContext, path::interned::InternedNeutralPath};
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct File {
+    pub path: InternedNeutralPath,
+}
+
+impl XXHash3 for File {
+    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        hasher.update(&self.path.interned().as_u64().to_le_bytes());
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode, PartialEq, Eq, Hash)]
+pub struct RawFile {
+    pub path: String,
+}
+
+impl Persistent<BuildContext> for File {
+    type Persisted = RawFile;
+
+    fn to_persisted(&self, ctx: &BuildContext) -> Option<Self::Persisted> {
+        Some(RawFile {
+            path: ctx.interner().resolve(self.path.interned()).to_string(),
+        })
+    }
+
+    fn from_persisted(p: Self::Persisted, ctx: &BuildContext) -> Option<Self> {
+        Some(File {
+            path: unsafe { InternedNeutralPath::from_raw(ctx.interner().get_or_intern(p.path)) },
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct FileArtifact {
+pub struct FileResult {
     /// 逻辑路径 "src/utils.ts"
     pub path: InternedNeutralPath,
     /// 权限位 (对 TS 不重要，但对 shell 脚本重要)
@@ -15,7 +47,7 @@ pub struct FileArtifact {
     pub content: BlobHandle,
 }
 
-impl XXHash3 for FileArtifact {
+impl XXHash3 for FileResult {
     fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
         hasher.update(&self.path.interned().as_u64().to_le_bytes());
         self.is_executable.hash_into(hasher);
@@ -24,24 +56,24 @@ impl XXHash3 for FileArtifact {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode, PartialEq, Eq, Hash)]
-pub struct RawFileArtifact {
+pub struct RawFileResult {
     pub path: String,
     pub is_executable: bool,
     pub content: BlobHandle,
 }
 
-impl Persistent<BuildContext> for FileArtifact {
-    type Persisted = RawFileArtifact;
+impl Persistent<BuildContext> for FileResult {
+    type Persisted = RawFileResult;
 
     fn to_persisted(&self, ctx: &BuildContext) -> Option<Self::Persisted> {
-        Some(RawFileArtifact {
+        Some(RawFileResult {
             path: ctx.interner().resolve(self.path.interned()).to_string(),
             is_executable: self.is_executable,
             content: self.content.clone(),
         })
     }
     fn from_persisted(p: Self::Persisted, ctx: &BuildContext) -> Option<Self> {
-        Some(FileArtifact {
+        Some(FileResult {
             path: unsafe { InternedNeutralPath::from_raw(ctx.interner().get_or_intern(p.path)) },
             is_executable: p.is_executable,
             content: p.content,

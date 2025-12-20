@@ -10,9 +10,24 @@ use crate::{
     context::BuildContext,
     intern::{InternedString, Interner},
     local_cas::LocalCas,
-    resource::{self, ResourcePool},
-    worker::{oxc_worker::OxcTranspilerWorker, v8_worker::V8Worker, worker_pool::WorkerPool},
+    resource::{
+        self, ResourcePool,
+        heuristics::{determine_local_cas_path, determine_tokio_thread_stack_size},
+    },
+    worker::{
+        oxc_worker::OxcTranspilerWorker,
+        v8_worker::V8Worker,
+        worker_pool::{PoolConfig, WorkerPool},
+    },
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum GlobalStateError {
+    #[error("Get a worker pool error: {0}")]
+    WorkerPoolError(#[from] crate::worker::worker_pool::WorkerPoolError),
+    #[error("Get an io error: {0}")]
+    IOError(#[from] std::io::Error),
+}
 
 #[derive(Debug)]
 pub struct GlobalState {
@@ -28,10 +43,14 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
-    pub fn new(resource_pool: ResourcePool) -> Result<Self, std::io::Error> {
+    pub fn new(
+        resource_pool: ResourcePool,
+        oxc_workers_config: PoolConfig,
+        v8_workers_config: PoolConfig,
+    ) -> Result<Arc<Self>, GlobalStateError> {
         let cpu_count = resource_pool.get_cpu_count() as usize;
         let system = Arc::new(System::new_all());
-        Ok(Self {
+        let this = Self {
             interner: Arc::new(ThreadedRodeo::with_capacity_and_hasher(
                 Capacity::new(64, NonZeroUsize::new(1024).unwrap()), // 1k strings to start with
                 ::ahash::RandomState::default(),
@@ -41,23 +60,26 @@ impl GlobalState {
             tokio_runtime: Builder::new_multi_thread()
                 .worker_threads(cpu_count)
                 .thread_name("zako-tokio-worker")
-                .thread_stack_size(4 * 1024 * 1024)
+                .thread_stack_size(determine_tokio_thread_stack_size(&system))
                 .build()?,
             system: system.clone(),
             cas_store: Arc::new(CasStore::new(
-                Box::new(LocalCas::new(PathBuf::from("."))),
+                Box::new(LocalCas::new(determine_local_cas_path(&system))),
                 None,
                 resource::heuristics::determine_memory_cache_size_for_cas(&system),
                 resource::heuristics::determine_memory_ttl_for_cas(&system),
                 resource::heuristics::determine_memory_tti_for_cas(&system),
             )),
-            oxc_workers_pool: Arc::new(WorkerPool::new(
-                resource::heuristics::determine_oxc_workers_count(&system),
-            )),
-            v8_workers_pool: Arc::new(WorkerPool::new(
-                resource::heuristics::determine_v8_workers_count(&system),
-            )),
-        })
+            oxc_workers_pool: Arc::new(WorkerPool::new(oxc_workers_config)),
+            v8_workers_pool: Arc::new(WorkerPool::new(v8_workers_config)),
+        };
+
+        let this = Arc::new(this);
+
+        this.oxc_workers_pool.start(this.clone())?;
+        this.v8_workers_pool.start(this.clone())?;
+
+        Ok(this)
     }
 
     #[inline]
@@ -65,10 +87,12 @@ impl GlobalState {
         &self.interner
     }
 
+    #[inline]
     pub fn resource_pool(&self) -> &ResourcePool {
         &self.resource_pool
     }
 
+    #[inline]
     pub fn packages(&self) -> &FastMap<InternedString, Arc<BuildContext>> {
         &self.packages
     }
@@ -76,5 +100,25 @@ impl GlobalState {
     #[inline]
     pub fn handle(&self) -> &tokio::runtime::Handle {
         self.tokio_runtime.handle()
+    }
+
+    #[inline]
+    pub fn cas_store(&self) -> &CasStore {
+        &self.cas_store
+    }
+
+    #[inline]
+    pub fn oxc_workers_pool(&self) -> &WorkerPool<OxcTranspilerWorker> {
+        &self.oxc_workers_pool
+    }
+
+    #[inline]
+    pub fn v8_workers_pool(&self) -> &WorkerPool<V8Worker> {
+        &self.v8_workers_pool
+    }
+
+    #[inline]
+    pub fn system(&self) -> &System {
+        &self.system
     }
 }
