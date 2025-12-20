@@ -6,6 +6,7 @@ use zako_digest::{Digest, hash::XXHash3};
 use crate::cas_store::CasStore;
 
 // TODO: Implement this for Deserialize
+// Issue URL: https://github.com/moefra/zako/issues/14
 #[derive(Debug, Clone, Hash, Copy, PartialEq, Eq, Deserialize, Serialize, Decode, Encode)]
 pub struct BlobHandle {
     /// 1. 身份 ID (XXH3)

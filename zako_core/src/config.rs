@@ -51,6 +51,7 @@ impl XXHash3 for Configuration {
 pub struct InternedConfiguration {
     pub config: Vec<(InternedString, ConfigValue)>,
     // TODO: Use index to get the value by key
+    // Issue URL: https://github.com/moefra/zako/issues/18
     // pub index: HashMap<InternedString, usize> ?
 }
 
