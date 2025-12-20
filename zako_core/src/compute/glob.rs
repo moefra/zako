@@ -77,6 +77,7 @@ pub async fn compute_glob<'c>(
 
     /*
     TODO: Reuse old data
+    Issue URL: https://github.com/moefra/zako/issues/17
     if let Some(old) = old_data {
         if old.output_xxhash3() == output_hash {
             // 结果没变，复用旧数据！

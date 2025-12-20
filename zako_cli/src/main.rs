@@ -53,6 +53,7 @@ const STYLES: styling::Styles = styling::Styles::styled()
     .placeholder(styling::AnsiColor::Cyan.on_default().italic().bold());
 
 // TODO: Print image may be a good thing
+// Issue URL: https://github.com/moefra/zako/issues/13
 const ABOUT: &'static str =
     "The \x1b[35mpost-modern\x1b[0m 🛠️building tool🛠️ that your mom warned you about🤯";
 const BEFORE_HELP: &'static str = concatcp!(

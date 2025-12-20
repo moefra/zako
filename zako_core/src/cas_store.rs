@@ -133,12 +133,14 @@ impl CasStore {
 
         // put the bytes to the local cas
         // TODO: clone data maybe too slow, find a new way!
+        // Issue URL: https://github.com/moefra/zako/issues/16
         self.local
             .store(&digest, Box::new(std::io::Cursor::new(bytes.clone())))
             .await?;
 
         // put the bytes to the remote cas if exists
         // TODO: add to remote maybe too slow, maybe we should add a individual task to do this
+        // Issue URL: https://github.com/moefra/zako/issues/15
         if let Some(remote) = self.remote.as_ref() {
             remote
                 .store(&digest, Box::new(std::io::Cursor::new(bytes.clone())))
