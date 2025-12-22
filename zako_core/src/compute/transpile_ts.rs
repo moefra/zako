@@ -6,7 +6,7 @@ use oxc_span::SourceType;
 #[cfg(unix)]
 use tokio::fs;
 use xxhash_rust::xxh3::xxh3_128;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     computer::ZakoComputeContext,
@@ -23,7 +23,7 @@ use crate::{
 pub async fn compute_transpile_ts<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     key: &TranspileTs,
-) -> HoneResult<(u128, u128, TranspileTsResult)> {
+) -> HoneResult<(HashPair, TranspileTsResult)> {
     let code = key.code;
     let code = ctx
         .context()
@@ -37,7 +37,7 @@ pub async fn compute_transpile_ts<'c>(
             )
         })?;
 
-    let input_hash = code.xxhash3_128();
+    let input_hash = code.get_blake3();
 
     let result = ctx
         .context()
@@ -71,7 +71,7 @@ pub async fn compute_transpile_ts<'c>(
         source_map: result.map,
     };
 
-    let output_hash = output.xxhash3_128();
+    let output_hash = output.get_blake3();
 
     Ok((input_hash, output_hash, output))
 }

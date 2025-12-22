@@ -1,7 +1,7 @@
 use bitcode::{Decode, Encode};
 use hone::node::Persistent;
 use serde::{Deserialize, Serialize};
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     blob_handle::BlobHandle,
@@ -17,10 +17,10 @@ pub struct Glob {
     pub pattern: InternedPattern,
 }
 
-impl XXHash3 for Glob {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for Glob {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
         hasher.update(&self.base_path.as_u64().to_le_bytes());
-        self.pattern.hash_into(hasher);
+        self.pattern.hash_into_blake3(hasher);
     }
 }
 

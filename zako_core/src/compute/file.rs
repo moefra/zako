@@ -1,10 +1,13 @@
 use std::{path::Path, sync::Arc};
 
-use hone::{HoneResult, error::HoneError, status::NodeData};
+use hone::{
+    HoneResult,
+    error::HoneError,
+    status::{HashPair, NodeData},
+};
 #[cfg(unix)]
 use tokio::fs;
-use xxhash_rust::xxh3::xxh3_128;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     computer::ZakoComputeContext,
@@ -20,7 +23,7 @@ use crate::{
 pub async fn compute_file<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     key: &File,
-) -> HoneResult<(u128, u128, FileResult)> {
+) -> HoneResult<(HashPair, FileResult)> {
     let path = &key.path;
 
     let build_ctx = ctx.context();
@@ -58,11 +61,10 @@ pub async fn compute_file<'c>(
         })?;
 
     // The hash of input path is input hash
-    let input_hash = xxh3_128(path_str.as_bytes());
+    let input_hash = blake3::hash(path_str.as_bytes());
 
     Ok((
-        input_hash,
-        handle.hash,
+        HashPair::new(handle.hash.into(), input_hash),
         FileResult {
             path: path.clone(),
             is_executable: is_exec,

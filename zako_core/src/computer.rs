@@ -24,29 +24,17 @@ impl hone::context::Computer<BuildContext, ZakoKey, ZakoValue> for Computer {
         ctx: &'c ZakoComputeContext<'c>,
     ) -> HoneResult<NodeData<BuildContext, ZakoValue>> {
         match ctx.this() {
-            ZakoKey::Glob(key) => compute_glob(ctx, key).await.map(|result| {
-                NodeData::new(result.0, result.1, Arc::new(ZakoValue::Glob(result.2)))
-            }),
+            ZakoKey::Glob(key) => compute_glob(ctx, key)
+                .await
+                .map(|result| NodeData::new(result.0, Arc::new(ZakoValue::Glob(result.1)))),
             ZakoKey::ResolveProject(key) => compute_resolve_project(ctx, key).await.map(|result| {
-                NodeData::new(
-                    result.0,
-                    result.1,
-                    Arc::new(ZakoValue::ResolveProject(result.2)),
-                )
+                NodeData::new(result.0, Arc::new(ZakoValue::ResolveProject(result.1)))
             }),
-            ZakoKey::File(key) => compute_file(ctx, key).await.map(|result| {
-                NodeData::new(
-                    result.0,
-                    result.1,
-                    Arc::new(ZakoValue::FileResult(result.2)),
-                )
-            }),
+            ZakoKey::File(key) => compute_file(ctx, key)
+                .await
+                .map(|result| NodeData::new(result.0, Arc::new(ZakoValue::FileResult(result.1)))),
             ZakoKey::TranspileTs(key) => compute_transpile_ts(ctx, key).await.map(|result| {
-                NodeData::new(
-                    result.0,
-                    result.1,
-                    Arc::new(ZakoValue::TranspileTsResult(result.2)),
-                )
+                NodeData::new(result.0, Arc::new(ZakoValue::TranspileTsResult(result.1)))
             }),
         }
     }

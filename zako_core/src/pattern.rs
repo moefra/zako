@@ -5,7 +5,7 @@ use ignore::WalkState;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event};
 use ts_rs::TS;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     context::BuildContext,
@@ -46,13 +46,13 @@ pub struct Pattern {
     pub ignore_hidden_files: bool,
 }
 
-impl XXHash3 for Pattern {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for Pattern {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         for pattern in &self.patterns {
-            pattern.hash_into(hasher);
+            pattern.hash_into_blake3(hasher);
         }
-        self.following_ignore_files.hash_into(hasher);
-        self.ignore_hidden_files.hash_into(hasher);
+        self.following_ignore_files.hash_into_blake3(hasher);
+        self.ignore_hidden_files.hash_into_blake3(hasher);
     }
 }
 
@@ -141,8 +141,8 @@ impl InternedPattern {
     }
 }
 
-impl XXHash3 for InternedPattern {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for InternedPattern {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         for pattern in &self.patterns {
             hasher.update(&pattern.as_u64().to_le_bytes());
         }

@@ -1,7 +1,10 @@
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
 use ts_rs::TS;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
+
+use crate::{id::Label, intern::InternedString};
 
 #[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Decode, Encode)]
 #[ts(export, export_to = "config_value.d.ts")]
@@ -11,10 +14,10 @@ pub struct ConfigValue {
     pub default: Option<ConfigDefault>,
 }
 
-impl XXHash3 for ConfigValue {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
-        self.r#type.hash_into(hasher);
-        self.default.hash_into(hasher);
+impl Blake3Hash for ConfigValue {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        self.r#type.hash_into_blake3(hasher);
+        self.default.hash_into_blake3(hasher);
     }
 }
 
@@ -23,19 +26,24 @@ impl XXHash3 for ConfigValue {
 #[ts(optional_fields)]
 #[serde(untagged)]
 pub enum ConfigDefault {
-    String(String),
+    Label(String),
+    String { string: String },
     Boolean(bool),
     Number(i64),
     Object(ConfigOperation),
 }
 
-impl XXHash3 for ConfigDefault {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for ConfigDefault {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
         match self {
-            ConfigDefault::String(s) => s.hash_into(hasher),
-            ConfigDefault::Boolean(b) => b.hash_into(hasher),
+            ConfigDefault::Label(s) => s.hash_into_blake3(hasher),
+            ConfigDefault::Boolean(b) => b.hash_into_blake3(hasher),
             ConfigDefault::Number(n) => n.hash_into(hasher),
-            ConfigDefault::Object(o) => o.hash_into(hasher),
+            ConfigDefault::Object(o) => o.hash_into_blake3(hasher),
+            ConfigDefault::String { string } => {
+                hasher.update(b"::"); // why `::`? because it invalid in Label, so it can separate the two
+                string.hash_into_blake3(hasher);
+            }
         }
     }
 }
@@ -48,10 +56,10 @@ pub struct ConfigOperation {
     pub action: Option<String>,
 }
 
-impl XXHash3 for ConfigOperation {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
-        self.inherit.hash_into(hasher);
-        self.action.hash_into(hasher);
+impl Blake3Hash for ConfigOperation {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        self.inherit.hash_into_blake3(hasher);
+        self.action.hash_into_blake3(hasher);
     }
 }
 
@@ -64,12 +72,20 @@ pub enum ConfigType {
     String,
 }
 
-impl XXHash3 for ConfigType {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for ConfigType {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
         hasher.update(match self {
             ConfigType::Boolean => b"boolean",
             ConfigType::Number => b"number",
             ConfigType::String => b"string",
         });
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolvedConfigValue {
+    Label(Label),
+    String(SmolStr),
+    Boolean(bool),
+    Number(i64),
 }

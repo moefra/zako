@@ -4,7 +4,7 @@ use bitcode::{Decode, Encode};
 use hone::node::{NodeKey, NodeValue, Persistent};
 use serde::{Deserialize, Serialize};
 use strum::{Display, IntoStaticStr};
-use zako_digest::{Digest, hash::XXHash3};
+use zako_digest::{Digest, blake3_hash::Blake3Hash};
 
 use crate::{
     context::BuildContext,

@@ -1,6 +1,6 @@
 use crate::dependency::DependencyGraph;
 use crate::node::Persistent;
-use crate::status::{NodeStatusCode, get_node_status_code};
+use crate::status::{HashPair, NodeStatusCode, get_node_status_code};
 use crate::{FastMap, HoneResult, SharedHoneResult, context::Context, status::NodeData};
 use crate::{FastSet, TABLE_NODES};
 use ahash::{AHashMap, HashSet, HashSetExt};
@@ -75,10 +75,11 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
             database,
             context,
         };
-        this.fill_from_db()?;
+        //this.fill_from_db()?;
         Ok(this)
     }
-
+    // TODO: The cache system is to be implemented in the future.
+    /*
     fn fill_from_db(&self) -> Result<(), EngineError> {
         let txn = self.database.begin_read()?;
         let table = txn.open_table(TABLE_NODES)?;
@@ -169,8 +170,10 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
                         && let Some(node_key) = node_key
                     {
                         let node_status = NodeStatus::Verified(NodeData::new(
-                            input_xxhash3,
-                            output_xxhash3,
+                            HashPair {
+                                output_hash: Hash::from_bytes(output_xxhash3.to_le_bytes()),
+                                input_hash: Hash::from_bytes(input_xxhash3.to_le_bytes()),
+                            },
                             Arc::new(node_data),
                         ));
                         self.insert(node_key, node_status, None, None);
@@ -302,6 +305,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         txn.commit()?;
         Ok(())
     }
+    */
 
     pub fn get_computer(&self) -> Arc<dyn Computer<C, K, V>> {
         self.computer.clone()

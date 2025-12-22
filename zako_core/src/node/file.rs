@@ -1,7 +1,7 @@
 use bitcode::{Decode, Encode};
 use hone::node::Persistent;
 use serde::{Deserialize, Serialize};
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{blob_handle::BlobHandle, context::BuildContext, path::interned::InternedNeutralPath};
 
@@ -10,8 +10,8 @@ pub struct File {
     pub path: InternedNeutralPath,
 }
 
-impl XXHash3 for File {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for File {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
         hasher.update(&self.path.interned().as_u64().to_le_bytes());
     }
 }
@@ -47,11 +47,11 @@ pub struct FileResult {
     pub content: BlobHandle,
 }
 
-impl XXHash3 for FileResult {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for FileResult {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
         hasher.update(&self.path.interned().as_u64().to_le_bytes());
-        self.is_executable.hash_into(hasher);
-        self.content.hash_into(hasher);
+        self.is_executable.hash_into_blake3(hasher);
+        self.content.hash_into_blake3(hasher);
     }
 }
 

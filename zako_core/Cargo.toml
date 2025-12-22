@@ -76,11 +76,9 @@ orx-concurrent-bag.workspace = true
 
 convert_case.workspace = true
 
-xxhash-rust.workspace = true
+blake3.workspace = true
 
 url.workspace = true
-
-sha2.workspace = true
 
 hex.workspace = true
 
@@ -98,8 +96,6 @@ tokio-stream.workspace = true
 dashmap.workspace = true
 
 async-trait.workspace = true
-
-bitcode.workspace = true
 
 phf.workspace = true
 

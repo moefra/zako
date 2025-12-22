@@ -1,7 +1,7 @@
 use bitcode::{Decode, Encode};
 use hone::node::Persistent;
 use xxhash_rust::xxh3;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{blob_handle::BlobHandle, context::BuildContext};
 
@@ -12,10 +12,10 @@ pub struct TranspileTs {
     /// The code to transpile.
     pub code: BlobHandle,
 }
-impl XXHash3 for TranspileTs {
-    fn hash_into(&self, hasher: &mut xxh3::Xxh3) {
-        self.name.hash_into(hasher);
-        self.code.hash_into(hasher);
+impl Blake3Hash for TranspileTs {
+    fn hash_into_blake3(&self, hasher: &mut xxh3::Xxh3) {
+        self.name.hash_into_blake3(hasher);
+        self.code.hash_into_blake3(hasher);
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Decode, Encode)]
@@ -70,9 +70,9 @@ impl Persistent<BuildContext> for RawTranspileTsResult {
     }
 }
 
-impl XXHash3 for TranspileTsResult {
-    fn hash_into(&self, hasher: &mut xxh3::Xxh3) {
-        self.code.hash_into(hasher);
-        self.source_map.hash_into(hasher);
+impl Blake3Hash for TranspileTsResult {
+    fn hash_into_blake3(&self, hasher: &mut xxh3::Xxh3) {
+        self.code.hash_into_blake3(hasher);
+        self.source_map.hash_into_blake3(hasher);
     }
 }

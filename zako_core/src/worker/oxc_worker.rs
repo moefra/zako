@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use thiserror::Error;
 use tracing::instrument;
 use zako_cancel::CancelToken;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 #[derive(Debug, Error)]
 pub enum TransformerError {
@@ -42,10 +42,10 @@ pub struct OxcTranspilerOutput {
     pub map: Option<String>,
 }
 
-impl XXHash3 for OxcTranspilerOutput {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
-        self.code.hash_into(hasher);
-        self.map.hash_into(hasher);
+impl Blake3Hash for OxcTranspilerOutput {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+        self.code.hash_into_blake3(hasher);
+        self.map.hash_into_blake3(hasher);
     }
 }
 

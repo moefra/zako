@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use bitcode::{Decode, Encode};
 use hone::node::Persistent;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{context::BuildContext, intern::InternedAbsolutePath, package::InternedPackageId};
 

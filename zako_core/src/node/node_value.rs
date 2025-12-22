@@ -2,7 +2,7 @@ use bitcode::{Decode, Encode};
 use hone::node::{NodeValue, Persistent};
 use serde::{Deserialize, Serialize};
 use strum::IntoStaticStr;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::node::file::RawFileResult;
 use crate::node::glob::{Glob, GlobResult, RawGlobResult};

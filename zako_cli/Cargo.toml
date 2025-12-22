@@ -46,7 +46,6 @@ tracing-subscriber.workspace = true
 opentelemetry.workspace = true
 opentelemetry_sdk.workspace = true
 tracing-opentelemetry.workspace = true
-sha2.workspace = true
 hex.workspace = true
 
 tracing-error.workspace = true

@@ -2,7 +2,7 @@ use std::{path::Path, sync::Arc};
 
 use eyre::OptionExt;
 use hone::{HoneResult, status::NodeData};
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     computer::ZakoComputeContext,
@@ -21,7 +21,7 @@ use crate::{
 pub async fn compute_glob<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     glob: &Glob,
-) -> HoneResult<(u128, u128, GlobResult)> {
+) -> HoneResult<(HashPair, GlobResult)> {
     let base_path = &glob.base_path;
     let pattern = &glob.pattern;
 
@@ -36,8 +36,8 @@ pub async fn compute_glob<'c>(
 
     let input_hash = {
         let mut input_hasher = xxhash_rust::xxh3::Xxh3::new();
-        base_path.hash_into(&mut input_hasher);
-        resolved_pattern.hash_into(&mut input_hasher);
+        base_path.hash_into_blake3(&mut input_hasher);
+        resolved_pattern.hash_into_blake3(&mut input_hasher);
         input_hasher.digest128()
     };
 
@@ -68,7 +68,7 @@ pub async fn compute_glob<'c>(
                 path, base_path, diff,
             ))
         })?;
-        neutral_path.hash_into(&mut hasher);
+        neutral_path.hash_into_blake3(&mut hasher);
         let neutral_path = neutral_path.intern(ctx.interner());
         interned_neutral_result.push(neutral_path);
     }

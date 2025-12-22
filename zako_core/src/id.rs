@@ -183,6 +183,7 @@ impl InternedPackageRef {
 /// 一个贮存的ID，包含包引用、路径和目标名称，例如`@curl//src:main`
 ///
 /// 分别由[InternedPackageRef]、[InternedPath]和[InternedTarget]组成
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Label {
     pub package_ref: InternedPackageRef,
     pub path: InternedPath,
@@ -200,6 +201,15 @@ impl Label {
             path,
             target,
         }
+    }
+
+    pub fn resolved(&self, interner: &Interner) -> String {
+        format!(
+            "{}//{}:{}",
+            interner.resolve(&self.package_ref.0),
+            interner.resolve(&self.path.0),
+            interner.resolve(&self.target.0.0)
+        )
     }
 
     /// 格式: `@<package_ref>//<path>/<subpath>/.../final_path:<target>`

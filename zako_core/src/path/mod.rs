@@ -5,7 +5,7 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::string::String;
 use thiserror::Error;
-use zako_digest::hash::XXHash3;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::intern::Interner;
 use crate::path::interned::InternedNeutralPath;
@@ -385,8 +385,8 @@ impl NeutralPath {
     }
 }
 
-impl XXHash3 for NeutralPath {
-    fn hash_into(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+impl Blake3Hash for NeutralPath {
+    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
         hasher.update(self.0.as_bytes());
     }
 }

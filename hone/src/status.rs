@@ -7,11 +7,53 @@ use crate::{
     node::{NodeValue, Persistent},
 };
 
+pub type Hash = blake3::Hash;
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct HashPair {
+    output_hash: Hash,
+    input_hash: Hash,
+}
+
+impl HashPair {
+    pub fn new(output_hash: Hash, input_hash: Hash) -> Self {
+        Self {
+            output_hash,
+            input_hash,
+        }
+    }
+
+    pub fn output_hash(&self) -> &Hash {
+        &self.output_hash
+    }
+
+    pub fn input_hash(&self) -> &Hash {
+        &self.input_hash
+    }
+}
+
+impl<C> Persistent<C> for HashPair {
+    type Persisted = ([u8; 32], [u8; 32]);
+
+    fn to_persisted(&self, _ctx: &C) -> Option<Self::Persisted> {
+        Some((
+            self.output_hash.as_bytes().clone(),
+            self.input_hash.as_bytes().clone(),
+        ))
+    }
+
+    fn from_persisted(p: Self::Persisted, _ctx: &C) -> Option<Self> {
+        Some(Self {
+            output_hash: Hash::from_bytes(p.0),
+            input_hash: Hash::from_bytes(p.1),
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct NodeData<C, V: NodeValue<C>> {
     value: Arc<V>,
-    output_xxhash3: u128,
-    input_xxhash3: u128,
+    hash_pair: HashPair,
     _marker: std::marker::PhantomData<C>,
 }
 
@@ -19,21 +61,19 @@ impl<C, V: NodeValue<C>> Persistent<C> for NodeData<C, V>
 where
     V: NodeValue<C>,
 {
-    type Persisted = (V::Persisted, u128, u128);
+    type Persisted = (V::Persisted, ([u8; 32], [u8; 32]));
 
     fn to_persisted(&self, ctx: &C) -> Option<Self::Persisted> {
         Some((
             self.value.to_persisted(ctx)?,
-            self.output_xxhash3,
-            self.input_xxhash3,
+            self.hash_pair.to_persisted(ctx)?,
         ))
     }
 
     fn from_persisted(p: Self::Persisted, ctx: &C) -> Option<Self> {
         Some(Self {
             value: Arc::new(V::from_persisted(p.0, ctx)?),
-            output_xxhash3: p.1,
-            input_xxhash3: p.2,
+            hash_pair: HashPair::from_persisted(p.1, ctx)?,
             _marker: std::marker::PhantomData,
         })
     }
@@ -43,19 +83,17 @@ impl<C, V: NodeValue<C>> Clone for NodeData<C, V> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
-            output_xxhash3: self.output_xxhash3,
-            input_xxhash3: self.input_xxhash3,
+            hash_pair: self.hash_pair.clone(),
             _marker: std::marker::PhantomData,
         }
     }
 }
 
 impl<C, V: NodeValue<C>> NodeData<C, V> {
-    pub fn new(input_xxhash3: u128, output_xxhash3: u128, value: Arc<V>) -> Self {
+    pub fn new(hash_pair: HashPair, value: Arc<V>) -> Self {
         Self {
             value,
-            output_xxhash3,
-            input_xxhash3,
+            hash_pair,
             _marker: std::marker::PhantomData,
         }
     }
@@ -68,12 +106,8 @@ impl<C, V: NodeValue<C>> NodeData<C, V> {
         self.value
     }
 
-    pub fn input_xxhash3(&self) -> u128 {
-        self.input_xxhash3
-    }
-
-    pub fn output_xxhash3(&self) -> u128 {
-        self.output_xxhash3
+    pub fn hash_pair(&self) -> &HashPair {
+        &self.hash_pair
     }
 }
 
@@ -117,7 +151,6 @@ pub fn get_node_status_code<C, V: NodeValue<C>>(status: &NodeStatus<C, V>) -> u8
         NodeStatus::Unreachable(_) => NodeStatusCode::Unreachable as u8,
     }
 }
-
 impl<C, V: NodeValue<C>> Clone for NodeStatus<C, V> {
     fn clone(&self) -> Self {
         match self {

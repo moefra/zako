@@ -13,7 +13,7 @@ license.workspace = true
 async-trait.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
-xxhash-rust.workspace = true
+blake3.workspace = true
 eyre.workspace = true
 dashmap.workspace = true
 ahash.workspace = true
@@ -22,10 +22,10 @@ futures.workspace = true
 im.workspace = true
 zako-digest.workspace = true
 redb.workspace = true
-bitcode.workspace = true
 phf.workspace = true
 tracing.workspace = true
 zako-cancel.workspace = true
+rkyv.workspace = true
 
 [lints]
 workspace = true
