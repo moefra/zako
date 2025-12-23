@@ -36,6 +36,7 @@ enum BlobState {
     Referenced,
     MemoryInlined { data: Arc<Vec<u8>> },
     // TODO: mmap Inlined
+    // Issue URL: https://github.com/moefra/zako/issues/22
 }
 
 impl BlobHandle {
@@ -71,6 +72,7 @@ impl BlobHandle {
         Ok(match &self.state {
             BlobState::MemoryInlined { data } => data.clone(),
             // TODO: share the data
+            // Issue URL: https://github.com/moefra/zako/issues/21
             BlobState::Referenced => store.open(&self.digest, 0, None).await?,
         })
     }
@@ -79,6 +81,7 @@ impl BlobHandle {
         match &self.state {
             BlobState::MemoryInlined { data } => Ok(data.clone()),
             // TODO: share the data
+            // Issue URL: https://github.com/moefra/zako/issues/20
             BlobState::Referenced => Arc::new(store.read(&self.digest, 0, None).await?),
         }
     }

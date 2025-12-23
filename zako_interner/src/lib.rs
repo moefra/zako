@@ -51,6 +51,8 @@ impl Key for U32NonZeroKey {
 /// The interner uses DashMap for thread-safe in-memory storage and AtomicUsize for ID generation.
 ///
 /// TODO: Implement a more efficient implementation that uses a byte array to store the string.
+//Issue URL: https://github.com/moefra/zako/issues/24
+/// Issue URL: https://github.com/moefra/zako/issues/23
 pub struct PersistentInterner<K: Key> {
     // String to Key mapping for fast lookups
     str_to_id: DashMap<SmolStr, K, ahash::RandomState>,
