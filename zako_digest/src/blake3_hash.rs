@@ -1,10 +1,14 @@
 use std::{
+    array::TryFromSliceError,
     ffi::{OsStr, OsString},
+    ops::Deref,
     os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
 };
+
+use rkyv::{Archive, Deserialize, Serialize};
 
 /// The trait means a object can be hashed into a blake3 hash.
 pub trait Blake3Hash {
@@ -155,5 +159,89 @@ impl Blake3Hash for bool {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         let val = if *self { 1u8 } else { 0u8 };
         hasher.update(&[val]);
+    }
+}
+
+#[derive(Clone, Debug, Hash, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+pub struct Hash {
+    hash_bytes: [u8; 32],
+}
+
+impl Hash {
+    pub fn new(hash_bytes: [u8; 32]) -> Self {
+        Self { hash_bytes }
+    }
+
+    pub fn from_bytes(hash_bytes: &[u8; 32]) -> Self {
+        Self {
+            hash_bytes: *hash_bytes,
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.hash_bytes
+    }
+
+    pub fn to_hex(&self) -> arrayvec::ArrayString<64> {
+        let mut hex: arrayvec::ArrayString<64> = arrayvec::ArrayString::new();
+        unsafe {
+            hex.set_len(64);
+            ::hex::encode_to_slice(self.hash_bytes, hex.as_mut().as_bytes_mut()).unwrap();
+        }
+        hex
+    }
+}
+
+impl From<[u8; 32]> for Hash {
+    fn from(value: [u8; 32]) -> Self {
+        Hash { hash_bytes: value }
+    }
+}
+
+impl From<&[u8; 32]> for Hash {
+    fn from(value: &[u8; 32]) -> Self {
+        Hash { hash_bytes: *value }
+    }
+}
+
+impl TryFrom<&[u8]> for Hash {
+    type Error = TryFromSliceError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Hash {
+            hash_bytes: value.try_into()?,
+        })
+    }
+}
+
+impl Into<[u8; 32]> for Hash {
+    fn into(self) -> [u8; 32] {
+        self.hash_bytes
+    }
+}
+
+impl Deref for Hash {
+    type Target = [u8; 32];
+
+    fn deref(&self) -> &Self::Target {
+        &self.hash_bytes
+    }
+}
+
+impl From<Hash> for blake3::Hash {
+    fn from(value: Hash) -> Self {
+        blake3::Hash::from_bytes(value.hash_bytes)
+    }
+}
+
+impl From<blake3::Hash> for Hash {
+    fn from(value: blake3::Hash) -> Self {
+        Hash::from_bytes(value.as_bytes())
+    }
+}
+
+impl Blake3Hash for Hash {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(self.as_bytes());
     }
 }

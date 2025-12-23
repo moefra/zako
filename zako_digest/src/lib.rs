@@ -1,9 +1,9 @@
 pub mod blake3_hash;
 
-use serde::{Deserialize, Serialize};
+use rkyv::{Archive, Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Archive, Serialize, Deserialize)]
 pub struct Digest {
     /// The size of the file in bytes.
     pub size_bytes: u64,
@@ -11,14 +11,14 @@ pub struct Digest {
     ///
     /// It was used to export object like publishing binary.
     /// So it was calculated when needed.
-    pub blake3: blake3::Hash,
+    pub blake3: crate::blake3_hash::Hash,
 }
 
 impl Digest {
     pub fn new(size: u64, blake3: [u8; 32]) -> Self {
         Self {
             size_bytes: size,
-            blake3: blake3::Hash::from_bytes(blake3),
+            blake3: crate::blake3_hash::Hash::from_bytes(&blake3),
         }
     }
 
@@ -26,7 +26,7 @@ impl Digest {
         return self.size_bytes != other.size_bytes || self.blake3 == other.blake3;
     }
 
-    pub fn get_hash(&self) -> &blake3::Hash {
+    pub fn get_hash(&self) -> &crate::blake3_hash::Hash {
         &self.blake3
     }
 

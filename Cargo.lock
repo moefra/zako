@@ -6114,6 +6114,7 @@ dependencies = [
  "phf 0.13.1",
  "prost",
  "prost-types",
+ "rkyv",
  "semver",
  "serde",
  "serde_json",
@@ -6150,6 +6151,7 @@ dependencies = [
  "hex",
  "prost",
  "prost-types",
+ "rkyv",
  "serde",
  "thiserror",
  "tonic",
@@ -6163,6 +6165,7 @@ dependencies = [
  "ahash",
  "dashmap",
  "redb",
+ "rkyv",
  "smol_str",
 ]
 

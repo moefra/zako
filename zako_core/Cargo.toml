@@ -120,5 +120,7 @@ sysinfo.workspace = true
 
 dirs.workspace = true
 
+rkyv.workspace = true
+
 [build-dependencies]
 tonic-prost-build.workspace = true

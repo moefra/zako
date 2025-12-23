@@ -1,3 +1,4 @@
+use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
 use async_trait::async_trait;
 use std::path::PathBuf;
@@ -29,7 +30,7 @@ impl Cas for LocalCas {
         digest: &Digest,
         mut data: Box<dyn AsyncRead + Send + Unpin + 'static>,
     ) -> Result<(), CasError> {
-        let hex = digest.hex_fast_xxhash3_128();
+        let hex = digest.blake3.to_hex();
 
         let first_prefix = &hex[0..2];
         let second_prefix = &hex[2..4];
@@ -60,7 +61,7 @@ impl Cas for LocalCas {
             .await
             .map_err(|err| CasError::Io(err.into()))?;
 
-        // 在 POSIX 系统上，rename 是原子的。
+        // rename应该是原子的。
         fs::rename(&temp_path, &target_path)
             .await
             .map_err(|err| CasError::Io(err.into()))?;
@@ -69,7 +70,7 @@ impl Cas for LocalCas {
     }
 
     async fn check(&self, digest: &Digest) -> Option<u64> {
-        let hex = digest.hex_fast_xxhash3_128();
+        let hex = digest.blake3.to_hex();
 
         let path = self.root.join(&hex[0..2]).join(&hex[2..4]).join(&hex[4..]);
 
@@ -83,10 +84,9 @@ impl Cas for LocalCas {
     async fn fetch(
         &self,
         digest: &Digest,
-        offset: u64,
-        length: Option<u64>,
+        range: &BlobRange,
     ) -> Result<Pin<Box<dyn AsyncRead + Send>>, CasError> {
-        let hex = digest.hex_fast_xxhash3_128();
+        let hex = digest.blake3.to_hex();
 
         let path = self.root.join(&hex[0..2]).join(&hex[2..4]).join(&hex[4..]);
 
@@ -100,31 +100,21 @@ impl Cas for LocalCas {
 
         let file_size = file.metadata().await.map_err(CasError::Io)?.len();
 
-        if offset > file_size {
+        if range.is_out_of(file_size) {
             return Err(CasError::RequestedIndexOutOfRange {
-                requested_offset: offset,
-                requested_length: length,
+                requested_range: range.clone(),
                 blob_digest: digest.clone(),
                 blob_length: file_size,
             });
         }
 
-        let length = if let Some(length) = length {
-            if offset + length > file_size {
-                return Err(CasError::RequestedIndexOutOfRange {
-                    requested_offset: offset,
-                    requested_length: Some(file_size - offset),
-                    blob_digest: digest.clone(),
-                    blob_length: file_size,
-                });
-            } else {
-                length
-            }
+        let length = if let Some(length) = range.length() {
+            length
         } else {
-            file_size - offset
+            file_size - range.start()
         };
 
-        file.seek(std::io::SeekFrom::Start(offset))
+        file.seek(std::io::SeekFrom::Start(range.start()))
             .await
             .map_err(CasError::Io)?;
 
@@ -132,7 +122,7 @@ impl Cas for LocalCas {
     }
 
     async fn get_local_path(&self, digest: &Digest) -> Option<PathBuf> {
-        let hex = digest.hex_fast_xxhash3_128();
+        let hex = digest.blake3.to_hex();
 
         let path = self.root.join(&hex[0..2]).join(&hex[2..4]).join(&hex[4..]);
 

@@ -1,43 +1,85 @@
-use bitcode::{Decode, Encode};
 use blake3::Hash;
-use serde::{Deserialize, Serialize};
-use std::sync::{Arc, OnceLock};
+use rkyv::{Archive, Deserialize, Serialize};
+use std::{
+    hash::Hasher,
+    pin::Pin,
+    sync::{Arc, OnceLock},
+};
+use tokio::io::AsyncRead;
 use zako_digest::{Digest, blake3_hash::Blake3Hash};
 
 use crate::cas_store::CasStore;
 
-// TODO: Implement this for Deserialize
-// Issue URL: https://github.com/moefra/zako/issues/14
-#[derive(Debug, Clone, Hash, Copy, PartialEq, Eq, Deserialize, Serialize, Decode, Encode)]
+/// A runtime handle to a blob.
+#[derive(Debug, Clone)]
 pub struct BlobHandle {
-    pub size: u64,
+    digest: Digest,
+    state: BlobState,
+}
 
-    pub hash: Hash,
+impl PartialEq for BlobHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.digest == other.digest
+    }
+}
+
+impl Eq for BlobHandle {}
+
+impl std::hash::Hash for BlobHandle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(self.digest.blake3.as_bytes());
+    }
+}
+
+#[derive(Debug, Clone)]
+enum BlobState {
+    Referenced,
+    MemoryInlined { data: Arc<Vec<u8>> },
+    // TODO: mmap Inlined
 }
 
 impl BlobHandle {
-    pub fn new(hash: u128, size: u64) -> Self {
-        Self { hash, size }
+    pub fn new_referenced(digest: Digest) -> Self {
+        Self {
+            digest,
+            state: BlobState::Referenced,
+        }
     }
-}
 
-// 实现 Hash Trait，让它能作为 NodeKey 或 NodeValue 的一部分
-impl Blake3Hash for BlobHandle {
-    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
-        // Handle 的 Hash 就是内容的 Hash
-        // 我们不需要再 Hash 一遍 size 或 inner 指针，只要内容 Hash 一样，它们就是同一个东西
-        hasher.update(&self.hash.to_le_bytes());
+    pub fn new_memory_inlined(digest: Digest, data: Arc<Vec<u8>>) -> Self {
+        Self {
+            digest,
+            state: BlobState::MemoryInlined { data },
+        }
     }
-}
 
-impl From<BlobHandle> for Digest {
-    fn from(handle: BlobHandle) -> Self {
-        Digest::new(handle.hash, handle.size)
+    pub fn digest(&self) -> &Digest {
+        &self.digest
     }
-}
 
-impl From<Digest> for BlobHandle {
-    fn from(digest: Digest) -> Self {
-        Self::new(digest.fast_xxhash3_128, digest.size_bytes)
+    pub fn is_inlined(&self) -> bool {
+        match self.state {
+            BlobState::MemoryInlined { .. } => true,
+            BlobState::Referenced => false,
+        }
+    }
+
+    pub async fn open_read(
+        &self,
+        store: &CasStore,
+    ) -> eyre::Result<Pin<Box<dyn AsyncRead + Send>>> {
+        Ok(match &self.state {
+            BlobState::MemoryInlined { data } => data.clone(),
+            // TODO: share the data
+            BlobState::Referenced => store.open(&self.digest, 0, None).await?,
+        })
+    }
+
+    pub async fn read(&self, store: &CasStore) -> eyre::Result<Arc<Vec<u8>>> {
+        match &self.state {
+            BlobState::MemoryInlined { data } => Ok(data.clone()),
+            // TODO: share the data
+            BlobState::Referenced => Arc::new(store.read(&self.digest, 0, None).await?),
+        }
     }
 }

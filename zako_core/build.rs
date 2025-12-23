@@ -9,6 +9,7 @@ fn main() -> Result<()> {
                 "src/protobuf/net.proto",
                 "src/protobuf/cas.proto",
                 "src/protobuf/transport.proto",
+                "src/protobuf/range.proto",
             ],
             &["src/protobuf/", "./../zako_digest/src/protobuf/"],
         )?;

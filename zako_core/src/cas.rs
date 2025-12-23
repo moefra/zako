@@ -4,6 +4,8 @@ use thiserror::Error;
 use tokio::io::AsyncRead;
 use zako_digest::Digest;
 
+use crate::blob_range::BlobRange;
+
 /// A Content Addressable Storage (CAS) is a storage system that stores data by its content rather than by its location.
 #[async_trait]
 pub trait Cas: Send + Sync + 'static + std::fmt::Debug {
@@ -31,8 +33,7 @@ pub trait Cas: Send + Sync + 'static + std::fmt::Debug {
     async fn fetch(
         &self,
         digest: &Digest,
-        offset: u64,
-        length: Option<u64>,
+        range: &BlobRange,
     ) -> Result<Pin<Box<dyn AsyncRead + Send>>, CasError>;
     /// Get the local path of the data in the CAS.
     ///
@@ -51,11 +52,10 @@ pub enum CasError {
     #[error("Internal storage error: {0}")]
     Internal(String),
     #[error(
-        "Requested index is out of range: blob digest: {blob_digest:?}, blob length: {blob_length}, requested offset: {requested_offset}, requested length: {requested_length:?}"
+        "Requested index is out of range: blob digest: {blob_digest:?}, blob length: {blob_length}, requested range: {requested_range:?}"
     )]
     RequestedIndexOutOfRange {
-        requested_offset: u64,
-        requested_length: Option<u64>,
+        requested_range: BlobRange,
         blob_digest: Digest,
         blob_length: u64,
     },

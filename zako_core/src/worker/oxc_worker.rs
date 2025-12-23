@@ -43,7 +43,7 @@ pub struct OxcTranspilerOutput {
 }
 
 impl Blake3Hash for OxcTranspilerOutput {
-    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         self.code.hash_into_blake3(hasher);
         self.map.hash_into_blake3(hasher);
     }

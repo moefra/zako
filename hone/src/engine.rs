@@ -39,10 +39,10 @@ pub enum EngineError {
 }
 
 #[derive(Debug)]
-pub struct Engine<C, K: NodeKey<C>, V: NodeValue<C>> {
+pub struct Engine<C, K: NodeKey, V: NodeValue> {
     status_map: DashMap<K, NodeStatus<C, V>>,
     computer: Arc<dyn Computer<C, K, V>>,
-    dependency_graph: Arc<DependencyGraph<C, K>>,
+    dependency_graph: Arc<DependencyGraph<K>>,
     database: Arc<redb::Database>,
     context: Arc<C>,
 }
@@ -62,7 +62,7 @@ impl Default for ResolveOptions {
     }
 }
 
-impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
+impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
     pub fn new(
         computer: Arc<dyn Computer<C, K, V>>,
         database: Arc<redb::Database>,
@@ -311,7 +311,7 @@ impl<C, K: NodeKey<C>, V: NodeValue<C>> Engine<C, K, V> {
         self.computer.clone()
     }
 
-    pub fn get_dependency_graph(&self) -> &DependencyGraph<C, K> {
+    pub fn get_dependency_graph(&self) -> &DependencyGraph<K> {
         &self.dependency_graph
     }
 

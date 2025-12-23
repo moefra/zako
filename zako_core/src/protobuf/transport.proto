@@ -3,11 +3,16 @@ syntax = "proto3";
 package zako.v1.transport;
 
 import "digest.proto";
+import "range.proto";
+
+message Request{
+    zako.v1.digest.Digest digest = 1;
+    zako.v1.range.BlobRange range = 2;
+}
 
 message DownloadRequest {
-  zako.v1.digest.Digest digest = 1;
-    uint64 offset = 2;
-  }
+    Request request = 1;
+}
 
   message DownloadResponse {
     bytes data = 1;
@@ -21,9 +26,9 @@ message DownloadRequest {
     }
   }
 
-  message UploadResponse {
+message UploadResponse {
     uint64 committed_size = 1;
-  }
+}
 
 service Transport {
   rpc Download(DownloadRequest) returns (stream DownloadResponse);

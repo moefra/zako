@@ -14,12 +14,12 @@ use crate::{
 };
 
 #[async_trait]
-pub trait Computer<C, K: NodeKey<C>, V: NodeValue<C>>: Send + Sync + Debug {
+pub trait Computer<C, K: NodeKey, V: NodeValue>: Send + Sync + Debug {
     async fn compute<'c>(&self, ctx: &'c Context<C, K, V>) -> HoneResult<NodeData<C, V>>;
 }
 
 #[derive(Debug)]
-pub struct Context<'c, C, K: NodeKey<C>, V: NodeValue<C>> {
+pub struct Context<'c, C, K: NodeKey, V: NodeValue> {
     engine: &'c Engine<C, K, V>,
     caller: Option<K>,
     this: &'c K,
@@ -29,7 +29,7 @@ pub struct Context<'c, C, K: NodeKey<C>, V: NodeValue<C>> {
     cancel_token: zako_cancel::CancelToken,
 }
 
-impl<'c, C, K: NodeKey<C>, V: NodeValue<C>> Context<'c, C, K, V> {
+impl<'c, C, K: NodeKey, V: NodeValue> Context<'c, C, K, V> {
     pub fn new(
         engine: &'c Engine<C, K, V>,
         caller: Option<K>,

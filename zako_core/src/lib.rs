@@ -28,6 +28,7 @@
 pub mod access_control;
 pub mod author;
 pub mod blob_handle;
+pub mod blob_range;
 pub mod build_constants;
 pub mod builtin;
 pub mod cas;
@@ -97,5 +98,9 @@ pub mod protobuf {
 
     pub mod transport {
         tonic::include_proto!("zako.v1.transport");
+    }
+
+    pub mod range {
+        tonic::include_proto!("zako.v1.range");
     }
 }

@@ -39,12 +39,13 @@ impl crate::protobuf::transport::transport_server::Transport for TransportServer
             .fetch(
                 &Digest::try_from(digest.ok_or(Status::invalid_argument("digest is required"))?)
                     .map_err(|err| Status::from(err))?,
-                offset,
+                &BlobRange::new(offset, None)
+                    .ok_or(Status::invalid_argument("offset is required"))?,
                 None,
             )
             .await
             .map_err(|err| match err {
-                CasError::NotFound(digest) => Status::not_found(digest.hex_fast_xxhash3_128()),
+                CasError::NotFound(digest) => Status::not_found(digest.hex_blake3()),
                 CasError::Io(err) => Status::internal(err.to_string()),
                 CasError::Internal(err) => Status::internal(err),
                 CasError::RequestedIndexOutOfRange { .. } => {
