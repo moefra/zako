@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use bitcode::{Decode, Encode};
 use ignore::WalkState;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event};
@@ -20,7 +19,19 @@ use crate::{
 ///
 /// Meaning that the pattern syntax can be found at the [docs of globset](https://docs.rs/globset/latest/globset/)
 #[derive(
-    TS, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Decode, Encode,
+    TS,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
 )]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "pattern.d.ts")]

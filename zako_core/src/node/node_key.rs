@@ -41,7 +41,7 @@ pub enum RawZakoKey {
     TranspileTs(RawTranspileTs),
 }
 
-impl Persistent<BuildContext> for ZakoKey {
+impl Persistent for ZakoKey {
     type Persisted = RawZakoKey;
 
     fn to_persisted(&self, ctx: &BuildContext) -> Option<Self::Persisted> {

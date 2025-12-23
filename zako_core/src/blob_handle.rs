@@ -8,7 +8,7 @@ use std::{
 use tokio::io::AsyncRead;
 use zako_digest::{Digest, blake3_hash::Blake3Hash};
 
-use crate::cas_store::CasStore;
+use crate::{blob_range::BlobRange, cas_store::CasStore};
 
 /// A runtime handle to a blob.
 #[derive(Debug, Clone)]
@@ -64,22 +64,24 @@ impl BlobHandle {
         }
     }
 
-    pub async fn open_read(
+    pub async fn open(
         &self,
         store: &CasStore,
+        range: &BlobRange,
     ) -> eyre::Result<Pin<Box<dyn AsyncRead + Send>>> {
         Ok(match &self.state {
-            BlobState::MemoryInlined { data } => data.clone(),
+            // TODO: return inlined data
+            BlobState::MemoryInlined { .. } => store.open(&self.digest, range).await?,
             // TODO: share the data
-            BlobState::Referenced => store.open(&self.digest, 0, None).await?,
+            BlobState::Referenced => store.open(&self.digest, range).await?,
         })
     }
 
-    pub async fn read(&self, store: &CasStore) -> eyre::Result<Arc<Vec<u8>>> {
-        match &self.state {
-            BlobState::MemoryInlined { data } => Ok(data.clone()),
+    pub async fn read(&self, store: &CasStore, range: &BlobRange) -> eyre::Result<Vec<u8>> {
+        Ok(match &self.state {
+            BlobState::MemoryInlined { .. } => store.read(&self.digest, range).await?,
             // TODO: share the data
-            BlobState::Referenced => Arc::new(store.read(&self.digest, 0, None).await?),
-        }
+            BlobState::Referenced => store.read(&self.digest, range).await?,
+        })
     }
 }

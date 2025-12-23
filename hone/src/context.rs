@@ -14,7 +14,11 @@ use crate::{
 };
 
 #[async_trait]
-pub trait Computer<C, K: NodeKey, V: NodeValue>: Send + Sync + Debug {
+pub trait Computer<C, K, V>: Send + Sync + Debug
+where
+    K: NodeKey,
+    V: NodeValue,
+{
     async fn compute<'c>(&self, ctx: &'c Context<C, K, V>) -> HoneResult<NodeData<C, V>>;
 }
 

@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::FastMap;
 use crate::blob_handle::BlobHandle;
+use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
 use futures::Stream;
 use moka::future::Cache;
@@ -10,6 +11,12 @@ use sysinfo::System;
 use tokio::io::AsyncRead;
 use tracing::{instrument, trace_span};
 use zako_digest::Digest;
+
+type FastCache = ::moka::future::Cache<
+    ::zako_digest::blake3_hash::Hash,
+    ::std::vec::Vec<u8>,
+    ::ahash::RandomState,
+>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CasStoreError {
@@ -21,31 +28,36 @@ pub enum CasStoreError {
 pub struct CasStore {
     local: Box<dyn Cas>,
     remote: Option<Box<dyn Cas>>,
-    memory: moka::future::Cache<u128, Vec<u8>, ::ahash::RandomState>,
+    memory: FastCache,
+}
+
+#[derive(Debug, Clone)]
+pub struct CasStoreOptions {
+    pub max_cache_capacity: u64,
+    pub max_cache_ttl: Duration,
+    pub max_cache_tti: Duration,
 }
 
 impl CasStore {
     pub fn new(
         local: Box<dyn Cas>,
         remote: Option<Box<dyn Cas>>,
-        memory_capacity: u64,
-        memory_ttl: Duration,
-        memory_tti: Duration,
+        options: CasStoreOptions,
     ) -> Self {
         Self {
             local,
             remote,
             memory: Cache::builder()
                 // Max capacity
-                .max_capacity(memory_capacity)
+                .max_capacity(options.max_cache_capacity)
                 // Weigher
                 .weigher(|_key, value: &Vec<u8>| -> u32 {
                     value.len().try_into().unwrap_or(u32::MAX)
                 })
                 // Time to live (TTL)
-                .time_to_live(memory_ttl)
+                .time_to_live(options.max_cache_ttl)
                 // Time to idle (TTI)
-                .time_to_idle(memory_tti)
+                .time_to_idle(options.max_cache_tti)
                 .build_with_hasher(::ahash::RandomState::default()),
         }
     }
@@ -54,27 +66,24 @@ impl CasStore {
     pub async fn open(
         &self,
         digest: &Digest,
-        offset: u64,
-        length: Option<u64>,
+        range: &BlobRange,
     ) -> Result<Pin<Box<dyn AsyncRead + Send>>, CasStoreError> {
-        if let Some(cached) = self.memory.get(&digest.fast_xxhash3_128).await {
+        if let Some(cached) = self.memory.get(&digest.blake3).await {
             let cached_len = cached.len() as u64;
-            if cached_len < offset {
+            if cached_len < range.start() {
                 return Err(CasStoreError::CasError(
                     CasError::RequestedIndexOutOfRange {
-                        requested_offset: offset,
-                        requested_length: length,
+                        requested_range: range.clone(),
                         blob_digest: digest.clone(),
                         blob_length: cached_len as u64,
                     },
                 ));
             }
-            let length = if let Some(length) = length {
-                if cached_len < offset + length {
+            let length = if let Some(length) = range.length() {
+                if cached_len < range.start() + length {
                     return Err(CasStoreError::CasError(
                         CasError::RequestedIndexOutOfRange {
-                            requested_offset: offset,
-                            requested_length: Some(length),
+                            requested_range: range.clone(),
                             blob_digest: digest.clone(),
                             blob_length: cached_len as u64,
                         },
@@ -83,20 +92,20 @@ impl CasStore {
                     length
                 }
             } else {
-                cached_len - offset
+                cached_len - range.start()
             };
 
             return Ok(Box::pin(std::io::Cursor::new(
-                cached[offset as usize..(offset + length) as usize].to_vec(),
+                cached[range.start() as usize..(range.start() + length) as usize].to_vec(),
             )));
         }
 
-        if let Ok(local) = self.local.fetch(digest, offset, length).await {
+        if let Ok(local) = self.local.fetch(digest, range).await {
             return Ok(local);
         }
 
         if let Some(remote) = self.remote.as_ref() {
-            if let Ok(remote) = remote.fetch(digest, offset, length).await {
+            if let Ok(remote) = remote.fetch(digest, range).await {
                 return Ok(remote);
             }
         }
@@ -104,14 +113,9 @@ impl CasStore {
         return Err(CasStoreError::CasError(CasError::NotFound(digest.clone())));
     }
 
-    pub async fn read(
-        &self,
-        digest: &Digest,
-        offset: u64,
-        length: Option<u64>,
-    ) -> Result<Vec<u8>, CasStoreError> {
-        let mut data = self.open(digest, offset, length).await?;
-        let mut bytes = Vec::with_capacity(length.unwrap_or(1024 * 64) as usize);
+    pub async fn read(&self, digest: &Digest, range: &BlobRange) -> Result<Vec<u8>, CasStoreError> {
+        let mut data = self.open(digest, range).await?;
+        let mut bytes = Vec::with_capacity(range.length().unwrap_or(1024 * 64) as usize);
         tokio::io::copy(&mut data, &mut bytes)
             .await
             .map_err(|err| CasStoreError::CasError(CasError::Io(err.into())))?;
@@ -119,16 +123,16 @@ impl CasStore {
     }
 
     pub async fn put_bytes(&self, bytes: Vec<u8>) -> Result<BlobHandle, CasStoreError> {
-        let xxhash3 = xxhash_rust::xxh3::xxh3_128(&bytes);
-        let digest = Digest::new(xxhash3, bytes.len() as u64);
+        let blake3 = ::blake3::hash(&bytes);
+        let blake3_bytes = blake3.try_into().unwrap();
+
+        let digest = Digest::new(bytes.len() as u64, blake3_bytes);
 
         // check if the bytes can be cached
         if bytes.len() <= 1024 * 64
         /* 64kb maybe good */
         {
-            self.memory
-                .insert(digest.fast_xxhash3_128, bytes.clone())
-                .await;
+            self.memory.insert(digest.blake3, bytes.clone()).await;
         }
 
         // put the bytes to the local cas
@@ -147,6 +151,7 @@ impl CasStore {
                 .await?;
         }
 
-        Ok(BlobHandle::new(digest.fast_xxhash3_128, bytes.len() as u64))
+        // TODO: maybe we should add a memory inlined mode
+        Ok(BlobHandle::new_referenced(digest))
     }
 }
