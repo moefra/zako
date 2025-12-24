@@ -69,8 +69,17 @@ pub mod protobuf {
 
 use tonic::Status;
 
+use crate::blake3_hash::Blake3Hash;
+
 impl From<DigestError> for Status {
     fn from(err: DigestError) -> Self {
         Status::invalid_argument(err.to_string())
+    }
+}
+
+impl Blake3Hash for Digest {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(&self.size_bytes.to_le_bytes());
+        hasher.update(self.blake3.as_bytes());
     }
 }

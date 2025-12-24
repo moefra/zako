@@ -32,7 +32,7 @@ pub async fn compute_glob<'c>(
     let old_data = ctx.old_data();
     let ctx = ctx.context();
     let _resource = ctx.resource_pool().occupy(ResourceRequest::cpu(1));
-    let base_path = ctx.interner().resolve(base_path.interned());
+    let base_path = ctx.interner().resolve(base_path.interned);
     let base_path = Path::new(base_path);
     let interner = ctx.interner();
 

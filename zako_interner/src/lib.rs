@@ -55,7 +55,7 @@ impl AsRef<U32NonZeroKey> for U32NonZeroKey {
 
 pub type LassoInterner = ThreadedRodeo<U32NonZeroKey, ::ahash::RandomState>;
 
-#[derive(serde::Serialize, serde::Deserialize, Archive, Serialize, Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Archive, Serialize, Deserialize)]
 pub struct ThreadedInterner {
     #[rkyv(with=ArchivedThreadedRodeoToVec)]
     interner: LassoInterner,

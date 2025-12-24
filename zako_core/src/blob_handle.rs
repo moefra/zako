@@ -25,6 +25,12 @@ impl PartialEq for BlobHandle {
 
 impl Eq for BlobHandle {}
 
+impl Blake3Hash for BlobHandle {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.digest.hash_into_blake3(hasher);
+    }
+}
+
 impl std::hash::Hash for BlobHandle {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(self.digest.blake3.as_bytes());
@@ -85,5 +91,6 @@ impl BlobHandle {
             // TODO: share the data
             // Issue URL: https://github.com/moefra/zako/issues/20
             BlobState::Referenced => store.read(&self.digest, range).await?,
+        })
     }
 }

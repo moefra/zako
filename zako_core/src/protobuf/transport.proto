@@ -5,13 +5,14 @@ package zako.v1.transport;
 import "digest.proto";
 import "range.proto";
 
-message Request{
+message BlobResource{
     zako.v1.digest.Digest digest = 1;
+
     zako.v1.range.BlobRange range = 2;
 }
 
 message DownloadRequest {
-    Request request = 1;
+    BlobResource metadata = 1;
 }
 
   message DownloadResponse {
@@ -20,8 +21,7 @@ message DownloadRequest {
 
   message UploadRequest {
     oneof payload {
-      zako.v1.digest.Digest metadata = 1;
-
+      BlobResource metadata = 1;
       bytes chunk = 2;
     }
   }

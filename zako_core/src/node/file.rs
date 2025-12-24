@@ -1,4 +1,3 @@
-use bitcode::{Decode, Encode};
 use hone::node::Persistent;
 use serde::{Deserialize, Serialize};
 use zako_digest::blake3_hash::Blake3Hash;
@@ -12,16 +11,11 @@ pub struct File {
 
 impl Blake3Hash for File {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(&self.path.interned().into_u64().to_le_bytes());
+        hasher.update(&self.path.interned().as_u64().to_le_bytes());
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode, PartialEq, Eq, Hash)]
-pub struct RawFile {
-    pub path: String,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct FileResult {
     /// 逻辑路径 "src/utils.ts"
     pub path: InternedNeutralPath,
@@ -36,31 +30,5 @@ impl Blake3Hash for FileResult {
         hasher.update(&self.path.interned().as_u64().to_le_bytes());
         self.is_executable.hash_into_blake3(hasher);
         self.content.hash_into_blake3(hasher);
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode, PartialEq, Eq, Hash)]
-pub struct RawFileResult {
-    pub path: String,
-    pub is_executable: bool,
-    pub content: BlobHandle,
-}
-
-impl Persistent<BuildContext> for FileResult {
-    type Persisted = RawFileResult;
-
-    fn to_persisted(&self, ctx: &BuildContext) -> Option<Self::Persisted> {
-        Some(RawFileResult {
-            path: ctx.interner().resolve(self.path.interned()).to_string(),
-            is_executable: self.is_executable,
-            content: self.content.clone(),
-        })
-    }
-    fn from_persisted(p: Self::Persisted, ctx: &BuildContext) -> Option<Self> {
-        Some(FileResult {
-            path: unsafe { InternedNeutralPath::from_raw(ctx.interner().get_or_intern(p.path)) },
-            is_executable: p.is_executable,
-            content: p.content,
-        })
     }
 }

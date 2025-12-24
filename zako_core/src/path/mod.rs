@@ -1,4 +1,3 @@
-use bitcode::{Decode, Encode};
 use phf::phf_set;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -34,7 +33,19 @@ pub static WINDOWS_RESERVED: phf::Set<&'static str> = phf_set! {
 /// - Does not contain absolute path prefixes
 /// - Does not contain drive prefixes like C:
 /// - Is a valid UTF-8 string
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode, PartialOrd, Ord)]
+#[derive(
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+    PartialOrd,
+    Ord,
+)]
 #[serde(try_from = "String", into = "String")]
 pub struct NeutralPath(String);
 
@@ -386,7 +397,7 @@ impl NeutralPath {
 }
 
 impl Blake3Hash for NeutralPath {
-    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         hasher.update(self.0.as_bytes());
     }
 }

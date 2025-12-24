@@ -28,7 +28,7 @@ pub async fn compute_file<'c>(
 
     let build_ctx = ctx.context();
     let interner = build_ctx.interner();
-    let abs_root = interner.resolve(build_ctx.project_root().interned());
+    let abs_root = interner.resolve(build_ctx.project_root().interned);
     let path_str = interner.resolve(path.interned());
     let physical_path = Path::new(abs_root).join(path_str);
 

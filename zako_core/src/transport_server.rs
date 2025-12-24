@@ -32,19 +32,26 @@ impl crate::protobuf::transport::transport_server::Transport for TransportServer
         request: Request<DownloadRequest>,
     ) -> Result<Response<Self::DownloadStream>, Status> {
         let inner = request.into_inner();
-        let digest = inner.digest;
-        let offset = inner.offset;
+        let inner = inner
+            .metadata
+            .ok_or(Status::invalid_argument("Metadata is required"))?;
+
+        let digest = inner
+            .digest
+            .ok_or(Status::invalid_argument("Digest is required"))?;
+        let range = inner
+            .range
+            .ok_or(Status::invalid_argument("Range is required"))?;
 
         let data = self
             .cas
             .fetch(
-                &Digest::try_from(digest.ok_or(Status::invalid_argument("digest is required"))?)
-                    .map_err(|err| Status::from(err))?,
-                &BlobRange::new(offset, None),
+                &digest.try_into().map_err(|err| Status::from(err))?,
+                &range.try_into().map_err(|err| Status::from(err))?,
             )
             .await
             .map_err(|err| match err {
-                CasError::NotFound(digest) => Status::not_found(digest.hex_blake3()),
+                CasError::NotFound(digest) => Status::not_found(digest.hex_blake3().to_string()),
                 CasError::Io(err) => Status::internal(err.to_string()),
                 CasError::Internal(err) => Status::internal(err),
                 CasError::RequestedIndexOutOfRange { .. } => {
@@ -70,10 +77,10 @@ impl crate::protobuf::transport::transport_server::Transport for TransportServer
 
         let digest: Option<UploadRequest> = request.message().await?;
 
-        let digest = zako_digest::Digest::try_from(match digest {
+        let blob_resource = match digest {
             Some(request) => match request.payload {
                 Some(metadata) => match metadata {
-                    Metadata(meta) => meta,
+                    Metadata(blob_resource) => blob_resource,
                     _ => {
                         return Err(Status::failed_precondition(
                             "First message must be Metadata",
@@ -83,8 +90,17 @@ impl crate::protobuf::transport::transport_server::Transport for TransportServer
                 None => return Err(Status::failed_precondition("No message received")),
             },
             None => return Err(Status::failed_precondition("No message received")),
-        })
-        .map_err(|err| Status::from(err))?;
+        };
+
+        let digest: zako_digest::Digest = blob_resource
+            .digest
+            .ok_or(Status::invalid_argument("Digest is required"))?
+            .try_into()?;
+
+        // check range
+        if blob_resource.range.is_none() {
+            return Err(Status::invalid_argument("Range is not supported"));
+        }
 
         if (*self.cas).contains(&digest).await {
             return Err(Status::already_exists("Blob already exists in CAS"));

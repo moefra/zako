@@ -4,11 +4,18 @@ use std::{
     ops::{Range, RangeFrom, RangeFull},
 };
 use thiserror::Error;
+use tonic::Status;
 
 #[derive(Error, Debug)]
 pub enum BlobRangeError {
     #[error("length is zero. input start {start:0} and length {length:?}")]
     ZeroLength { start: u64, length: u64 },
+}
+
+impl From<BlobRangeError> for Status {
+    fn from(err: BlobRangeError) -> Self {
+        Status::invalid_argument(format!("Failed to convert range: {:?}", err))
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Archive, Serialize, Deserialize)]

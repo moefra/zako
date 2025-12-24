@@ -109,11 +109,11 @@ impl ResolvedConfigValue {
             },
             ResolvedConfigValue::Boolean(boolean) => ConfigValue {
                 r#type: ConfigType::Boolean,
-                default: Some(ConfigDefault::Boolean(boolean)),
+                default: Some(ConfigDefault::Boolean(*boolean)),
             },
             ResolvedConfigValue::Number(number) => ConfigValue {
                 r#type: ConfigType::Number,
-                default: Some(ConfigDefault::Number(number)),
+                default: Some(ConfigDefault::Number(*number)),
             },
         }
     }

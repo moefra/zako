@@ -1,11 +1,9 @@
 pub mod specifier;
 
-use crate::module_loader::ModuleType::ImportMap;
 use crate::module_loader::specifier::{ModuleSpecifier, ModuleType};
-use crate::sandbox::SandboxRef;
-use crate::transformer::transform_typescript;
 use ahash::HashMap;
-use ahash::{AHasher, HashSet};
+use ahash::HashSet;
+use deno_core::ModuleCodeBytes;
 use deno_core::ModuleLoadOptions;
 use deno_core::ModuleLoadReferrer;
 use deno_core::ModuleLoadResponse;
@@ -13,29 +11,19 @@ use deno_core::ModuleLoader as DenoModuleLoader;
 use deno_core::ModuleSource;
 use deno_core::ModuleSourceCode;
 use deno_core::ResolutionKind;
-use deno_core::RuntimeOptions;
-use deno_core::error::{CoreError, ModuleLoaderError};
+use deno_core::error::ModuleLoaderError;
 use deno_core::resolve_import;
-use deno_core::resolve_path;
-use deno_core::{JsRuntime, ModuleCodeBytes};
 use deno_error::JsErrorBox;
 use parking_lot::RwLock;
-use serde::de;
-use sha2::digest::typenum::op;
 use std::borrow::Cow;
-use std::cell::RefCell;
-use std::fmt::{Debug, Display};
-use std::ops::Deref;
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::rc::Rc;
-use std::str::FromStr;
 use std::sync::Arc;
-use thiserror::Error;
 use tracing::trace_span;
 use url::{ParseError, Url};
 
-#[derive(Error, Debug, deno_error::JsError)]
+#[derive(thiserror::Error, Debug, deno_error::JsError)]
 #[class(generic)]
 pub enum ModuleLoadError {
     #[error("Get an url parse error:{0}")]

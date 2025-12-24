@@ -1,12 +1,11 @@
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
 
-use lasso::{Capacity, ThreadedRodeo};
 use sysinfo::System;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
     FastMap,
-    cas_store::CasStore,
+    cas_store::{CasStore, CasStoreOptions},
     context::BuildContext,
     intern::{InternedString, Interner},
     local_cas::LocalCas,
@@ -31,7 +30,7 @@ pub enum GlobalStateError {
 
 #[derive(Debug)]
 pub struct GlobalState {
-    interner: Arc<ThreadedRodeo<InternedString, ::ahash::RandomState>>,
+    interner: Arc<crate::intern::Interner>,
     resource_pool: Arc<ResourcePool>,
     /// The key is absolute path to the package root.
     packages: Arc<FastMap<InternedString, Arc<BuildContext>>>,
@@ -45,16 +44,14 @@ pub struct GlobalState {
 impl GlobalState {
     pub fn new(
         resource_pool: ResourcePool,
+        cas_store_options: CasStoreOptions,
         oxc_workers_config: PoolConfig,
         v8_workers_config: PoolConfig,
     ) -> Result<Arc<Self>, GlobalStateError> {
         let cpu_count = resource_pool.get_cpu_count() as usize;
         let system = Arc::new(System::new_all());
         let this = Self {
-            interner: Arc::new(ThreadedRodeo::with_capacity_and_hasher(
-                Capacity::new(64, NonZeroUsize::new(1024).unwrap()), // 1k strings to start with
-                ::ahash::RandomState::default(),
-            )),
+            interner: Arc::new(Interner::new()),
             resource_pool: Arc::new(resource_pool),
             packages: Arc::new(FastMap::default()),
             tokio_runtime: Builder::new_multi_thread()
@@ -66,9 +63,7 @@ impl GlobalState {
             cas_store: Arc::new(CasStore::new(
                 Box::new(LocalCas::new(determine_local_cas_path(&system))),
                 None,
-                resource::heuristics::determine_memory_cache_size_for_cas(&system),
-                resource::heuristics::determine_memory_ttl_for_cas(&system),
-                resource::heuristics::determine_memory_tti_for_cas(&system),
+                cas_store_options,
             )),
             oxc_workers_pool: Arc::new(WorkerPool::new(oxc_workers_config)),
             v8_workers_pool: Arc::new(WorkerPool::new(v8_workers_config)),
