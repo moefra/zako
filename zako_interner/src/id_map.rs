@@ -28,15 +28,11 @@ impl MappingPage {
 
 impl IdMap {
     pub fn new() -> Self {
-        Self {
-            pages: Box::new([const { AtomicPtr::new(std::ptr::null_mut()) }; MAX_PAGES]),
-            allocated_pages: AtomicUsize::new(0),
-        }
-    }
+        let mut pages = Vec::with_capacity(MAX_PAGES);
+        pages.resize_with(MAX_PAGES, || const { AtomicPtr::new(std::ptr::null_mut()) });
 
-    pub unsafe fn new_uninit() -> Self {
         Self {
-            pages: unsafe { Box::new_uninit().assume_init() },
+            pages: pages.into_boxed_slice().try_into().unwrap(),
             allocated_pages: AtomicUsize::new(0),
         }
     }
@@ -58,9 +54,13 @@ impl IdMap {
         Ok(map)
     }
 
-    pub fn save(&self, db: &mut redb::Table<u64, &[u8; PAGE_SIZE_BYTES]>) -> eyre::Result<()> {
-        for (page_idx, page) in self.pages.iter().enumerate() {
-            let page = page.load(Ordering::Relaxed);
+    pub fn save(
+        &self,
+        save_page_count: usize,
+        db: &mut redb::Table<u64, &[u8; PAGE_SIZE_BYTES]>,
+    ) -> eyre::Result<()> {
+        for (page_idx, page) in self.pages.iter().take(save_page_count).enumerate() {
+            let page = page.load(Ordering::Acquire);
             if page.is_null() {
                 continue;
             }
@@ -76,40 +76,70 @@ impl IdMap {
     fn ensure_page_index(&self, expect_page_idx: usize) -> *mut MappingPage {
         let mut allocated_pages = self.allocated_pages.load(Ordering::Acquire);
 
-        if allocated_pages >= expect_page_idx {
-            return self.pages[expect_page_idx].load(Ordering::Relaxed);
+        if allocated_pages > expect_page_idx {
+            return self.pages[expect_page_idx].load(Ordering::Acquire);
         }
 
-        if allocated_pages >= MAX_PAGES || expect_page_idx > allocated_pages {
+        if allocated_pages == MAX_PAGES {
             panic!("Zako Interner: ID map out of bounds");
         }
 
-        let mut allocated: Option<*mut MappingPage> = None;
+        let mut maybe_allocated: Option<*mut MappingPage> = None;
 
         loop {
             allocated_pages = self.allocated_pages.load(Ordering::Acquire);
 
-            if allocated_pages >= expect_page_idx {
-                if let Some(allocated) = allocated {
+            if allocated_pages > expect_page_idx {
+                if let Some(allocated) = maybe_allocated {
                     drop(unsafe { Box::from_raw(allocated) });
                 }
                 return self.pages[expect_page_idx].load(Ordering::Relaxed);
             }
 
-            let allocated = if let Some(allocated) = allocated {
-                allocated
+            let allocated = if let Some(maybe_allocated) = maybe_allocated {
+                maybe_allocated
             } else {
                 let raw = Box::into_raw(Box::new(MappingPage::new()));
-                allocated = Some(raw);
+                maybe_allocated = Some(raw);
                 raw
             };
 
-            _ = self.pages[allocated_pages].compare_exchange(
-                std::ptr::null_mut(),
-                allocated,
-                Ordering::Release,
-                Ordering::Acquire,
-            );
+            // update the page
+            if self.pages[allocated_pages]
+                .compare_exchange(
+                    std::ptr::null_mut(),
+                    allocated,
+                    Ordering::Release,
+                    Ordering::Acquire,
+                )
+                .is_err()
+            {
+                continue;
+            } else {
+                maybe_allocated = None;
+            }
+
+            // update allocated_pages
+            loop {
+                let new_allocated_pages = allocated_pages + 1;
+
+                match self.allocated_pages.compare_exchange(
+                    allocated_pages,
+                    new_allocated_pages,
+                    Ordering::Release,
+                    Ordering::Acquire,
+                ) {
+                    Ok(_) => break,
+                    Err(current_allocated_pages) => {
+                        if current_allocated_pages >= new_allocated_pages {
+                            break;
+                        }
+                    }
+                }
+
+                // retry
+                allocated_pages = self.allocated_pages.load(Ordering::Acquire);
+            }
         }
     }
 
@@ -133,12 +163,12 @@ impl IdMap {
             panic!("Zako Interner: ID out of bounds");
         }
 
-        let packed = unsafe { (*page_ptr).0[entry_idx].load(Ordering::Relaxed) };
+        let packed = unsafe { (*page_ptr).0[entry_idx].load(Ordering::Acquire) };
 
         Self::unwrap(packed)
     }
 
-    pub fn register(&self, id: u32, chunk_idx: u16, offset: u64) {
+    pub fn register(&self, id: u64, chunk_idx: u16, offset: u64) {
         let page_idx = (id as usize) / PAGE_SIZE;
         let entry_idx = (id as usize) % PAGE_SIZE;
 
@@ -147,7 +177,7 @@ impl IdMap {
         let packed = Self::wrap(chunk_idx, offset);
 
         unsafe {
-            (*page_ptr).0[entry_idx].store(packed, Ordering::Relaxed);
+            (*page_ptr).0[entry_idx].store(packed, Ordering::Release);
         }
     }
 }

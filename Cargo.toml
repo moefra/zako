@@ -129,6 +129,7 @@ dunce = "1.0.5"
 
 blake3 = { version = "1.8.2", features = ["std", "serde", "mmap"] }
 sha2 = "0.10.9"
+xxhash-rust = { version = "0.8.15", features = ["std", "xxh3"] }
 
 rkyv = { version = "0.8.12", features = [
     "std",

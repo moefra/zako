@@ -1,6 +1,10 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    fs::File,
+    io::Write,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 #[derive(Debug)]
@@ -29,15 +33,62 @@ impl Chunk {
         }
     }
 
-    pub fn with_index(self, index: usize) -> IndexedChunk {
-        IndexedChunk { chunk: self, index }
+    pub fn with_index(self, index: u16) -> IndexedChunk {
+        IndexedChunk {
+            chunk: Arc::new(self),
+            index,
+        }
+    }
+
+    pub fn load(mmap: memmap2::Mmap) {
+        let mut index = 0;
+        while index != mmap.len() {
+            let length = &mmap.as_ref()[index..index + 8];
+            let length = usize::from_le_bytes(length.try_into()?);
+            index += 8;
+            let data = &mmap.as_ref()[index..index + length];
+            index += Self::get_aligned_size(length);
+        }
+        Ok(())
+    }
+
+    pub fn save(&self, bin_file: &mut File) -> eyre::Result<()> {
+        match self {
+            Chunk::Memory { data, cursor } => {
+                let cursor = cursor.load(Ordering::Acquire);
+                if cursor == 0 {
+                    return Ok(());
+                }
+
+                let mut index = 0;
+
+                while index != cursor {
+                    // read 8 bytes from chunk as length
+                    let length = &data.as_ref()[index..index + 8];
+                    bin_file.write_all(&length)?;
+                    let length = usize::from_le_bytes(length.try_into()?);
+                    index += 8;
+                    // read data from chunk
+                    let data = &data.as_ref()[index..index + length];
+                    bin_file.write_all(data)?;
+                    index += Self::get_aligned_size(length);
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    pub fn get_aligned_size(size: usize) -> usize {
+        let align = 8; //std::mem::align_of::<usize>();
+        let aligned_size = (size + align - 1) & !(align - 1);
+        aligned_size
     }
 
     pub fn try_alloc(&self, minimum_size: usize) -> Option<usize> {
         match self {
             Chunk::Memory { data, cursor } => {
-                let align = std::mem::align_of::<usize>();
-                let aligned_size = (minimum_size + align - 1) & !(align - 1);
+                let aligned_size = Self::get_aligned_size(minimum_size);
 
                 loop {
                     let current_cursor = cursor.load(Ordering::Acquire);
@@ -52,7 +103,7 @@ impl Chunk {
                                 current_cursor,
                                 final_cursor,
                                 Ordering::Release,
-                                Ordering::Relaxed,
+                                Ordering::Acquire,
                             )
                             .is_err()
                         {
@@ -68,8 +119,29 @@ impl Chunk {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IndexedChunk {
-    pub chunk: Chunk,
-    pub index: usize,
+    pub chunk: Arc<Chunk>,
+    pub index: u16,
+}
+
+impl IndexedChunk {
+    pub fn access(&self, offset: usize, length: usize) -> &[u8] {
+        let mem = match &*self.chunk {
+            Chunk::Memory { data, cursor: _ } => &data,
+            Chunk::Mmap(mmap) => mmap.as_ref(),
+        };
+
+        &mem[offset..offset + length]
+    }
+
+    pub fn access_mut(&self, offset: usize, length: usize) -> &mut [u8] {
+        match &*self.chunk {
+            Chunk::Memory { data, .. } => unsafe {
+                // SAFETY: The caller must ensure no aliasing mutable accesses are created.
+                std::mem::transmute::<*const [u8], &mut [u8]>(&data[offset..offset + length])
+            },
+            Chunk::Mmap(_) => panic!("MMap chunk cannot be accessed mutably"),
+        }
+    }
 }

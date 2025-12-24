@@ -19,6 +19,7 @@ rkyv.workspace = true
 smol_str.workspace = true
 serde.workspace = true
 eyre.workspace = true
+xxhash-rust.workspace = true
 
 [lints]
 workspace = true
