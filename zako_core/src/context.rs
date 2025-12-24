@@ -20,8 +20,6 @@ use crate::{
 pub enum BuildContextError {
     #[error("the project root path `{0}` is not an absolute path")]
     ProjectRootNotAbsolute(PathBuf),
-    #[error("failed to call getrandom::u64 to get random context id")]
-    FailedToGetRandomNumber(#[from] ::getrandom::Error),
     #[error("failed to intern package source: {0}")]
     FailedToResolvePackageSource(String),
 }
@@ -103,8 +101,8 @@ impl BuildContext {
         self.env.handle()
     }
 
-    pub fn global_state(&self) -> &GlobalState {
-        &self.env
+    pub fn global_state(&self) -> Arc<GlobalState> {
+        self.env.clone()
     }
 
     pub fn cas_store(&self) -> &CasStore {

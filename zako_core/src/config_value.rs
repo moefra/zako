@@ -52,8 +52,12 @@ impl Blake3Hash for ConfigValue {
 #[ts(optional_fields)]
 #[serde(untagged)]
 pub enum ConfigDefault {
+    /// The label format is `group:artifact`.
+    #[ts(type = "`${string}:${string}`")]
     Label(String),
-    String { string: String },
+    String {
+        string: String,
+    },
     Boolean(bool),
     Number(i64),
     Object(ConfigOperation),
@@ -115,7 +119,7 @@ impl Blake3Hash for ConfigOperation {
     rkyv::Archive,
 )]
 #[ts(export, export_to = "config_type.d.ts")]
-#[ts(optional_fields)]
+#[ts(rename_all = "lowercase")]
 pub enum ConfigType {
     Label,
     Boolean,

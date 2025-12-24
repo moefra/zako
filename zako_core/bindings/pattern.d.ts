@@ -2,9 +2,34 @@
 
 /**
  * The pattern to match file paths.
+ *
+ * A interesting fact is that `ignore` is used to implement the pattern matching,
+ *
+ * and it use `globset` crate internally.
+ *
+ * Meaning that the pattern syntax can be found at the [docs of globset](https://docs.rs/globset/latest/globset/)
  */
-export type Pattern = Array<string> | {
-  includes: Array<string>;
-  excludes?: Array<string>;
-  auto_suffix?: boolean;
-} | { files: Array<string> };
+export type Pattern = {
+  /**
+   * The pattern syntax can be found at the [docs of globset](https://docs.rs/globset/latest/globset/)
+   */
+  patterns: Array<string>;
+  /**
+   * Whether to follow standard ignore files like `.gitignore`, `.ignore`, etc.
+   *
+   * Default is true.
+   *
+   * It's provided by [ignore](https://docs.rs/ignore/latest/ignore/struct.WalkBuilder.html#method.standard_filters).
+   *
+   * But `hidden` is individually controlled by `ignore_hidden_files` field.
+   */
+  followingIgnoreFiles: boolean;
+  /**
+   * Whether to ignore hidden files (files or directories starting with a dot).
+   *
+   * Default is false.
+   *
+   * It's provided by [ignore](https://docs.rs/ignore/latest/ignore/struct.WalkBuilder.html#method.hidden)
+   */
+  ignoreHiddenFiles: boolean;
+};

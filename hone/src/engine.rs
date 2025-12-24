@@ -44,7 +44,6 @@ pub struct Engine<C, K: NodeKey, V: NodeValue> {
     computer: Arc<dyn Computer<C, K, V>>,
     dependency_graph: Arc<DependencyGraph<K>>,
     database: Arc<redb::Database>,
-    context: Arc<C>,
 }
 
 #[derive(Debug, Clone)]
@@ -66,14 +65,12 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
     pub fn new(
         computer: Arc<dyn Computer<C, K, V>>,
         database: Arc<redb::Database>,
-        context: Arc<C>,
     ) -> Result<Self, EngineError> {
         let this = Self {
             status_map: DashMap::new(),
             computer: computer,
             dependency_graph: Arc::new(DependencyGraph::new()),
             database,
-            context,
         };
         //this.fill_from_db()?;
         Ok(this)
@@ -321,9 +318,9 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
         caller: Option<K>,
         stack: im::Vector<K>,
         cancel_token: zako_cancel::CancelToken,
+        context: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
         let mut result: Option<SharedHoneResult<NodeData<C, V>>> = None;
-        let context = self.context.clone();
 
         loop {
             let notify = Arc::new(tokio::sync::Notify::new());
@@ -401,7 +398,7 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
                 &key,
                 stack,
                 old,
-                context.as_ref(),
+                context,
                 cancel_token.clone(),
             );
 
@@ -427,6 +424,7 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
         search_stack: &mut im::Vector<K>,
         cancel_token: zako_cancel::CancelToken,
         options: ResolveOptions,
+        context: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
         // check cancel token here
         if cancel_token.is_cancelled() {
@@ -475,6 +473,7 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
                                     &mut search_stack,
                                     cancel_token,
                                     options,
+                                    context,
                                 )
                                 .await
                             {
@@ -534,6 +533,7 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
                 caller,
                 search_stack.clone(),
                 cancel_token.clone(),
+                context,
             )
             .await;
 
@@ -547,9 +547,17 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
         key: K,
         cancel_token: zako_cancel::CancelToken,
         options: ResolveOptions,
+        context: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
         let mut search_stack = im::Vector::<K>::new();
-        self.resolve_inner(key, None, &mut search_stack, cancel_token.clone(), options)
-            .await
+        self.resolve_inner(
+            key,
+            None,
+            &mut search_stack,
+            cancel_token.clone(),
+            options,
+            context,
+        )
+        .await
     }
 }

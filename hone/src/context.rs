@@ -78,11 +78,11 @@ impl<'c, C, K: NodeKey, V: NodeValue> Context<'c, C, K, V> {
         self.cancel_token.clone()
     }
 
-    /// 请求一个依赖项
-    /// 1. 将 (caller -> key) 边写入依赖图
-    /// 2. 异步等待 key 计算完成
-    /// 3. 返回结果
-    pub async fn request(&self, key: K) -> SharedHoneResult<NodeData<C, V>> {
+    pub async fn request_with_context(
+        &self,
+        key: K,
+        context: &C,
+    ) -> SharedHoneResult<NodeData<C, V>> {
         if self.stack.contains(&key) {
             return Err(Arc::new(crate::error::HoneError::CycleDetected {
                 caller: self
@@ -116,14 +116,22 @@ impl<'c, C, K: NodeKey, V: NodeValue> Context<'c, C, K, V> {
             }));
         }
 
-        // 2. 触发获取（如果 key 还没算，会在这里触发计算；如果正在算，会等待）
         self.engine
             .get(
                 key,
                 Some(self.this.clone()),
                 stack,
                 self.cancel_token.clone(),
+                context,
             )
             .await
+    }
+
+    /// 请求一个依赖项
+    /// 1. 将 (caller -> key) 边写入依赖图
+    /// 2. 异步等待 key 计算完成
+    /// 3. 返回结果
+    pub async fn request(&self, key: K) -> SharedHoneResult<NodeData<C, V>> {
+        self.request_with_context(key, self.context).await
     }
 }

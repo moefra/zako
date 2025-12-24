@@ -39,6 +39,8 @@ pub struct Project {
     pub artifact: SmolStr,
     pub version: String,
     #[ts(as = "::std::option::Option<::std::string::String>")]
+    pub configure_script: Option<SmolStr>,
+    #[ts(as = "::std::option::Option<::std::string::String>")]
     pub description: Option<SmolStr>,
     pub authors: Option<Vec<Author>>,
     pub license: Option<String>,
@@ -65,6 +67,7 @@ impl Blake3Hash for Project {
         self.group.hash_into_blake3(hasher);
         self.artifact.hash_into_blake3(hasher);
         self.version.hash_into_blake3(hasher);
+        self.configure_script.hash_into_blake3(hasher);
         self.description.hash_into_blake3(hasher);
         self.authors.hash_into_blake3(hasher);
         self.license.hash_into_blake3(hasher);
@@ -83,6 +86,7 @@ pub struct ResolvedProject {
     pub group: InternedGroup,
     pub artifact: SmolStr,
     pub version: InternedVersion,
+    pub configure_script: Option<SmolStr>,
     pub description: Option<SmolStr>,
     pub authors: Option<Vec<InternedAuthor>>,
     pub license: Option<InternedString>,
@@ -144,6 +148,7 @@ impl Project {
                 .as_ref()
                 .map(|s| context.interner().get_or_intern(s)),
             builds: self.builds.map(|pattern| pattern.intern(context)),
+            configure_script: self.configure_script,
             rules: self.rules.map(|pattern| pattern.intern(context)),
             toolchains: self.toolchains.map(|pattern| pattern.intern(context)),
             subprojects: self.subprojects.map(|pattern| pattern.intern(context)),
@@ -187,6 +192,7 @@ impl ResolvedProject {
                     .map(|a| InternedAuthor::resolve(a, context))
                     .collect()
             }),
+            configure_script: self.configure_script.clone(),
             license: self
                 .license
                 .as_ref()
