@@ -1,6 +1,7 @@
 use blake3::Hash;
 use rkyv::api::high::HighSerializer;
 use rkyv::bytecheck::CheckBytes;
+use rkyv::rancor::Strategy;
 use rkyv::util::AlignedVec;
 use std::fmt::Debug;
 use std::hash::Hash as StdHash;
@@ -11,13 +12,31 @@ use rkyv::{Archive, Archived, Deserialize, Serialize};
 
 pub trait Persistent:
     Archive
-    + Serialize<
-        rkyv::api::high::HighSerializer<
-            rkyv::ser::writer::IoWriter<AlignedVec>,
-            rkyv::ser::allocator::Arena,
-            rkyv::ser::sharing::Share,
+    + for<'a> Serialize<
+        rkyv::rancor::Strategy<
+            rkyv::ser::Serializer<
+                rkyv::ser::writer::IoWriter<AlignedVec>,
+                rkyv::ser::allocator::ArenaHandle<'a>,
+                rkyv::ser::sharing::Share,
+            >,
+            rkyv::rancor::Error,
         >,
     >
+{
+}
+
+impl<T> Persistent for T where
+    T: Archive
+        + for<'a> Serialize<
+            rkyv::rancor::Strategy<
+                rkyv::ser::Serializer<
+                    rkyv::ser::writer::IoWriter<AlignedVec>,
+                    rkyv::ser::allocator::ArenaHandle<'a>,
+                    rkyv::ser::sharing::Share,
+                >,
+                rkyv::rancor::Error,
+            >,
+        >
 {
 }
 

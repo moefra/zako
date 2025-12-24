@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use bitcode::{Decode, Encode};
 use eyre::{Context, Error};
 use zako_digest::blake3_hash::Blake3Hash;
 
@@ -10,8 +9,8 @@ use crate::{
     intern::{InternedString, Interner},
 };
 
-/// Raw, mutable configuration.
-#[derive(Debug, Clone, PartialEq, Eq, Decode, Encode)]
+/// Raw, immutable configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Configuration {
     pub config: HashMap<String, ConfigValue>,
 }
@@ -67,7 +66,7 @@ impl Configuration {
 }
 
 impl Blake3Hash for Configuration {
-    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         for (key, value) in self.config.iter() {
             key.hash_into_blake3(hasher);
             value.hash_into_blake3(hasher);
@@ -90,7 +89,7 @@ impl InternedConfiguration {
     pub fn resolve(&self, interner: &Interner) -> Configuration {
         let mut config = HashMap::new();
         for (key, value) in self.config.iter() {
-            config.insert(key.resolved(interner), value.clone());
+            config.insert(key.resolved(interner), value.resolve(interner));
         }
         Configuration { config }
     }

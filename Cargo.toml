@@ -127,6 +127,8 @@ parking_lot = "0.12.5"
 
 dunce = "1.0.5"
 
+postcard = { version = "1.1.3", features = ["alloc"] }
+
 blake3 = { version = "1.8.2", features = ["std", "serde", "mmap"] }
 sha2 = "0.10.9"
 xxhash-rust = { version = "0.8.15", features = ["std", "xxh3"] }
@@ -134,7 +136,10 @@ xxhash-rust = { version = "0.8.15", features = ["std", "xxh3"] }
 rkyv = { version = "0.8.12", features = [
     "std",
     "alloc",
+    "aligned",
     "bytecheck",
+    "pointer_width_64",
+    "little_endian",
     "smol_str-0_3",
     "arrayvec-0_7",
     "smallvec-1",

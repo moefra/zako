@@ -11,7 +11,7 @@ use crate::{
     pattern::{InternedPattern, Pattern},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct Glob {
     pub base_path: InternedAbsolutePath,
     pub pattern: InternedPattern,

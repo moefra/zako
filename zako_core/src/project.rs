@@ -7,7 +7,7 @@ use crate::{
     author::{Author, InternedAuthor},
     config_value::ConfigValue,
     context::BuildContext,
-    intern::{Internable, InternedString},
+    intern::InternedString,
     package::{InternedGroup, InternedVersion},
     package_source::PackageSource,
 };

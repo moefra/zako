@@ -2,7 +2,6 @@ use std::{ops::Deref, path::PathBuf, sync::Arc};
 
 use ahash::AHashMap;
 use hone::FastMap;
-use lasso::{Capacity, ThreadedRodeo};
 use sysinfo::System;
 use thiserror::Error;
 use tokio::runtime::Handle;

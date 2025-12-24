@@ -1,17 +1,27 @@
 use std::num::NonZeroU32;
 
-use ::zako_interner::Key;
-
 use crate::context::BuildContext;
 
 pub type InternedString = ::zako_interner::U32NonZeroKey;
 
-pub type Interner = ::zako_interner::PersistentInterner<InternedString>;
+pub type Interner = ::zako_interner::ThreadedInterner;
 
 /// A path that has been interned.
 ///
 /// It must be absolute path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 pub struct InternedAbsolutePath {
     pub interned: InternedString,
 }

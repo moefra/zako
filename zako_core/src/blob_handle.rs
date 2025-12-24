@@ -11,7 +11,7 @@ use zako_digest::{Digest, blake3_hash::Blake3Hash};
 use crate::{blob_range::BlobRange, cas_store::CasStore};
 
 /// A runtime handle to a blob.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct BlobHandle {
     digest: Digest,
     state: BlobState,
@@ -31,7 +31,7 @@ impl std::hash::Hash for BlobHandle {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 enum BlobState {
     Referenced,
     MemoryInlined { data: Arc<Vec<u8>> },

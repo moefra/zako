@@ -5,10 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;
 
-use crate::{
-    context::BuildContext,
-    intern::{Internable, InternedString},
-};
+use crate::{context::BuildContext, intern::InternedString};
 
 /// The `Author` should be a string with format `Author Name <emabil@example.com>`
 ///

@@ -22,7 +22,9 @@ pub enum PackageParseError {
 /// 符合 SemVer 2.0.0 规范
 ///
 /// 参考: https://semver.org/
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
+)]
 pub struct InternedVersion(pub InternedString);
 
 impl InternedVersion {
@@ -38,7 +40,9 @@ impl InternedVersion {
 /// 规则: 域名反写，由 '.' 分隔的 Atom
 ///
 /// 例如: "moe.fra", "com.example"
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
+)]
 pub struct InternedGroup(pub InternedString);
 
 impl InternedGroup {
@@ -69,7 +73,7 @@ impl InternedGroup {
 /// 完整的包标识符
 ///
 /// 格式: `domain.reverse.group:name`
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct InternedArtifactId {
     pub group: InternedGroup,
     pub name: InternedAtom,
@@ -107,7 +111,7 @@ impl InternedArtifactId {
 /// 由[InternedArtifactId]、[InternedVersion]组成
 ///
 /// 长得像 `domain.reverse.group:name@version`
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct InternedPackageId {
     pub name: InternedArtifactId,
     pub version: InternedVersion,

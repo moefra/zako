@@ -20,6 +20,8 @@ smol_str.workspace = true
 serde.workspace = true
 eyre.workspace = true
 xxhash-rust.workspace = true
+lasso.workspace = true
+postcard.workspace = true
 
 [lints]
 workspace = true

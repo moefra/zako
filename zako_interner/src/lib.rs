@@ -1,92 +1,130 @@
-use std::{
-    hash::Hash,
-    marker::PhantomData,
-    num::NonZeroU32,
-    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
+use std::num::{NonZeroU32, NonZeroUsize};
+
+use lasso::{Capacity, Key, Reader, ThreadedRodeo};
+use rkyv::{
+    Archive, Archived, Deserialize, Place, Resolver, Serialize,
+    rancor::Fallible,
+    vec::{ArchivedVec, VecResolver},
+    with::{ArchiveWith, DeserializeWith, SerializeWith},
 };
 
-use dashmap::DashMap;
-use dashmap::Entry::Occupied;
-use dashmap::Entry::Vacant;
-use redb::{ReadableTable, TableDefinition, TableError};
-use rkyv::Serialize;
-use smol_str::SmolStr;
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Archive,
+    Serialize,
+    Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[repr(transparent)]
+pub struct U32NonZeroKey(NonZeroU32);
 
-mod chunk;
-mod id_map;
-mod key;
-mod pool;
-
-pub use key::{Key, U32NonZeroKey};
-pub use pool::PoolOptions;
-
-use crate::{id_map::IdMap, pool::Pool};
-
-/// A persistent, thread-safe string interner backed by redb.
-///
-/// It maintains an in-memory cache for fast lookups and can be committed to a database.
-/// The interner uses DashMap for thread-safe in-memory storage and AtomicUsize for ID generation.
-///
-pub struct PersistentInterner<K: Key> {
-    pool: Pool,
-    id_map: IdMap,
-    next_id: AtomicU64,
-    key: PhantomData<K>,
-    map: DashMap<u128, K, ahash::RandomState>,
+impl U32NonZeroKey {
+    pub fn as_u64(&self) -> u64 {
+        self.0.get() as u64
+    }
 }
 
-pub struct InternerOptions {
-    pool_options: PoolOptions,
-    map_hasher: ahash::RandomState,
+unsafe impl Key for U32NonZeroKey {
+    #[inline]
+    fn into_usize(self) -> usize {
+        self.0.get() as usize - 1
+    }
+    #[inline]
+    fn try_from_usize(int: usize) -> Option<Self> {
+        if int < u32::MAX as usize {
+            unsafe { Some(Self(NonZeroU32::new_unchecked(int as u32 + 1))) }
+        } else {
+            None
+        }
+    }
 }
 
-impl<K: Key> PersistentInterner<K> {
-    pub fn new(options: InternerOptions) -> Self {
+impl AsRef<U32NonZeroKey> for U32NonZeroKey {
+    fn as_ref(&self) -> &U32NonZeroKey {
+        self
+    }
+}
+
+pub type LassoInterner = ThreadedRodeo<U32NonZeroKey, ::ahash::RandomState>;
+
+#[derive(serde::Serialize, serde::Deserialize, Archive, Serialize, Deserialize)]
+pub struct ThreadedInterner {
+    #[rkyv(with=ArchivedThreadedRodeoToVec)]
+    interner: LassoInterner,
+}
+
+struct ArchivedThreadedRodeoToVec;
+
+impl ArchiveWith<LassoInterner> for ArchivedThreadedRodeoToVec {
+    type Archived = Archived<Vec<u8>>;
+    type Resolver = Resolver<Vec<u8>>;
+
+    fn resolve_with(field: &LassoInterner, resolver: VecResolver, out: Place<ArchivedVec<u8>>) {
+        ArchivedVec::resolve_from_slice(&postcard::to_allocvec(field).unwrap(), resolver, out);
+    }
+}
+
+impl<S: Fallible + ?Sized + rkyv::ser::Allocator + rkyv::ser::Writer>
+    SerializeWith<LassoInterner, S> for ArchivedThreadedRodeoToVec
+where
+    Vec<u8>: Serialize<S>,
+{
+    fn serialize_with(
+        field: &LassoInterner,
+        serializer: &mut S,
+    ) -> Result<Self::Resolver, S::Error> {
+        ArchivedVec::serialize_from_slice(&postcard::to_allocvec(field).unwrap(), serializer)
+    }
+}
+
+impl<D: Fallible + ?Sized> DeserializeWith<Archived<Vec<u8>>, LassoInterner, D>
+    for ArchivedThreadedRodeoToVec
+where
+    Archived<Vec<u8>>: Deserialize<Vec<u8>, D>,
+{
+    fn deserialize_with(
+        field: &Archived<Vec<u8>>,
+        deserializer: &mut D,
+    ) -> Result<LassoInterner, D::Error> {
+        Ok(postcard::from_bytes(field).unwrap())
+    }
+}
+
+impl ThreadedInterner {
+    #[inline]
+    pub fn interner(&self) -> &ThreadedRodeo<U32NonZeroKey, ::ahash::RandomState> {
+        &self.interner
+    }
+
+    pub fn new() -> Self {
         Self {
-            pool: Pool::new(options.pool_options),
-            id_map: IdMap::new(),
-            next_id: AtomicU64::new(0),
-            key: PhantomData,
-            map: DashMap::with_capacity_and_hasher(1024, options.map_hasher),
+            interner: ThreadedRodeo::with_capacity_and_hasher(
+                Capacity::new(1024, NonZeroUsize::new(1024 * 8).unwrap()),
+                ::ahash::RandomState::default(),
+            ),
         }
     }
 
-    pub fn get_or_intern(&self, string: &str) -> K {
-        let hash = xxhash_rust::xxh3::xxh3_64(string.as_bytes());
+    #[inline]
+    pub fn resolve(&self, key: impl AsRef<U32NonZeroKey>) -> &str {
+        self.interner.resolve(key.as_ref())
+    }
 
-        match self.map.entry(hash) {
-            Occupied(entry) => entry.get().clone(),
-            Vacant(entry) => {
-                let allocated = self.pool.alloc(string.len() + 8).unwrap();
-                let chunk_idx = allocated.0.index;
-                let offset = allocated.1 + 8; // 8 bytes for the length of the string
+    #[inline]
+    pub fn get_or_intern(&self, val: impl AsRef<str>) -> U32NonZeroKey {
+        self.interner.get_or_intern(val.as_ref())
+    }
 
-                let data = self.pool.access_mut(chunk_idx, offset, string.len() + 8);
-
-                // write len
-                let len_bytes = string.len().to_le_bytes();
-                data[..8].copy_from_slice(&len_bytes);
-                // write string
-                data[8..].copy_from_slice(string.as_bytes());
-
-                // SAFETY: We have uniquely allocated and initialized this memory, and ensure it won't be freed for the program's lifetime.
-                let string_ref: &'static str = unsafe {
-                    let string_bytes = &data[8..8 + string.len()];
-                    std::mem::transmute::<&str, &'static str>(std::str::from_utf8_unchecked(
-                        string_bytes,
-                    ))
-                };
-
-                let id = self.next_id.fetch_add(1, Ordering::AcqRel);
-                let id = K::try_from_u64(id).unwrap();
-
-                entry.insert(id);
-
-                self.id_map
-                    .register(id.into_u64(), chunk_idx, (offset + 8) as u64);
-
-                id
-            }
-        }
+    #[inline]
+    pub fn get_or_intern_static(&self, val: &'static str) -> U32NonZeroKey {
+        self.interner.get_or_intern_static(val)
     }
 }

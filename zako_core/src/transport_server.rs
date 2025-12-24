@@ -1,3 +1,4 @@
+use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
 use crate::protobuf::transport::upload_request::Payload::Metadata;
 use crate::protobuf::transport::{
@@ -39,9 +40,7 @@ impl crate::protobuf::transport::transport_server::Transport for TransportServer
             .fetch(
                 &Digest::try_from(digest.ok_or(Status::invalid_argument("digest is required"))?)
                     .map_err(|err| Status::from(err))?,
-                &BlobRange::new(offset, None)
-                    .ok_or(Status::invalid_argument("offset is required"))?,
-                None,
+                &BlobRange::new(offset, None),
             )
             .await
             .map_err(|err| match err {

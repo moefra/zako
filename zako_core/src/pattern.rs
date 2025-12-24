@@ -8,7 +8,7 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     context::BuildContext,
-    intern::{Internable, InternedString, Interner},
+    intern::{InternedString, Interner},
 };
 
 /// The pattern to match file paths.
@@ -67,7 +67,18 @@ impl Blake3Hash for Pattern {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 pub struct InternedPattern {
     pub patterns: Vec<InternedString>,
     pub following_ignore_files: bool,

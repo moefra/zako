@@ -72,7 +72,9 @@ pub enum IdParseError {
 /// 例如: "main", "lib-utils", "_internal", "my-module"
 ///
 /// 可通过[is_xid_loose_ident]函数校验合法性
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
+)]
 pub struct InternedAtom(pub InternedString);
 
 impl InternedAtom {
@@ -89,7 +91,9 @@ impl InternedAtom {
 /// 规则: 由斜杠 '/' 分隔的[InternedAtom]。允许为空，代表根路径
 ///
 /// 例如: "src/ui/button", "core"
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
+)]
 pub struct InternedPath(pub InternedString);
 
 impl InternedPath {
@@ -131,7 +135,7 @@ impl InternedPath {
 /// 规则: 必须是[InternedAtom]
 ///
 /// 例如: "main", "lib-utils", "test_suite"
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct InternedTarget(pub InternedAtom);
 
 impl InternedTarget {
@@ -148,7 +152,7 @@ impl InternedTarget {
 /// 贮存的字符不包含@符号
 ///
 /// 例如: "@zako","@curl","@openssl",""(当前包)
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct InternedPackageRef(pub InternedString);
 
 impl InternedPackageRef {
@@ -179,7 +183,7 @@ impl InternedPackageRef {
 /// 一个贮存的ID，包含包引用、路径和目标名称，例如`@curl//src:main`
 ///
 /// 分别由[InternedPackageRef]、[InternedPath]和[InternedTarget]组成
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct Label {
     pub package_ref: InternedPackageRef,
     pub path: InternedPath,

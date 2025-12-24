@@ -5,7 +5,7 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{blob_handle::BlobHandle, context::BuildContext, path::interned::InternedNeutralPath};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct File {
     pub path: InternedNeutralPath,
 }
