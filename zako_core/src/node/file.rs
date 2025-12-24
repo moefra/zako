@@ -11,30 +11,14 @@ pub struct File {
 }
 
 impl Blake3Hash for File {
-    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
-        hasher.update(&self.path.interned().as_u64().to_le_bytes());
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(&self.path.interned().into_u64().to_le_bytes());
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Decode, Encode, PartialEq, Eq, Hash)]
 pub struct RawFile {
     pub path: String,
-}
-
-impl Persistent<BuildContext> for File {
-    type Persisted = RawFile;
-
-    fn to_persisted(&self, ctx: &BuildContext) -> Option<Self::Persisted> {
-        Some(RawFile {
-            path: ctx.interner().resolve(self.path.interned()).to_string(),
-        })
-    }
-
-    fn from_persisted(p: Self::Persisted, ctx: &BuildContext) -> Option<Self> {
-        Some(File {
-            path: unsafe { InternedNeutralPath::from_raw(ctx.interner().get_or_intern(p.path)) },
-        })
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -48,7 +32,7 @@ pub struct FileResult {
 }
 
 impl Blake3Hash for FileResult {
-    fn hash_into_blake3(&self, hasher: &mut xxhash_rust::xxh3::Xxh3) {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         hasher.update(&self.path.interned().as_u64().to_le_bytes());
         self.is_executable.hash_into_blake3(hasher);
         self.content.hash_into_blake3(hasher);

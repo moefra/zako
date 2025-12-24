@@ -1,5 +1,5 @@
 [package]
-name = "zako_interner"
+name = "zako-interner"
 version.workspace = true
 authors.workspace = true
 description.workspace = true
@@ -10,11 +10,15 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+memmap2.workspace = true
+parking_lot.workspace = true
 ahash.workspace = true
 dashmap.workspace = true
 redb.workspace = true
 rkyv.workspace = true
 smol_str.workspace = true
+serde.workspace = true
+eyre.workspace = true
 
 [lints]
 workspace = true

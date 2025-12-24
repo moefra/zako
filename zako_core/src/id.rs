@@ -82,10 +82,6 @@ impl InternedAtom {
         }
         Ok(Self(interner.get_or_intern(s)))
     }
-
-    pub fn as_str<'interner>(&self, interner: &'interner mut Interner) -> &'interner str {
-        interner.resolve(&self.0)
-    }
 }
 
 /// [InternedId]中的Path(或者叫做Label)部分
@@ -94,7 +90,7 @@ impl InternedAtom {
 ///
 /// 例如: "src/ui/button", "core"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InternedPath(InternedString);
+pub struct InternedPath(pub InternedString);
 
 impl InternedPath {
     pub fn try_parse<'s>(
@@ -103,7 +99,7 @@ impl InternedPath {
     ) -> Result<(Self, Option<&'s str>), IdParseError> {
         // 路径允许为空。字符串是合法的根包路径
         if s.is_empty() {
-            return Ok((Self(interner.get_or_intern_static("")), None));
+            return Ok((Self(interner.get_or_intern("")), None));
         }
 
         let mut last_segment = None;
@@ -136,7 +132,7 @@ impl InternedPath {
 ///
 /// 例如: "main", "lib-utils", "test_suite"
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InternedTarget(InternedAtom);
+pub struct InternedTarget(pub InternedAtom);
 
 impl InternedTarget {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
@@ -153,13 +149,13 @@ impl InternedTarget {
 ///
 /// 例如: "@zako","@curl","@openssl",""(当前包)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InternedPackageRef(InternedString);
+pub struct InternedPackageRef(pub InternedString);
 
 impl InternedPackageRef {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
         if s.is_empty() {
             // 允许空字符串，代表当前包
-            return Ok(Self(interner.get_or_intern_static("")));
+            return Ok(Self(interner.get_or_intern("")));
         }
         if !s.starts_with('@') || s.len() == 1 {
             return Err(IdParseError::InvalidFormat(

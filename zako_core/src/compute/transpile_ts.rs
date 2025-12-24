@@ -1,14 +1,18 @@
 use std::{path::Path, sync::Arc};
 
 use eyre::Context;
-use hone::{HoneResult, error::HoneError, status::NodeData};
+use hone::{
+    HoneResult,
+    error::HoneError,
+    status::{HashPair, NodeData},
+};
 use oxc_span::SourceType;
 #[cfg(unix)]
 use tokio::fs;
-use xxhash_rust::xxh3::xxh3_128;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
+    blob_range::BlobRange,
     computer::ZakoComputeContext,
     context::BuildContext,
     node::{
@@ -24,16 +28,19 @@ pub async fn compute_transpile_ts<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     key: &TranspileTs,
 ) -> HoneResult<(HashPair, TranspileTsResult)> {
-    let code = key.code;
+    let code = key.code.clone();
     let code = ctx
         .context()
         .cas_store()
-        .read(&code.into(), 0, None)
+        .read(
+            code.digest(),
+            &BlobRange::new(0, None).map_err(|err| HoneError::Other(err.into()))?,
+        )
         .await
         .wrap_err_with(|| {
             format!(
                 "failed to read typescript code {:?} from cas store",
-                key.code.hash,
+                key.code.digest(),
             )
         })?;
 
@@ -48,7 +55,7 @@ pub async fn compute_transpile_ts<'c>(
                     .wrap_err_with(|| {
                         format!(
                             "failed to convert typescript code {:?} to utf-8 string",
-                            key.code.hash,
+                            key.code.digest(),
                         )
                     })?
                     .to_string(),
@@ -61,10 +68,15 @@ pub async fn compute_transpile_ts<'c>(
         .wrap_err_with(|| {
             format!(
                 "failed to submit typescript code `{:?}` to oxc workers",
-                key.code.hash
+                key.code.digest(),
             )
         })?
-        .wrap_err_with(|| format!("failed to transpile typescript code {:?}", key.code.hash))?;
+        .wrap_err_with(|| {
+            format!(
+                "failed to transpile typescript code {:?}",
+                key.code.digest()
+            )
+        })?;
 
     let output = TranspileTsResult {
         code: result.code,
@@ -73,5 +85,5 @@ pub async fn compute_transpile_ts<'c>(
 
     let output_hash = output.get_blake3();
 
-    Ok((input_hash, output_hash, output))
+    Ok((HashPair::new(output_hash.into(), input_hash.into()), output))
 }

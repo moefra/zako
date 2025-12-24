@@ -64,7 +64,7 @@ pub async fn compute_file<'c>(
     let input_hash = blake3::hash(path_str.as_bytes());
 
     Ok((
-        HashPair::new(handle.hash.into(), input_hash),
+        HashPair::new(handle.digest().blake3.into(), input_hash.into()),
         FileResult {
             path: path.clone(),
             is_executable: is_exec,

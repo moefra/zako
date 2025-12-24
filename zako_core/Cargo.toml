@@ -44,7 +44,7 @@ tokio.workspace = true
 unicode-ident.workspace = true
 eyre.workspace = true
 
-lasso.workspace = true
+zako-interner.workspace = true
 
 glob.workspace = true
 

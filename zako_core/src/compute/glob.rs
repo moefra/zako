@@ -1,7 +1,11 @@
 use std::{path::Path, sync::Arc};
 
+use blake3::hazmat::HasherExt;
 use eyre::OptionExt;
-use hone::{HoneResult, status::NodeData};
+use hone::{
+    HoneResult,
+    status::{HashPair, NodeData},
+};
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
@@ -35,10 +39,10 @@ pub async fn compute_glob<'c>(
     let resolved_pattern = pattern.resolve(interner);
 
     let input_hash = {
-        let mut input_hasher = xxhash_rust::xxh3::Xxh3::new();
+        let mut input_hasher = blake3::Hasher::new();
         base_path.hash_into_blake3(&mut input_hasher);
         resolved_pattern.hash_into_blake3(&mut input_hasher);
-        input_hasher.digest128()
+        input_hasher.finalize()
     };
 
     let mut result = pattern.walk(interner, &base_path, 1).map_err(|err| {
@@ -52,7 +56,7 @@ pub async fn compute_glob<'c>(
     result.sort();
 
     let mut interned_neutral_result = Vec::with_capacity(result.len());
-    let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+    let mut hasher = blake3::Hasher::new();
 
     for path in result {
         // Convert path to base_path relative neutral path
@@ -73,7 +77,7 @@ pub async fn compute_glob<'c>(
         interned_neutral_result.push(neutral_path);
     }
 
-    let output_hash = hasher.digest128();
+    let output_hash = hasher.finalize();
 
     /*
     TODO: Reuse old data
@@ -87,8 +91,7 @@ pub async fn compute_glob<'c>(
     */
 
     return Ok((
-        input_hash,
-        output_hash,
+        HashPair::new(output_hash.into(), input_hash.into()),
         GlobResult {
             paths: interned_neutral_result,
         },

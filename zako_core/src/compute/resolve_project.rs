@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use hone::{HoneResult, status::NodeData};
+use hone::{
+    HoneResult,
+    status::{HashPair, NodeData},
+};
 
 use crate::{
     computer::ZakoComputeContext,

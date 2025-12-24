@@ -1795,7 +1795,6 @@ checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
  "allocator-api2",
- "serde",
 ]
 
 [[package]]
@@ -2393,18 +2392,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
-]
-
-[[package]]
-name = "lasso"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e14eda50a3494b3bf7b9ce51c52434a761e383d7238ce1dd5dcec2fbc13e9fb"
-dependencies = [
- "ahash",
- "dashmap",
- "hashbrown 0.14.5",
- "serde",
 ]
 
 [[package]]
@@ -6098,7 +6085,6 @@ dependencies = [
  "hone",
  "ignore",
  "im",
- "lasso",
  "lenient_semver",
  "moka",
  "num_cpus",
@@ -6140,6 +6126,7 @@ dependencies = [
  "uuid",
  "zako-cancel",
  "zako-digest",
+ "zako-interner",
 ]
 
 [[package]]
@@ -6159,13 +6146,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "zako_interner"
+name = "zako-interner"
 version = "0.1.0"
 dependencies = [
  "ahash",
  "dashmap",
+ "eyre",
+ "memmap2",
+ "parking_lot",
  "redb",
  "rkyv",
+ "serde",
  "smol_str",
 ]
 
