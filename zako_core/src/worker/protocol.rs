@@ -1,5 +1,3 @@
-// 定义在 zako_core/src/worker/protocol.rs
-
 use tokio::sync::oneshot;
 
 #[derive(Debug)]

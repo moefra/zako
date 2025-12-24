@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     intern::{InternedString, Interner},
@@ -42,7 +43,21 @@ pub enum PackageSource {
     Path { path: String },
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+impl Blake3Hash for PackageSource {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        match self {
+            PackageSource::Registry { package } => package.hash_into_blake3(hasher),
+            PackageSource::Git { repo, checkout } => {
+                repo.hash_into_blake3(hasher);
+                checkout.hash_into_blake3(hasher);
+            }
+            PackageSource::Http { url } => url.hash_into_blake3(hasher),
+            PackageSource::Path { path } => path.hash_into_blake3(hasher),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub enum ResolvedPackageSource {
     Registry {
         package: InternedPackageId,

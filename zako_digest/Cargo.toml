@@ -19,6 +19,7 @@ serde.workspace = true
 blake3.workspace = true
 arrayvec.workspace = true
 rkyv.workspace = true
+smol_str.workspace = true
 
 [lints]
 workspace = true

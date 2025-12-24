@@ -8,7 +8,19 @@ use crate::{
     intern::{InternedString, Interner},
 };
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    TS,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 #[ts(export, export_to = "config_value.d.ts")]
 #[ts(optional_fields)]
 pub struct ConfigValue {
@@ -23,7 +35,19 @@ impl Blake3Hash for ConfigValue {
     }
 }
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    TS,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 #[ts(export, export_to = "config_default.d.ts")]
 #[ts(optional_fields)]
 #[serde(untagged)]
@@ -50,7 +74,19 @@ impl Blake3Hash for ConfigDefault {
     }
 }
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    TS,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 #[ts(export, export_to = "config_operation.d.ts")]
 #[ts(optional_fields)]
 pub struct ConfigOperation {
@@ -65,7 +101,19 @@ impl Blake3Hash for ConfigOperation {
     }
 }
 
-#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    TS,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 #[ts(export, export_to = "config_type.d.ts")]
 #[ts(optional_fields)]
 pub enum ConfigType {

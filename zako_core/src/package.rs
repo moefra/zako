@@ -73,7 +73,9 @@ impl InternedGroup {
 /// 完整的包标识符
 ///
 /// 格式: `domain.reverse.group:name`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
+)]
 pub struct InternedArtifactId {
     pub group: InternedGroup,
     pub name: InternedAtom,
@@ -111,7 +113,9 @@ impl InternedArtifactId {
 /// 由[InternedArtifactId]、[InternedVersion]组成
 ///
 /// 长得像 `domain.reverse.group:name@version`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(
+    Debug, Clone, PartialEq, Copy, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
+)]
 pub struct InternedPackageId {
     pub name: InternedArtifactId,
     pub version: InternedVersion,

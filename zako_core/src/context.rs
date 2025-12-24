@@ -103,6 +103,10 @@ impl BuildContext {
         self.env.handle()
     }
 
+    pub fn global_state(&self) -> &GlobalState {
+        &self.env
+    }
+
     pub fn cas_store(&self) -> &CasStore {
         self.env.cas_store()
     }

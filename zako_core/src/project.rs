@@ -14,6 +14,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
+use zako_digest::blake3_hash::Blake3Hash;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProjectResolveError {
@@ -59,7 +60,25 @@ pub struct Project {
     pub config: Option<HashMap<SmolStr, ConfigValue>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Blake3Hash for Project {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.group.hash_into_blake3(hasher);
+        self.artifact.hash_into_blake3(hasher);
+        self.version.hash_into_blake3(hasher);
+        self.description.hash_into_blake3(hasher);
+        self.authors.hash_into_blake3(hasher);
+        self.license.hash_into_blake3(hasher);
+        self.builds.hash_into_blake3(hasher);
+        self.rules.hash_into_blake3(hasher);
+        self.toolchains.hash_into_blake3(hasher);
+        self.subprojects.hash_into_blake3(hasher);
+        self.dependencies.hash_into_blake3(hasher);
+        self.mount_config.hash_into_blake3(hasher);
+        self.config.hash_into_blake3(hasher);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolvedProject {
     pub group: InternedGroup,
     pub artifact: SmolStr,

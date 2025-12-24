@@ -1,5 +1,6 @@
 use std::{
     array::TryFromSliceError,
+    collections::HashMap,
     ffi::{OsStr, OsString},
     ops::Deref,
     os::unix::ffi::OsStrExt,
@@ -20,6 +21,33 @@ pub trait Blake3Hash {
     }
 }
 
+macro_rules! impl_blake3_for_tuple {
+    ($($ty:ident),*) => {
+        impl<$($ty: Blake3Hash),*> Blake3Hash for ($($ty,)*) {
+            fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+                // 使用模式匹配解构元组
+                #[allow(non_snake_case)]
+                let ($($ty,)*) = &self;
+                // 对每个元素调用 hash()
+                $($ty.hash_into_blake3(hasher);)*
+            }
+        }
+    };
+}
+
+impl_blake3_for_tuple!(A);
+impl_blake3_for_tuple!(A, B);
+impl_blake3_for_tuple!(A, B, C);
+impl_blake3_for_tuple!(A, B, C, D);
+impl_blake3_for_tuple!(A, B, C, D, E);
+impl_blake3_for_tuple!(A, B, C, D, E, F);
+impl_blake3_for_tuple!(A, B, C, D, E, F, G);
+impl_blake3_for_tuple!(A, B, C, D, E, F, G, H);
+impl_blake3_for_tuple!(A, B, C, D, E, F, G, H, I);
+impl_blake3_for_tuple!(A, B, C, D, E, F, G, H, I, J);
+impl_blake3_for_tuple!(A, B, C, D, E, F, G, H, I, J, K);
+impl_blake3_for_tuple!(A, B, C, D, E, F, G, H, I, J, K, L);
+
 /// Allow calling on &T
 impl<T: Blake3Hash + ?Sized> Blake3Hash for &T {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
@@ -34,18 +62,19 @@ impl<T: Blake3Hash + ?Sized> Blake3Hash for &mut T {
     }
 }
 
-/// Allow calling on Box<T>
-impl Blake3Hash for Vec<u8> {
+impl Blake3Hash for smol_str::SmolStr {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(self.as_slice());
+        hasher.update(self.as_bytes());
     }
 }
+
 /// Allow calling on String
 impl Blake3Hash for String {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         hasher.update(self.as_bytes());
     }
 }
+
 /// Allow calling on &str
 impl Blake3Hash for str {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
@@ -94,6 +123,35 @@ impl<T: Blake3Hash + ?Sized> Blake3Hash for Box<T> {
         (**self).hash_into_blake3(hasher)
     }
 }
+
+impl<T: Blake3Hash + Sized + Ord + Eq> Blake3Hash for Vec<T> {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.len().hash_into_blake3(hasher);
+        let mut values: Vec<&T> = self.iter().collect();
+        values.sort();
+
+        for value in values.into_iter() {
+            value.hash_into_blake3(hasher);
+        }
+    }
+}
+
+impl<T: Blake3Hash + Sized + Ord + std::hash::Hash + Eq, V: Blake3Hash, S> Blake3Hash
+    for HashMap<T, V, S>
+{
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.len().hash_into_blake3(hasher);
+
+        let mut pairs = self.iter().collect::<Vec<_>>();
+        pairs.sort_by_key(|(k, _)| *k);
+
+        for pair in pairs.into_iter() {
+            pair.0.hash_into_blake3(hasher);
+            pair.1.hash_into_blake3(hasher);
+        }
+    }
+}
+
 /// Allow calling on Option<T>
 ///
 /// If options it none, it will hash a tag byte 0u8 and the unit hash

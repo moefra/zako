@@ -1,9 +1,10 @@
-use std::str::FromStr;
+use std::{cmp::Ordering, str::FromStr};
 
 use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;
+use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{context::BuildContext, intern::InternedString};
 
@@ -19,7 +20,49 @@ pub struct Author {
     email: email_address::EmailAddress,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+impl PartialOrd for Author {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let first_cmp = self.name.cmp(&other.name);
+
+        Some(if first_cmp == Ordering::Equal {
+            self.email.as_str().cmp(other.email.as_str())
+        } else {
+            first_cmp
+        })
+    }
+}
+
+impl Ord for Author {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let first_cmp = self.name.cmp(&other.name);
+
+        if first_cmp == Ordering::Equal {
+            self.email.as_str().cmp(other.email.as_str())
+        } else {
+            first_cmp
+        }
+    }
+}
+
+impl Blake3Hash for Author {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.name.hash_into_blake3(hasher);
+        self.email.as_str().hash_into_blake3(hasher);
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 pub struct InternedAuthor {
     pub name: InternedString,
     pub email: InternedString,
