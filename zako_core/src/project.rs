@@ -46,12 +46,9 @@ pub enum ProjectResolveError {
 #[ts(optional_fields)]
 pub struct Project {
     pub group: String,
-    #[ts(as = "::std::option::Option<::std::string::String>")]
     pub artifact: SmolStr,
     pub version: String,
-    #[ts(as = "::std::option::Option<::std::string::String>")]
     pub configure_script: Option<SmolStr>,
-    #[ts(as = "::std::option::Option<::std::string::String>")]
     pub description: Option<SmolStr>,
     pub authors: Option<Vec<Author>>,
     pub license: Option<String>,
@@ -60,16 +57,10 @@ pub struct Project {
     pub toolchains: Option<Pattern>,
     pub subprojects: Option<Pattern>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
-    #[ts(
-        as = "::std::option::Option<::std::collections::HashMap<::std::string::String, crate::package_source::PackageSource>>"
-    )]
     pub dependencies: Option<HashMap<SmolStr, PackageSource>>,
     /// Default mount config to `config`
     pub mount_config: Option<String>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
-    #[ts(
-        as = "::std::option::Option<::std::collections::HashMap<::std::string::String, crate::config_value::ConfigValue>>"
-    )]
     pub config: Option<HashMap<SmolStr, ConfigValue>>,
 }
 

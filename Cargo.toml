@@ -86,7 +86,18 @@ tracing-attributes = "0.1.24"
 
 serde_core = "1.0.228"
 
-ts-rs = { version = "11.1.0", features = ["format", "serde-compat"] }
+ts-rs = { version = "11.1.0", features = [
+    "format",
+    "serde-compat",
+    "serde-json-impl",
+    "chrono-impl",
+    "bigdecimal-impl",
+    "url-impl",
+    "uuid-impl",
+    "bytes-impl",
+    "semver-impl",
+    "smol_str-impl",
+] }
 
 glob = "0.3.3"
 strum = { version = "0.27", features = ["derive"] }
