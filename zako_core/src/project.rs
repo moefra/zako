@@ -30,7 +30,18 @@ pub enum ProjectResolveError {
     IdParseError(String, &'static str, #[source] crate::id::IdParseError),
 }
 
-#[derive(TS, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(
+    TS,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 #[ts(export, export_to = "project.d.ts")]
 #[ts(optional_fields)]
 pub struct Project {

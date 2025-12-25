@@ -18,7 +18,19 @@ pub enum PackageSourceResolveError {
     IoError(#[from] std::io::Error),
 }
 
-#[derive(TS, Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(
+    TS,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    Hash,
+    PartialEq,
+    Eq,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 #[ts(export, export_to = "dependency_source.d.ts")]
 #[ts(optional_fields)]
 #[serde(untagged)]

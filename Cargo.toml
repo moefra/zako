@@ -7,6 +7,8 @@ members = [
     "zako_interner",
     "kagami",
     "hone",
+    "zako_email_address",
+    "zako_camino",
     #"kagami",
 ]
 default-members = ["zako_cli"]
@@ -27,7 +29,9 @@ zako-cancel = { path = "./zako_cancel" }
 hone = { path = "./hone" }
 zako-digest = { path = "./zako_digest" }
 zako-interner = { path = "./zako_interner" }
-#lskagami = { path = "./kagami" }
+email_address = { path = "./zako_email_address" }
+camino = { path = "./zako_camino" }
+# kagami = { path = "./kagami" }
 
 clap = { version = "4.5", default-features = true, features = [
     "derive",
@@ -79,6 +83,8 @@ convert_case = "0.9.0"
 tokio = { version = "1.48.0", features = ["full"] }
 
 tracing-attributes = "0.1.24"
+
+serde_core = "1.0.228"
 
 ts-rs = { version = "11.1.0", features = ["format", "serde-compat"] }
 
@@ -180,8 +186,6 @@ dashmap = { version = "6.1", features = ["inline", "rayon", "serde"] }
 
 rayon = "1.11.0"
 
-email_address = "0.2.9"
-
 uuid = { version = "1.18.1", features = ["v4"] }
 
 tokio-util = { version = "0.7.17", features = [
@@ -204,9 +208,11 @@ crossbeam-channel = "0.5.15"
 
 orx-concurrent-bag = "3.4.0"
 
-camino = { version = "1.2.2" }
+proptest = "1.9.0"
 
 mimalloc = "0.1"
+
+serde_bytes = "0.11.8"
 
 smol_str = { version = "0.3.4", features = ["std", "serde"] }
 schemars = { version = "1.1.0", features = [
@@ -234,6 +240,9 @@ getrandom = "0.3.4"
 moka = { version = "0.12.11", features = ["sync", "future"] }
 
 sysinfo = "0.37.2"
+
+# used by zako_camino, we just make them happy
+bincode = "1"
 
 [profile.dev]
 opt-level = 1

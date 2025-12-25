@@ -13,7 +13,19 @@ use crate::{context::BuildContext, intern::InternedString};
 /// The space between Author name and `<` must not be omitted.The author name can not contains `<` or `>`.
 ///
 /// We use [::email_address::EmailAddress::from_str] to check input email address.
-#[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    TS,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+    rkyv::Archive,
+)]
 #[ts(export, export_to = "author.d.ts", as = "AuthorTS")]
 pub struct Author {
     name: String,

@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
+use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, sync::Weak};
 
 use sysinfo::System;
 use tokio::runtime::{Builder, Runtime};
@@ -34,7 +34,7 @@ pub struct GlobalState {
     interner: Arc<crate::intern::Interner>,
     resource_pool: Arc<ResourcePool>,
     /// The key is absolute path to the package root.
-    path_to_context: Arc<FastMap<InternedAbsolutePath, Arc<BuildContext>>>,
+    path_to_context: Arc<FastMap<InternedAbsolutePath, Weak<BuildContext>>>,
     package_id_to_path: Arc<FastMap<InternedPackageId, InternedAbsolutePath>>,
     tokio_runtime: Runtime,
     system: Arc<System>,
@@ -91,7 +91,7 @@ impl GlobalState {
     }
 
     #[inline]
-    pub fn path_to_context(&self) -> &FastMap<InternedAbsolutePath, Arc<BuildContext>> {
+    pub fn path_to_context(&self) -> &FastMap<InternedAbsolutePath, Weak<BuildContext>> {
         &self.path_to_context
     }
 
