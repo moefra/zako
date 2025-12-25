@@ -83,10 +83,11 @@ pub async fn compute_resolve_project<'c>(
         .await
         .wrap_err("failed to request parse manifest")?;
 
-    todo!();
+    todo!("Resolve the project, resolve configuration");
 
     // TODO: Resolve the project, resolve configuration
 
+    /*
     Ok((
         HashPair::new(input_hash.into(), output_hash.into()),
         ResolveProjectResult {
@@ -94,4 +95,5 @@ pub async fn compute_resolve_project<'c>(
             project: resolved_project,
         },
     ))
+    */
 }
