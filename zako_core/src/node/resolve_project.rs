@@ -5,16 +5,17 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     context::BuildContext, intern::InternedAbsolutePath, package::InternedPackageId,
-    project::ResolvedProject,
+    package_source::ResolvedPackageSource, project::ResolvedProject,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolveProject {
     pub package: InternedPackageId,
+    pub source: PackageSource,
+    pub root: Option<InternedAbsolutePath>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolveProjectResult {
-    pub root: SmolStr,
     pub project: ResolvedProject,
 }

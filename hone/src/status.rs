@@ -10,25 +10,8 @@ pub type Hash = zako_digest::blake3_hash::Hash;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Archive)]
 pub struct HashPair {
-    output_hash: Hash,
-    input_hash: Hash,
-}
-
-impl HashPair {
-    pub fn new(output_hash: Hash, input_hash: Hash) -> Self {
-        Self {
-            output_hash,
-            input_hash,
-        }
-    }
-
-    pub fn output_hash(&self) -> &Hash {
-        &self.output_hash
-    }
-
-    pub fn input_hash(&self) -> &Hash {
-        &self.input_hash
-    }
+    pub output_hash: Hash,
+    pub input_hash: Hash,
 }
 
 #[derive(Debug)]

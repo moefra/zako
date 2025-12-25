@@ -15,11 +15,10 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ParseManifest {
-    pub path: Utf8PathBuf,
-    pub manifest_file_name: Option<SmolStr>,
+    pub blob_handle: BlobHandle,
 }
 
 #[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ParseManifestResult {
-    pub manifest: Project,
+    pub project: Project,
 }

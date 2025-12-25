@@ -17,17 +17,16 @@ impl Blake3Hash for File {
 
 #[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct FileResult {
-    /// 逻辑路径 "src/utils.ts"
-    pub path: InternedNeutralPath,
     /// 权限位 (对 TS 不重要，但对 shell 脚本重要)
     pub is_executable: bool,
+    /// 是否是符号链接
+    pub is_symlink: bool,
     /// 关键：CAS 句柄 (包含 Hash 和 数据指针)
     pub content: BlobHandle,
 }
 
 impl Blake3Hash for FileResult {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(&self.path.interned().as_u64().to_le_bytes());
         self.is_executable.hash_into_blake3(hasher);
         self.content.hash_into_blake3(hasher);
     }

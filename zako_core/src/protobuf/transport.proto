@@ -15,23 +15,23 @@ message DownloadRequest {
     BlobResource metadata = 1;
 }
 
-  message DownloadResponse {
+message DownloadResponse {
     bytes data = 1;
-  }
+}
 
-  message UploadRequest {
+message UploadRequest {
     oneof payload {
-      BlobResource metadata = 1;
-      bytes chunk = 2;
+        BlobResource metadata = 1;
+        bytes chunk = 2;
     }
-  }
+}
 
 message UploadResponse {
     uint64 committed_size = 1;
 }
 
 service Transport {
-  rpc Download(DownloadRequest) returns (stream DownloadResponse);
+    rpc Download(DownloadRequest) returns (stream DownloadResponse);
 
-  rpc Upload(stream UploadRequest) returns (UploadResponse);
+    rpc Upload(stream UploadRequest) returns (UploadResponse);
 }

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
@@ -89,7 +90,7 @@ pub enum ResolvedPackageSource {
 impl PackageSource {
     pub fn resolve(
         self,
-        current_path: &PathBuf,
+        current_path: &Utf8Path,
         interner: &Interner,
     ) -> Result<ResolvedPackageSource, PackageSourceResolveError> {
         match self {
@@ -104,7 +105,7 @@ impl PackageSource {
             }
             PackageSource::Http { url } => Ok(ResolvedPackageSource::Http { url }),
             PackageSource::Path { path } => {
-                let pathbuf = PathBuf::from(path.as_str());
+                let pathbuf = Utf8PathBuf::from(path.as_str());
                 let resolved_path = if pathbuf.is_absolute() {
                     SmolStr::new(path)
                 } else {

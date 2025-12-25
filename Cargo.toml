@@ -58,6 +58,8 @@ lenient_semver = "0.4.2"
 
 memmap2 = "0.9.9"
 
+is_executable = "1"
+
 syn = "2.0"
 quote = "1.0"
 proc-macro2 = "1.0"
@@ -117,6 +119,8 @@ futures-util = "0.3.31"
 
 v8 = "142.1.0"
 serde_v8 = "=0.278.0"
+
+reflink-copy = "0.1"
 
 smallvec = "1.15.1"
 

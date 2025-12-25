@@ -5,6 +5,7 @@ use crate::FastMap;
 use crate::blob_handle::BlobHandle;
 use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
+use crate::local_cas::LocalCas;
 use futures::Stream;
 use moka::future::Cache;
 use sysinfo::System;
@@ -22,7 +23,7 @@ pub enum CasStoreError {
 
 #[derive(Debug)]
 pub struct CasStore {
-    local: Box<dyn Cas>,
+    local: Box<LocalCas>,
     remote: Option<Box<dyn Cas>>,
     memory: CasCache,
 }
@@ -36,7 +37,7 @@ pub struct CasStoreOptions {
 
 impl CasStore {
     pub fn new(
-        local: Box<dyn Cas>,
+        local: Box<LocalCas>,
         remote: Option<Box<dyn Cas>>,
         options: CasStoreOptions,
     ) -> Self {
@@ -116,6 +117,10 @@ impl CasStore {
             .await
             .map_err(|err| CasStoreError::CasError(CasError::Io(err.into())))?;
         Ok(bytes)
+    }
+
+    pub fn get_local_cas(&self) -> &LocalCas {
+        &self.local
     }
 
     pub async fn put_bytes(&self, bytes: Vec<u8>) -> Result<BlobHandle, CasStoreError> {

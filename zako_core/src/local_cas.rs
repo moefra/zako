@@ -1,9 +1,11 @@
 use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
 use async_trait::async_trait;
+use camino::Utf8Path;
+use memmap2::MmapOptions;
 use std::path::PathBuf;
 use std::pin::Pin;
-use tokio::fs;
+use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeekExt};
 use zako_digest::Digest;
 use zako_digest::DigestError;
@@ -20,6 +22,61 @@ impl LocalCas {
 
     pub fn get_root(&self) -> &PathBuf {
         &self.root
+    }
+
+    pub fn get_path_for_digest(&self, digest: &Digest) -> PathBuf {
+        let hex = digest.get_hash().to_hex();
+        self.root.join(&hex[0..2]).join(&hex[2..])
+    }
+
+    pub async fn digest(file: &Utf8Path, metadata: &std::fs::Metadata) -> std::io::Result<Digest> {
+        // if the file is bigger than 64kb,use mmap. Otherwise, use read.
+
+        let file_size = metadata.len();
+
+        let mut file = std::fs::File::open(file)?;
+
+        if file_size <= 64 * 1024 {
+            let mut hasher = blake3::Hasher::new();
+            std::io::copy(&mut file as &mut dyn std::io::Read, &mut hasher)?;
+            let hash = hasher.finalize();
+            return Ok(Digest::new(file_size, hash.as_bytes().clone()));
+        }
+
+        unsafe {
+            let mmap = MmapOptions::new().map(&file)?;
+
+            let hash = blake3::hash(&mmap);
+            Ok(Digest::new(file_size, hash.into()))
+        }
+    }
+
+    pub async fn input_file(&self, source_path: &Utf8Path) -> std::io::Result<Digest> {
+        let metadata = std::fs::metadata(source_path)?;
+
+        let digest = Self::digest(source_path, &metadata).await?;
+
+        let target_path = self.get_path_for_digest(&digest);
+
+        if target_path.exists() {
+            let file = std::fs::File::open(source_path)?;
+            file.set_modified(SystemTime::now())?;
+            return Ok(digest);
+        }
+
+        if let Some(parent) = target_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        crate::link::ref_or_hard_link_file(
+            source_path,
+            &Utf8Path::from_path(target_path.as_path()).ok_or(std::io::Error::new(
+                std::io::ErrorKind::InvalidFilename,
+                "target path is invalid: contains non-utf8 characters",
+            ))?,
+        )?;
+
+        Ok(digest)
     }
 }
 
@@ -44,14 +101,14 @@ impl Cas for LocalCas {
             return Ok(());
         }
 
-        fs::create_dir_all(&target_path)
+        tokio::fs::create_dir_all(&target_path)
             .await
             .map_err(|err| CasError::Io(err.into()))?;
 
         let temp_name = format!("tmp_{}", uuid::Uuid::new_v4());
         let temp_path = target_path.join(temp_name);
 
-        let mut file = fs::File::create(&temp_path)
+        let mut file = tokio::fs::File::create(&temp_path)
             .await
             .map_err(|err| CasError::Io(err.into()))?;
 
@@ -62,7 +119,7 @@ impl Cas for LocalCas {
             .map_err(|err| CasError::Io(err.into()))?;
 
         // rename应该是原子的。
-        fs::rename(&temp_path, &target_path)
+        tokio::fs::rename(&temp_path, &target_path)
             .await
             .map_err(|err| CasError::Io(err.into()))?;
 
@@ -74,7 +131,7 @@ impl Cas for LocalCas {
 
         let path = self.root.join(&hex[0..2]).join(&hex[2..4]).join(&hex[4..]);
 
-        fs::metadata(path).await.ok().map(|meta| meta.len())
+        tokio::fs::metadata(path).await.ok().map(|meta| meta.len())
     }
 
     async fn contains(&self, digest: &Digest) -> bool {
@@ -122,9 +179,7 @@ impl Cas for LocalCas {
     }
 
     async fn get_local_path(&self, digest: &Digest) -> Option<PathBuf> {
-        let hex = digest.blake3.to_hex();
-
-        let path = self.root.join(&hex[0..2]).join(&hex[2..4]).join(&hex[4..]);
+        let path = self.get_path_for_digest(digest);
 
         if self.contains(digest).await {
             Some(path)

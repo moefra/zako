@@ -48,6 +48,7 @@ pub mod fs;
 pub mod global_state;
 pub mod id;
 pub mod intern;
+pub mod link;
 pub mod local_cas;
 mod make_builtin;
 pub mod module_loader;

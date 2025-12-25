@@ -1,15 +1,16 @@
 use std::{path::Path, sync::Arc};
 
+use camino::Utf8PathBuf;
 use hone::{
     HoneResult,
     error::HoneError,
     status::{HashPair, NodeData},
 };
-#[cfg(unix)]
-use tokio::fs;
+use is_executable::is_executable;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
+    blob_handle::BlobHandle,
     computer::ZakoComputeContext,
     context::BuildContext,
     node::{
@@ -31,44 +32,50 @@ pub async fn compute_file<'c>(
     let abs_root = interner.resolve(build_ctx.project_root().interned);
     let path_str = interner.resolve(path.interned());
     let physical_path = Path::new(abs_root).join(path_str);
-
-    let bytes = tokio::fs::read(&physical_path).await.map_err(|e| {
-        HoneError::Other(eyre::Report::msg(format!(
-            "Failed to read source file {:?}: {}",
-            physical_path, e
-        )))
+    let physical_path = Utf8PathBuf::try_from(physical_path).map_err(|e| {
+        HoneError::IOError(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidFilename,
+                "invalid filename,contains non-utf8 characters",
+            ),
+            format!("{:?}", physical_path),
+        )
     })?;
 
-    #[cfg(unix)]
-    let is_exec = std::os::unix::fs::MetadataExt::mode(
-        &fs::metadata(&physical_path)
-            .await
-            .map_err(|err| HoneError::IOError(err, physical_path.to_string_lossy().to_string()))?,
-    ) & 0o111
-        != 0;
-    #[cfg(not(unix))]
-    let is_exec = true;
+    if std::fs::exists(physical_path.as_path())
+        .map_err(|e| HoneError::IOError(e, physical_path.to_string()))?
+    {
+        return Err(HoneError::IOError(
+            std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"),
+            physical_path.to_string(),
+        ));
+    }
 
-    let handle = build_ctx
-        .cas_store()
-        .put_bytes(bytes)
+    let is_symlink = {
+        match std::fs::symlink_metadata(physical_path.as_path()) {
+            Ok(meta) => meta.is_symlink(),
+            Err(e) => return Err(HoneError::IOError(e, physical_path.to_string())),
+        }
+    };
+
+    let is_exec = is_executable(&physical_path);
+
+    let local_cas = build_ctx.cas_store().get_local_cas();
+
+    let digest = local_cas
+        .input_file(&physical_path)
         .await
-        .map_err(|err| {
-            HoneError::Other(eyre::Report::msg(format!(
-                "Failed to put bytes into cas store: {}",
-                err
-            )))
-        })?;
+        .map_err(|e| HoneError::IOError(e, physical_path.to_string()))?;
 
     // The hash of input path is input hash
     let input_hash = blake3::hash(path_str.as_bytes());
 
     Ok((
-        HashPair::new(handle.digest().blake3.into(), input_hash.into()),
+        HashPair::new(digest.blake3, input_hash.into()),
         FileResult {
-            path: path.clone(),
             is_executable: is_exec,
-            content: handle.clone(),
+            content: BlobHandle::new_referenced(digest.clone()),
+            is_symlink,
         },
     ))
 }

@@ -1,19 +1,23 @@
 use std::path::{Path, PathBuf};
 
-use eyre::OptionExt;
+use camino::{Utf8Path, Utf8PathBuf};
+use eyre::{Context, OptionExt};
 use hone::{
     HoneResult,
+    error::HoneError,
     status::{HashPair, NodeData},
 };
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
+    blob_handle::BlobHandle,
     computer::ZakoComputeContext,
     consts,
     context::BuildContext,
     node::{
         node_key::ZakoKey,
         node_value::ZakoValue,
+        parse_manifest::ParseManifest,
         resolve_project::{ResolveProject, ResolveProjectResult},
     },
     project::{Project, ResolvedProject},
@@ -32,27 +36,56 @@ pub async fn compute_resolve_project<'c>(
 
     let input_hash: blake3::Hash = package_id_to_path.get_blake3();
 
-    let path = *(ctx
-        .global_state()
-        .package_id_to_path()
-        .get(&key.package)
-        .ok_or_eyre(format!(
-            "the package `{}` is not found in the global state. Only registered package is supported now ",
-            package_id_to_path.as_str()
-        ))?);
+    let path = if let Some(root) = key.root {
+        root.into()
+    } else {
+        *(ctx
+            .global_state()
+            .package_id_to_path()
+            .get(&key.package)
+            .ok_or_eyre(format!(
+                "the package `{}` is not found in the global state. Only registered package is supported now ",
+                package_id_to_path.as_str()
+            ))?)
+    };
 
     let path = interner.resolve(path.interned);
     let path = Path::new(path);
     let mut path = path.canonicalize().map_err(|e| eyre::eyre!(e))?;
-    path.push(consts::PROJECT_MANIFEST_FILE_NAME);
+    let path = Utf8PathBuf::try_from(path).map_err(|e| {
+        HoneError::IOError(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidFilename,
+                format!("Invalid filename: {:?}({:?})", path, e),
+            ),
+            path.to_string_lossy().to_string(),
+        )
+    })?;
+    let manifest = path.join(consts::PROJECT_MANIFEST_FILE_NAME);
+    let manifest_digest = ctx
+        .cas_store()
+        .get_local_cas()
+        .input_file(&manifest)
+        .await
+        .wrap_err("failed to input file to local cas")?;
 
-    // TODO: Use raw_ctx.request() to read the project manifest file
-    let content = std::fs::read_to_string(&path).map_err(|e| eyre::eyre!(e))?;
-    let project: Project = toml::from_str(content.as_ref()).map_err(|e| eyre::eyre!(e))?;
+    // build new context
+    let new_ctx = BuildContext::new(&path, key.source, None, ctx.global_state().clone())
+        .wrap_err("failed to build new context")?;
 
-    let output_hash = project.get_blake3();
+    let manifest = raw_ctx
+        .request_with_context(
+            ZakoKey::ParseManifest(ParseManifest {
+                blob_handle: BlobHandle::new_referenced(manifest_digest),
+            }),
+            &new_ctx,
+        )
+        .await
+        .wrap_err("failed to request parse manifest")?;
 
-    let resolved_project = project.resolve(ctx, &path).map_err(|e| eyre::eyre!(e))?;
+    todo!();
+
+    // TODO: Resolve the project, resolve configuration
 
     Ok((
         HashPair::new(input_hash.into(), output_hash.into()),

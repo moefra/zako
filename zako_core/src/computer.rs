@@ -4,7 +4,10 @@ use async_trait::async_trait;
 use hone::{HoneResult, context::Context, status::NodeData};
 
 use crate::{
-    compute::{compute_file, compute_glob, compute_resolve_project, compute_transpile_ts},
+    compute::{
+        compute_file, compute_glob, compute_parse_manifest, compute_resolve_project,
+        compute_transpile_ts,
+    },
     context::BuildContext,
     node::{node_key::ZakoKey, node_value::ZakoValue},
     path::interned::InternedNeutralPath,
@@ -35,6 +38,9 @@ impl hone::context::Computer<BuildContext, ZakoKey, ZakoValue> for Computer {
                 .map(|result| NodeData::new(result.0, Arc::new(ZakoValue::FileResult(result.1)))),
             ZakoKey::TranspileTs(key) => compute_transpile_ts(ctx, key).await.map(|result| {
                 NodeData::new(result.0, Arc::new(ZakoValue::TranspileTsResult(result.1)))
+            }),
+            ZakoKey::ParseManifest(key) => compute_parse_manifest(ctx, key).await.map(|result| {
+                NodeData::new(result.0, Arc::new(ZakoValue::ParseManifestResult(result.1)))
             }),
         }
     }

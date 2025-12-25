@@ -85,12 +85,16 @@ impl BlobHandle {
         })
     }
 
-    pub async fn read(&self, store: &CasStore, range: &BlobRange) -> eyre::Result<Vec<u8>> {
+    pub async fn read(
+        &self,
+        store: &CasStore,
+        range: impl AsRef<BlobRange>,
+    ) -> eyre::Result<Vec<u8>> {
         Ok(match &self.state {
-            BlobState::MemoryInlined { .. } => store.read(&self.digest, range).await?,
+            BlobState::MemoryInlined { .. } => store.read(&self.digest, range.as_ref()).await?,
             // TODO: share the data
             // Issue URL: https://github.com/moefra/zako/issues/20
-            BlobState::Referenced => store.read(&self.digest, range).await?,
+            BlobState::Referenced => store.read(&self.digest, range.as_ref()).await?,
         })
     }
 }

@@ -24,6 +24,12 @@ pub struct BlobRange {
     length: Option<NonZeroU64>,
 }
 
+impl AsRef<BlobRange> for BlobRange {
+    fn as_ref(&self) -> &BlobRange {
+        self
+    }
+}
+
 impl Default for BlobRange {
     fn default() -> Self {
         Self::full()

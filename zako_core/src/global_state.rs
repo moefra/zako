@@ -34,7 +34,6 @@ pub struct GlobalState {
     interner: Arc<crate::intern::Interner>,
     resource_pool: Arc<ResourcePool>,
     /// The key is absolute path to the package root.
-    path_to_context: Arc<FastMap<InternedAbsolutePath, Weak<BuildContext>>>,
     package_id_to_path: Arc<FastMap<InternedPackageId, InternedAbsolutePath>>,
     tokio_runtime: Runtime,
     system: Arc<System>,
@@ -55,7 +54,6 @@ impl GlobalState {
         let this = Self {
             interner: Arc::new(Interner::new()),
             resource_pool: Arc::new(resource_pool),
-            path_to_context: Arc::new(FastMap::default()),
             package_id_to_path: Arc::new(FastMap::default()),
             tokio_runtime: Builder::new_multi_thread()
                 .worker_threads(cpu_count)
@@ -88,11 +86,6 @@ impl GlobalState {
     #[inline]
     pub fn resource_pool(&self) -> &ResourcePool {
         &self.resource_pool
-    }
-
-    #[inline]
-    pub fn path_to_context(&self) -> &FastMap<InternedAbsolutePath, Weak<BuildContext>> {
-        &self.path_to_context
     }
 
     #[inline]

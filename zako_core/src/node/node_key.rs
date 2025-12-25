@@ -4,7 +4,8 @@ use hone::node::NodeKey;
 use strum::IntoStaticStr;
 
 use crate::node::{
-    file::File, glob::Glob, resolve_project::ResolveProject, transpile_ts::TranspileTs,
+    file::File, glob::Glob, parse_manifest::ParseManifest, resolve_project::ResolveProject,
+    transpile_ts::TranspileTs,
 };
 
 /// Zako 构建图的核心键
@@ -26,6 +27,7 @@ pub enum ZakoKey {
     ResolveProject(ResolveProject),
     File(File),
     TranspileTs(TranspileTs),
+    ParseManifest(ParseManifest),
 }
 
 impl NodeKey for ZakoKey {}

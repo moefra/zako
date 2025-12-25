@@ -1,6 +1,7 @@
 use std::{ops::Deref, path::PathBuf, sync::Arc};
 
 use ahash::AHashMap;
+use camino::{Utf8Path, Utf8PathBuf};
 use hone::FastMap;
 use sysinfo::System;
 use thiserror::Error;
@@ -19,7 +20,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum BuildContextError {
     #[error("the project root path `{0}` is not an absolute path")]
-    ProjectRootNotAbsolute(PathBuf),
+    ProjectRootNotAbsolute(Utf8PathBuf),
     #[error("failed to intern package source: {0}")]
     FailedToResolvePackageSource(String),
 }
@@ -45,7 +46,7 @@ impl BuildContext {
     ///
     /// `env`: The global state
     pub fn new(
-        project_root: PathBuf,
+        project_root: &Utf8PathBuf,
         project_source: PackageSource,
         project_entry_name: Option<String>,
         env: Arc<GlobalState>,
@@ -53,7 +54,7 @@ impl BuildContext {
         let interner = env.interner();
 
         let resolved = project_source
-            .resolve(&project_root, interner)
+            .resolve(&project_root.as_path(), interner)
             .map_err(|err| BuildContextError::FailedToResolvePackageSource(err.to_string()))?;
 
         let entry = project_entry_name
@@ -63,7 +64,7 @@ impl BuildContext {
 
         Ok(Self {
             project_root: InternedAbsolutePath::from_interned(
-                interner.get_or_intern(project_root.to_string_lossy().to_string().as_str()),
+                interner.get_or_intern(project_root.as_str()),
                 interner,
             )
             .ok_or_else(|| BuildContextError::ProjectRootNotAbsolute(project_root.clone()))?,
