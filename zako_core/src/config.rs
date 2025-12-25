@@ -22,7 +22,7 @@ impl Configuration {
         }
     }
 
-    pub fn resolve(self, interner: &Interner) -> Result<InternedConfiguration, eyre::Report> {
+    pub fn resolve(self, interner: &Interner) -> Result<ResolvedConfiguration, eyre::Report> {
         let mut configs = self.config.into_iter().collect::<Vec<_>>();
 
         configs.sort_by_key(|(k, _)| k.clone());
@@ -59,7 +59,7 @@ impl Configuration {
             }
         }
 
-        Ok(InternedConfiguration {
+        Ok(ResolvedConfiguration {
             config: built_config.into_iter().collect(),
         })
     }
@@ -67,10 +67,7 @@ impl Configuration {
 
 impl Blake3Hash for Configuration {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        for (key, value) in self.config.iter() {
-            key.hash_into_blake3(hasher);
-            value.hash_into_blake3(hasher);
-        }
+        self.config.hash_into_blake3(hasher);
     }
 }
 
@@ -78,14 +75,14 @@ impl Blake3Hash for Configuration {
 ///
 /// It is used to store the configuration in the build graph.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InternedConfiguration {
+pub struct ResolvedConfiguration {
     pub config: Vec<(Label, ResolvedConfigValue)>,
     // TODO: Use index to get the value by key
     // Issue URL: https://github.com/moefra/zako/issues/18
     // pub index: HashMap<InternedString, usize> ?
 }
 
-impl InternedConfiguration {
+impl ResolvedConfiguration {
     pub fn resolve(&self, interner: &Interner) -> Configuration {
         let mut config = HashMap::new();
         for (key, value) in self.config.iter() {

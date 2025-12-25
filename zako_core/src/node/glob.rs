@@ -16,13 +16,6 @@ pub struct Glob {
     pub pattern: InternedPattern,
 }
 
-impl Blake3Hash for Glob {
-    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(&self.base_path.interned.as_u64().to_le_bytes());
-        self.pattern.hash_into_blake3(hasher);
-    }
-}
-
 #[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct GlobResult {
     pub paths: Vec<InternedNeutralPath>,

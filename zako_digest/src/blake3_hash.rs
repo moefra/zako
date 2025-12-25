@@ -1,14 +1,15 @@
 use std::{
     array::TryFromSliceError,
-    collections::HashMap,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::{OsStr, OsString},
+    marker::PhantomData,
     ops::Deref,
-    os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
 };
 
+use camino::{Utf8Path, Utf8PathBuf};
 use rkyv::{Archive, Deserialize, Serialize};
 
 /// The trait means a object can be hashed into a blake3 hash.
@@ -25,6 +26,10 @@ macro_rules! impl_blake3_for_tuple {
     ($($ty:ident),*) => {
         impl<$($ty: Blake3Hash),*> Blake3Hash for ($($ty,)*) {
             fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+                hasher.update(b"::std::tuple::Tuple");
+                let len = [0u8; 0].len() $( + { let _ = stringify!($ty); 1 } )*;
+                (len as u64).hash_into_blake3(hasher);
+
                 // 使用模式匹配解构元组
                 #[allow(non_snake_case)]
                 let ($($ty,)*) = &self;
@@ -33,6 +38,13 @@ macro_rules! impl_blake3_for_tuple {
             }
         }
     };
+}
+
+impl<T> Blake3Hash for PhantomData<T> {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        //hasher.update(b"::std::marker::PhantomData");
+        // do nothing
+    }
 }
 
 impl_blake3_for_tuple!(A);
@@ -64,6 +76,8 @@ impl<T: Blake3Hash + ?Sized> Blake3Hash for &mut T {
 
 impl Blake3Hash for smol_str::SmolStr {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::smol_str::SmolStr");
+        self.len().hash_into_blake3(hasher);
         hasher.update(self.as_bytes());
     }
 }
@@ -71,38 +85,59 @@ impl Blake3Hash for smol_str::SmolStr {
 /// Allow calling on String
 impl Blake3Hash for String {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::string::String");
+        self.len().hash_into_blake3(hasher);
         hasher.update(self.as_bytes());
+    }
+}
+
+impl<T: Blake3Hash> Blake3Hash for &[T] {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::slice::Slice");
+        self.len().hash_into_blake3(hasher);
+
+        for value in self.iter() {
+            value.hash_into_blake3(hasher);
+        }
+    }
+}
+impl<T: Blake3Hash, const N: usize> Blake3Hash for [T; N] {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::array::Array");
+        self.len().hash_into_blake3(hasher);
+
+        for value in self.iter() {
+            value.hash_into_blake3(hasher);
+        }
+    }
+}
+
+impl<'a, T: Blake3Hash + Clone> Blake3Hash for std::borrow::Cow<'a, T> {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.as_ref().hash_into_blake3(hasher);
     }
 }
 
 /// Allow calling on &str
 impl Blake3Hash for str {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::str::Str");
+        self.len().hash_into_blake3(hasher);
         hasher.update(self.as_bytes());
     }
 }
 /// Allow calling on PathBuf
-impl Blake3Hash for PathBuf {
+impl Blake3Hash for Utf8PathBuf {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(self.as_os_str().as_bytes());
+        hasher.update(b"::camino::Utf8PathBuf");
+        self.as_str().hash_into_blake3(hasher);
     }
 }
 /// Allow calling on Path
-impl Blake3Hash for Path {
+impl Blake3Hash for Utf8Path {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(self.as_os_str().as_bytes());
-    }
-}
-/// Allow calling on OsString
-impl Blake3Hash for OsString {
-    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(self.as_bytes());
-    }
-}
-/// Allow calling on OsStr
-impl Blake3Hash for OsStr {
-    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(self.as_bytes());
+        hasher.update(b"::camino::Utf8Path");
+        self.as_str().hash_into_blake3(hasher);
     }
 }
 /// Allow calling on Rc<T>
@@ -126,12 +161,33 @@ impl<T: Blake3Hash + ?Sized> Blake3Hash for Box<T> {
 
 impl<T: Blake3Hash + Sized + Ord + Eq> Blake3Hash for Vec<T> {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::vec::Vec");
         self.len().hash_into_blake3(hasher);
-        let mut values: Vec<&T> = self.iter().collect();
-        values.sort();
 
-        for value in values.into_iter() {
+        for value in self.iter() {
             value.hash_into_blake3(hasher);
+        }
+    }
+}
+
+impl<T: Blake3Hash, V: Blake3Hash> Blake3Hash for BTreeMap<T, V> {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::collections::BTreeMap");
+        self.len().hash_into_blake3(hasher);
+
+        for pair in self.iter() {
+            pair.0.hash_into_blake3(hasher);
+            pair.1.hash_into_blake3(hasher);
+        }
+    }
+}
+impl<T: Blake3Hash> Blake3Hash for BTreeSet<T> {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::collections::BTreeSet");
+        self.len().hash_into_blake3(hasher);
+
+        for pair in self.iter() {
+            pair.hash_into_blake3(hasher);
         }
     }
 }
@@ -140,14 +196,29 @@ impl<T: Blake3Hash + Sized + Ord + std::hash::Hash + Eq, V: Blake3Hash, S> Blake
     for HashMap<T, V, S>
 {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::collections::HashMap");
         self.len().hash_into_blake3(hasher);
 
         let mut pairs = self.iter().collect::<Vec<_>>();
-        pairs.sort_by_key(|(k, _)| *k);
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
 
         for pair in pairs.into_iter() {
             pair.0.hash_into_blake3(hasher);
             pair.1.hash_into_blake3(hasher);
+        }
+    }
+}
+
+impl<T: Blake3Hash + Sized + Ord + std::hash::Hash + Eq, S> Blake3Hash for HashSet<T, S> {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::collections::HashSet");
+        self.len().hash_into_blake3(hasher);
+
+        let mut items = self.iter().collect::<Vec<_>>();
+        items.sort();
+
+        for pair in items.into_iter() {
+            pair.hash_into_blake3(hasher);
         }
     }
 }
@@ -158,6 +229,7 @@ impl<T: Blake3Hash + Sized + Ord + std::hash::Hash + Eq, V: Blake3Hash, S> Blake
 /// If option is some, it will hash a tag byte 1u8 and the value's hash.
 impl<T: Blake3Hash + Sized> Blake3Hash for Option<T> {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(b"::std::option::Option");
         match self {
             Some(value) => {
                 hasher.update(&[1u8]); // Tag
@@ -194,7 +266,39 @@ macro_rules! impl_blake3_hash_for_fixed_numbers {
     }
 }
 
-impl_blake3_hash_for_fixed_numbers!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+impl_blake3_hash_for_fixed_numbers!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
+
+impl Blake3Hash for char {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        (*self as u32).hash_into_blake3(hasher);
+    }
+}
+
+impl Blake3Hash for f32 {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        let val = if self.is_nan() {
+            0x7FC00000_u32 // f32::NaN is platform/compiler-dependent
+        } else if *self == 0.0 {
+            0_u32 // 统一 +0.0 和 -0.0
+        } else {
+            self.to_bits()
+        };
+        hasher.update(&val.to_le_bytes());
+    }
+}
+
+impl Blake3Hash for f64 {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        let val = if self.is_nan() {
+            0x7FF8000000000000_u64 // f64::NaN is platform/compiler-dependent
+        } else if *self == 0.0_f64 {
+            0_u64 // 统一 +0.0 和 -0.0
+        } else {
+            self.to_bits()
+        };
+        hasher.update(&val.to_le_bytes());
+    }
+}
 
 /// Allow calling on isize and usize
 ///
@@ -241,12 +345,14 @@ impl Hash {
     }
 
     pub fn to_hex(&self) -> arrayvec::ArrayString<64> {
-        let mut hex: arrayvec::ArrayString<64> = arrayvec::ArrayString::new();
+        let mut s: arrayvec::ArrayString<64> = arrayvec::ArrayString::new();
+        let mut buf = [0u8; 64];
+        hex::encode_to_slice(self.hash_bytes, &mut buf).unwrap();
         unsafe {
-            hex.set_len(64);
-            ::hex::encode_to_slice(self.hash_bytes, hex.as_mut().as_bytes_mut()).unwrap();
+            // skip check for performance
+            s.push_str(std::str::from_utf8_unchecked(&buf));
         }
-        hex
+        s
     }
 }
 

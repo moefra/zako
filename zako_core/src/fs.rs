@@ -99,13 +99,13 @@ impl TryFrom<crate::protobuf::fs::VirtualFsItem> for VirtualFsItem {
                 d.try_into()
                     .map_err(|err| VirtualFileError::WrongDigest(err))?,
             ),
-            Some(ProtoItem::SymlinkTarget(s)) => FsItem::Symlink(NeutralPath::new(s)?),
+            Some(ProtoItem::SymlinkTarget(s)) => FsItem::Symlink(NeutralPath::from_path(s)?),
             Some(ProtoItem::EmptyDirectory(_)) => FsItem::EmptyDirectory,
             None => return Err(VirtualFileError::EmptyPath()),
         };
 
         VirtualFsItem::new(
-            NeutralPath::new(proto.relative_path)?,
+            NeutralPath::from_path(proto.relative_path)?,
             item,
             proto.is_executable,
             proto.is_readonly,

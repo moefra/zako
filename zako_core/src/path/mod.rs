@@ -1,3 +1,4 @@
+use camino::Utf8Path;
 use phf::phf_set;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -73,7 +74,7 @@ impl Display for NeutralPath {
 
 impl Default for NeutralPath {
     fn default() -> Self {
-        NeutralPath::new(".").unwrap()
+        NeutralPath::from_path(".").unwrap()
     }
 }
 
@@ -99,7 +100,7 @@ impl TryFrom<&str> for NeutralPath {
     type Error = PathError;
 
     fn try_from(path: &str) -> Result<Self, Self::Error> {
-        NeutralPath::new(path)
+        NeutralPath::from_path(path)
     }
 }
 
@@ -108,7 +109,7 @@ impl TryFrom<&Path> for NeutralPath {
 
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
         let path = path.to_str().ok_or(Self::Error::InvalidUnicodeData())?;
-        NeutralPath::new(path)
+        NeutralPath::from_path(path)
     }
 }
 
@@ -116,7 +117,7 @@ impl TryFrom<String> for NeutralPath {
     type Error = PathError;
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
-        NeutralPath::new(s)
+        NeutralPath::from_path(s)
     }
 }
 
@@ -272,20 +273,16 @@ impl NeutralPath {
         Self::internal_normalize(&path.0, false).unwrap()
     }
 
-    pub fn new<S: AsRef<str>>(s: S) -> Result<Self, PathError> {
+    pub fn from_path<S: AsRef<Utf8Path>>(s: S) -> Result<Self, PathError> {
         let s = s.as_ref();
 
-        if s.is_empty() {
-            return Err(PathError::EmptyPath);
-        }
+        Self::check_if_absolute(s.as_str())?;
 
-        Self::check_if_absolute(s)?;
-
-        Self::checked_normalize(s)
+        Self::checked_normalize(s.as_str())
     }
 
     pub fn current_dir() -> Self {
-        NeutralPath::new(".").unwrap()
+        NeutralPath::from_path(".").unwrap()
     }
 
     pub fn join<P: AsRef<str>>(&self, part: P) -> Result<Self, PathError> {
@@ -296,7 +293,7 @@ impl NeutralPath {
         all_parts.push(&self.0);
         all_parts.push(part_str);
 
-        NeutralPath::new(all_parts.join("/"))
+        NeutralPath::from_path(all_parts.join("/"))
     }
 
     pub fn join_all<P: AsRef<str>>(&self, parts: &[P]) -> Result<Self, PathError> {
@@ -310,7 +307,7 @@ impl NeutralPath {
             all_parts.push(part_str);
         }
 
-        NeutralPath::new(all_parts.join("/"))
+        NeutralPath::from_path(all_parts.join("/"))
     }
 
     pub fn parent(&self) -> Self {

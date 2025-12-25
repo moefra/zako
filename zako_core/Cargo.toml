@@ -91,6 +91,8 @@ uuid.workspace = true
 
 toml.workspace = true
 
+camino.workspace = true
+
 email_address.workspace = true
 
 tokio-stream.workspace = true

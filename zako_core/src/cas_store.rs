@@ -12,11 +12,7 @@ use tokio::io::AsyncRead;
 use tracing::{instrument, trace_span};
 use zako_digest::Digest;
 
-type FastCache = ::moka::future::Cache<
-    ::zako_digest::blake3_hash::Hash,
-    ::std::vec::Vec<u8>,
-    ::ahash::RandomState,
->;
+pub type CasCache = crate::FastCache<::zako_digest::blake3_hash::Hash, ::std::vec::Vec<u8>>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CasStoreError {
@@ -28,7 +24,7 @@ pub enum CasStoreError {
 pub struct CasStore {
     local: Box<dyn Cas>,
     remote: Option<Box<dyn Cas>>,
-    memory: FastCache,
+    memory: CasCache,
 }
 
 #[derive(Debug, Clone)]

@@ -50,7 +50,6 @@ pub mod id;
 pub mod intern;
 pub mod local_cas;
 mod make_builtin;
-pub mod mirror;
 pub mod module_loader;
 pub mod node;
 pub mod package;
@@ -82,6 +81,9 @@ pub type FastMap<K, V> = ::dashmap::DashMap<K, V, ::ahash::RandomState>;
 ///
 /// Please do not rely on any specific order.
 pub type FastSet<K> = ::dashmap::DashSet<K, ::ahash::RandomState>;
+
+/// A fast cache implementation.
+pub type FastCache<K, V> = ::moka::future::Cache<K, V, ::ahash::RandomState>;
 
 pub mod protobuf {
     pub mod fs {

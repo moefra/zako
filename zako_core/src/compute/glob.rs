@@ -1,7 +1,9 @@
 use std::{path::Path, sync::Arc};
 
 use blake3::hazmat::HasherExt;
+use camino::Utf8Path;
 use eyre::OptionExt;
+use eyre::eyre;
 use hone::{
     HoneResult,
     status::{HashPair, NodeData},
@@ -33,7 +35,7 @@ pub async fn compute_glob<'c>(
     let ctx = ctx.context();
     let _resource = ctx.resource_pool().occupy(ResourceRequest::cpu(1));
     let base_path = ctx.interner().resolve(base_path.interned);
-    let base_path = Path::new(base_path);
+    let base_path = Utf8Path::new(base_path);
     let interner = ctx.interner();
 
     let resolved_pattern = pattern.resolve(interner);
@@ -45,13 +47,15 @@ pub async fn compute_glob<'c>(
         input_hasher.finalize()
     };
 
-    let mut result = pattern.walk(interner, &base_path, 1).map_err(|err| {
-        eyre::Report::new(err).wrap_err(format!(
-            "failed to walk directory `{:?}` with pattern `{:?}`",
-            base_path,
-            pattern.resolve(&interner) // To provide debug information
-        ))
-    })?;
+    let mut result = pattern
+        .walk(interner, &base_path.as_std_path(), 1)
+        .map_err(|err| {
+            eyre::Report::new(err).wrap_err(format!(
+                "failed to walk directory `{:?}` with pattern `{:?}`",
+                base_path,
+                pattern.resolve(&interner) // To provide debug information
+            ))
+        })?;
     // IMPORTANT: sort the result to ensure the same order
     result.sort();
 
@@ -66,9 +70,16 @@ pub async fn compute_glob<'c>(
                 path, base_path,
             ))
         })?;
-        let neutral_path = NeutralPath::new(diff.to_string_lossy().to_string()).map_err(|err| {
+        let diff = Utf8Path::from_path(&diff).ok_or_else(|| {
+            eyre!(
+                "glob: failed to convert path {:?} to Utf8Path, base path:{:?}",
+                diff,
+                base_path
+            )
+        })?;
+        let neutral_path = NeutralPath::from_path(&diff).map_err(|err| {
             eyre::Report::new(err).wrap_err(format!(
-                "get an path error when construct NeutralPath, path:`{:?}`,base path:{:?}, diff:{:?}",
+                "get an path error when construct NeutralPath, path:{:?} ,base path:{:?}, diff:{:?}",
                 path, base_path, diff,
             ))
         })?;
