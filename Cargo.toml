@@ -11,7 +11,9 @@ members = [
     "zako_camino",
     #"kagami",
 ]
-default-members = ["zako_cli"]
+# `cargo build --lib` to build zako_core
+# `cargo build --bin zako` to build zako_cli
+default-members = ["zako_core", "zako_cli"]
 resolver = "3"
 
 [workspace.lints.clippy]
