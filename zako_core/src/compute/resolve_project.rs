@@ -1,12 +1,9 @@
 use std::path::Path;
 
 use camino::Utf8PathBuf;
+use eyre::eyre;
 use eyre::{Context, OptionExt};
-use hone::{
-    HoneResult,
-    error::HoneError,
-    status::HashPair,
-};
+use hone::{HoneResult, error::HoneError, status::HashPair};
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
@@ -45,7 +42,7 @@ pub async fn compute_resolve_project<'c>(
             .global_state()
             .package_id_to_path()
             .get(&key.package)
-            .ok_or_eyre(format!(
+            .ok_or_eyre( format!(
                 "the package `{}` is not found in the global state. Only registered package is supported now ",
                 package_id_to_path.as_str()
             ))?)

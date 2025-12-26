@@ -57,14 +57,14 @@ pub type LassoInterner = ThreadedRodeo<U32NonZeroKey, ::ahash::RandomState>;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Archive, Serialize, Deserialize)]
 pub struct ThreadedInterner {
-    #[rkyv(with=ArchivedThreadedRodeoToVec)]
+    #[rkyv(with=LassoInternerWith)]
     interner: LassoInterner,
     id: u64,
 }
 
-struct ArchivedThreadedRodeoToVec;
+struct LassoInternerWith;
 
-impl ArchiveWith<LassoInterner> for ArchivedThreadedRodeoToVec {
+impl ArchiveWith<LassoInterner> for LassoInternerWith {
     type Archived = Archived<Vec<u8>>;
     type Resolver = Resolver<Vec<u8>>;
 
@@ -81,7 +81,7 @@ impl ArchiveWith<LassoInterner> for ArchivedThreadedRodeoToVec {
 }
 
 impl<S: Fallible + ?Sized + rkyv::ser::Allocator + rkyv::ser::Writer>
-    SerializeWith<LassoInterner, S> for ArchivedThreadedRodeoToVec
+    SerializeWith<LassoInterner, S> for LassoInternerWith
 where
     Vec<u8>: Serialize<S>,
 {
@@ -100,7 +100,7 @@ where
 }
 
 impl<D: Fallible + ?Sized> DeserializeWith<Archived<Vec<u8>>, LassoInterner, D>
-    for ArchivedThreadedRodeoToVec
+    for LassoInternerWith
 where
     Archived<Vec<u8>>: Deserialize<Vec<u8>, D>,
 {

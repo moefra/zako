@@ -6,7 +6,7 @@ import type { Pattern } from "./pattern.d";
 
 export type Project = {
   group: string;
-  artifact?: string;
+  artifact: string;
   version: string;
   configure_script?: string;
   description?: string;

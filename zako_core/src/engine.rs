@@ -1,6 +1,6 @@
 use crate::module_loader::{LoaderOptions, ModuleLoader, specifier::ModuleSpecifier};
-use crate::v8_platform::get_set_platform_or_default;
 use crate::v8error::{ExecutionResult, V8Error};
+use crate::v8platform::get_set_platform_or_default;
 use crate::{builtin, consts, v8error, v8utils};
 use deno_core::error::CoreError;
 use deno_core::serde_v8;

@@ -3,7 +3,7 @@
 //! For some exception that can continue,do not use this,and use Value as an exception to broadcast the error in js.
 //!
 //! It was usually used as:
-//! ```rust
+//! ```ignore
 //! Result<ExecutionResult,V8Error>.
 //! //-----^result---------^fatal error that can not continue
 //! ```

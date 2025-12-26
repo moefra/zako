@@ -10,3 +10,6 @@ Thumbs.db
 target/
 dist/
 node_modules/
+public/
+release/
+release_debug/
