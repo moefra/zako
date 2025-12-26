@@ -240,7 +240,7 @@ impl Label {
         })?;
         let package_ref = InternedPackageRef::try_parse(package_ref, interner)?;
 
-        let (path, target) = path.split_once(':').unwrap_or((id, ""));
+        let (path, target) = path.split_once(':').unwrap_or((path, ""));
 
         let (path, last_segment) = InternedPath::try_parse(path, interner)?;
 

@@ -1,11 +1,9 @@
-cfg_if::cfg_if! {
-    if #[cfg(test)] {
-        use std::sync::Arc;
-        use static_init::dynamic;
+use static_init::dynamic;
+use std::sync::Arc;
 
-        #[dynamic(lazy)]
-        pub static TEST_INTERNER: Arc<::zako_interner::ThreadedInterner> = {
-            Arc::new(::zako_interner::ThreadedInterner::new().unwrap())
-        };
-    }
-}
+#[dynamic(lazy)]
+pub static TEST_INTERNER: Arc<::zako_interner::ThreadedInterner> =
+    { Arc::new(::zako_interner::ThreadedInterner::new().unwrap()) };
+
+pub mod id_tests;
+pub mod package_tests;

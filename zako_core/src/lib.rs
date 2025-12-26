@@ -64,6 +64,7 @@ pub mod resource;
 pub mod sandbox;
 pub mod socket_address;
 pub mod target;
+#[cfg(test)]
 pub mod tests;
 pub mod tool;
 pub mod transformer;
