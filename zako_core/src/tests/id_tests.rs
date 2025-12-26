@@ -4,6 +4,7 @@ use crate::tests::TEST_INTERNER;
 #[test]
 fn test_is_xid_ident() {
     assert!(is_xid_ident("main"));
+    assert!(is_xid_ident("_my_var"));
     assert!(is_xid_ident("my_var"));
     assert!(!is_xid_ident(""));
     assert!(!is_xid_ident("123"));
@@ -80,4 +81,3 @@ fn test_label_resolved() {
     let l = Label::try_parse("@curl//src:lib", interner).unwrap();
     assert_eq!(l.resolved(interner).unwrap(), "curl//src:lib");
 }
-
