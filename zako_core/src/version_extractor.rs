@@ -2,7 +2,8 @@ use semver::Version;
 use std::process::{Command, Stdio};
 use tracing::{trace, trace_span};
 
-fn extract_from_string(string: &str) -> Option<Version> {
+#[cfg_attr(test, allow(dead_code))]
+pub(crate) fn extract_from_string(string: &str) -> Option<Version> {
     for part in string.trim().split_whitespace() {
         if let Ok(version) = Version::parse(part) {
             return Some(version);

@@ -25,7 +25,7 @@ pub struct InternedAbsolutePath {
 impl InternedAbsolutePath {
     pub fn new(
         path: &str,
-        interner: &mut Interner,
+        interner: &Interner,
     ) -> Result<Option<Self>, ::zako_interner::InternerError> {
         // check if the interned string is an absolute path
         {
