@@ -102,7 +102,10 @@ pub async fn compute_glob<'c>(
     */
 
     return Ok((
-        HashPair::new(output_hash.into(), input_hash.into()),
+        HashPair {
+            output_hash: output_hash.into(),
+            input_hash: input_hash.into(),
+        },
         GlobResult {
             paths: interned_neutral_result,
         },

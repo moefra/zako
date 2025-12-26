@@ -85,5 +85,11 @@ pub async fn compute_transpile_ts<'c>(
 
     let output_hash = output.get_blake3();
 
-    Ok((HashPair::new(output_hash.into(), input_hash.into()), output))
+    Ok((
+        HashPair {
+            output_hash: output_hash.into(),
+            input_hash: input_hash.into(),
+        },
+        output,
+    ))
 }

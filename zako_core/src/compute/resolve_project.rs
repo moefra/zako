@@ -49,18 +49,21 @@ pub async fn compute_resolve_project<'c>(
             ))?)
     };
 
-    let path = interner.resolve(path.interned);
-    let path = Path::new(path);
-    let mut path = path.canonicalize().map_err(|e| eyre::eyre!(e))?;
-    let path = Utf8PathBuf::try_from(path).map_err(|e| {
-        HoneError::IOError(
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidFilename,
-                format!("Invalid filename: {:?}({:?})", path, e),
-            ),
-            path.to_string_lossy().to_string(),
-        )
-    })?;
+    let path_str = interner.resolve(path.interned);
+    let path = Path::new(path_str);
+    let path =
+        Utf8PathBuf::try_from(path.canonicalize().map_err(|e| eyre::eyre!(e))?).map_err(|e| {
+            HoneError::IOError(
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidFilename,
+                    format!(
+                        "Invalid filename: {:?}(contains non-utf8 characters: {:?})",
+                        &path_str, e
+                    ),
+                ),
+                path_str.to_string(),
+            )
+        })?;
     let manifest = path.join(consts::PROJECT_MANIFEST_FILE_NAME);
     let manifest_digest = ctx
         .cas_store()
@@ -70,7 +73,7 @@ pub async fn compute_resolve_project<'c>(
         .wrap_err("failed to input file to local cas")?;
 
     // build new context
-    let new_ctx = BuildContext::new(&path, key.source, None, ctx.global_state().clone())
+    let new_ctx = BuildContext::new(&path, key.source.clone(), None, ctx.global_state().clone())
         .wrap_err("failed to build new context")?;
 
     let manifest = raw_ctx
@@ -82,6 +85,22 @@ pub async fn compute_resolve_project<'c>(
         )
         .await
         .wrap_err("failed to request parse manifest")?;
+
+    let parsed = match manifest.value().as_ref() {
+        ZakoValue::ParseManifestResult(resolved) => resolved,
+        _ => {
+            Err(eyre::eyre!("expected parse manifest result"))?;
+            unreachable!()
+        }
+    }
+    .clone();
+
+    let resolved = parsed.project.resolve(&new_ctx, &path).map_err(|err| {
+        eyre::eyre!(err).wrap_err(format!(
+            "while resolving project {:?}, path {:?}",
+            &key.package, &path
+        ))
+    })?;
 
     todo!("Resolve the project, resolve configuration");
 

@@ -1,5 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
+use crate::config::{Configuration, ResolvedConfiguration};
+use crate::config_value::ResolvedConfigValue;
 use crate::id::{InternedAtom, InternedPath};
 use crate::package_source::ResolvedPackageSource;
 use crate::pattern::{InternedPattern, Pattern};
@@ -11,6 +13,8 @@ use crate::{
     package::{InternedGroup, InternedVersion},
     package_source::PackageSource,
 };
+use camino::Utf8Path;
+use eyre::Context;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
@@ -28,6 +32,8 @@ pub enum ProjectResolveError {
     PackageSourceResolveError(#[from] crate::package_source::PackageSourceResolveError),
     #[error("failed to parse the id `{0}` of project part `{1}`: {2}")]
     IdParseError(String, &'static str, #[source] crate::id::IdParseError),
+    #[error("failed to resolve configuration of the project: {0}")]
+    ConfigResolveError(#[source] eyre::Report),
 }
 
 #[derive(
@@ -61,7 +67,7 @@ pub struct Project {
     /// Default mount config to `config`
     pub mount_config: Option<String>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
-    pub config: Option<HashMap<SmolStr, ConfigValue>>,
+    pub config: Option<HashMap<SmolStr, ConfigValue, ahash::RandomState>>,
 }
 
 impl Blake3Hash for Project {
@@ -98,15 +104,18 @@ pub struct ResolvedProject {
     pub subprojects: Option<InternedPattern>,
     pub dependencies: Option<HashMap<SmolStr, ResolvedPackageSource>>,
     pub mount_config: Option<InternedAtom>,
-    pub config: Option<HashMap<SmolStr, ConfigValue>>,
+    pub config: ResolvedConfiguration,
 }
 
 impl Project {
+    #[must_use]
     pub fn resolve(
         self,
         context: &BuildContext,
-        current_path: &PathBuf,
+        project_root: &Utf8Path,
     ) -> Result<ResolvedProject, ProjectResolveError> {
+        let dbg_msg = format!("while resolving project {:?}", &self);
+
         let authors = if let Some(authors) = self.authors {
             let mut interned_authors: Vec<InternedAuthor> = Vec::with_capacity(authors.len());
             for author in authors.into_iter() {
@@ -159,7 +168,7 @@ impl Project {
                 .map(|deps| {
                     deps.into_iter()
                         .map(|(k, v)| {
-                            v.resolve(current_path, context.interner())
+                            v.resolve(project_root, context.interner())
                                 .map(|resolved| (k, resolved))
                         })
                         .collect::<Result<HashMap<_, _>, _>>()
@@ -173,10 +182,9 @@ impl Project {
                     })
                 })
                 .transpose()?,
-            config: self
-                .config
-                .as_ref()
-                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+            config: Configuration::from(self.config.unwrap_or_default())
+                .resolve(context.interner())
+                .map_err(|err| ProjectResolveError::ConfigResolveError(err.wrap_err(dbg_msg)))?,
         })
     }
 }
@@ -223,10 +231,7 @@ impl ResolvedProject {
             mount_config: self
                 .mount_config
                 .map(|s| context.interner().resolve(&s.0).to_string()),
-            config: self
-                .config
-                .as_ref()
-                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+            config: Some(self.config.resolve(context.interner()).config),
         }
     }
 }

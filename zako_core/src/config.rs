@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use eyre::{Context, Error};
+use smol_str::SmolStr;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
@@ -12,14 +13,18 @@ use crate::{
 /// Raw, immutable configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Configuration {
-    pub config: HashMap<String, ConfigValue>,
+    pub config: HashMap<SmolStr, ConfigValue, ahash::RandomState>,
 }
 
 impl Configuration {
     pub fn new() -> Self {
         Self {
-            config: HashMap::new(),
+            config: HashMap::with_hasher(ahash::RandomState::new()),
         }
+    }
+
+    pub fn from(config: HashMap<SmolStr, ConfigValue, ahash::RandomState>) -> Self {
+        Self { config }
     }
 
     pub fn resolve(self, interner: &Interner) -> Result<ResolvedConfiguration, eyre::Report> {
@@ -74,7 +79,7 @@ impl Blake3Hash for Configuration {
 /// Interned, immutable configuration.
 ///
 /// It is used to store the configuration in the build graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct ResolvedConfiguration {
     pub config: Vec<(Label, ResolvedConfigValue)>,
     // TODO: Use index to get the value by key
@@ -83,10 +88,17 @@ pub struct ResolvedConfiguration {
 }
 
 impl ResolvedConfiguration {
+    pub fn empty() -> Self {
+        Self { config: Vec::new() }
+    }
+
     pub fn resolve(&self, interner: &Interner) -> Configuration {
-        let mut config = HashMap::new();
+        let mut config = HashMap::with_hasher(ahash::RandomState::new());
         for (key, value) in self.config.iter() {
-            config.insert(key.resolved(interner), value.resolve(interner));
+            config.insert(
+                SmolStr::new(key.resolved(interner)),
+                value.resolve(interner),
+            );
         }
         Configuration { config }
     }

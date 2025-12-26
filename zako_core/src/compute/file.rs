@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc};
 
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 use hone::{
     HoneResult,
     error::HoneError,
@@ -31,16 +31,7 @@ pub async fn compute_file<'c>(
     let interner = build_ctx.interner();
     let abs_root = interner.resolve(build_ctx.project_root().interned);
     let path_str = interner.resolve(path.interned());
-    let physical_path = Path::new(abs_root).join(path_str);
-    let physical_path = Utf8PathBuf::try_from(physical_path).map_err(|e| {
-        HoneError::IOError(
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidFilename,
-                "invalid filename,contains non-utf8 characters",
-            ),
-            format!("{:?}", physical_path),
-        )
-    })?;
+    let physical_path = Utf8Path::new(abs_root).join(path_str);
 
     if std::fs::exists(physical_path.as_path())
         .map_err(|e| HoneError::IOError(e, physical_path.to_string()))?
@@ -71,7 +62,10 @@ pub async fn compute_file<'c>(
     let input_hash = blake3::hash(path_str.as_bytes());
 
     Ok((
-        HashPair::new(digest.blake3, input_hash.into()),
+        HashPair {
+            output_hash: digest.blake3.into(),
+            input_hash: input_hash.into(),
+        },
         FileResult {
             is_executable: is_exec,
             content: BlobHandle::new_referenced(digest.clone()),

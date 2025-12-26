@@ -4,8 +4,11 @@ use std::path::PathBuf;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
-    context::BuildContext, intern::InternedAbsolutePath, package::InternedPackageId,
-    package_source::ResolvedPackageSource, project::ResolvedProject,
+    context::BuildContext,
+    intern::InternedAbsolutePath,
+    package::InternedPackageId,
+    package_source::{PackageSource, ResolvedPackageSource},
+    project::ResolvedProject,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]

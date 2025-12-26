@@ -1,6 +1,10 @@
-use std::{path::PathBuf, time::Duration};
+use ::std::{path::PathBuf, time::Duration};
 
 use sysinfo::System;
+
+mod std;
+
+pub use std::generate_platform_configuration;
 
 use crate::worker::worker_pool::PoolConfig;
 
