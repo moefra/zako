@@ -1,13 +1,12 @@
 use crate::{
-    context::BuildContext,
     engine::{Engine, EngineError, EngineOptions},
     global_state::GlobalState,
     module_loader::specifier::ModuleSpecifier,
     worker::WorkerBehavior,
 };
 use deno_core::serde_v8;
-use parking_lot::Mutex;
-use std::{fmt::Debug, pin::Pin, sync::Arc};
+use serde_json;
+use std::{fmt::Debug, sync::Arc};
 use tokio::runtime::Handle;
 use tracing::instrument;
 use zako_cancel::CancelToken;
@@ -33,6 +32,9 @@ pub struct V8WorkerInput {
     /// 6. 上下文类型
     /// 决定引擎的权限和能力
     pub context_type: crate::consts::V8ContextType,
+
+    /// 7. (可选) JSON 输入
+    pub json_input: Option<serde_json::Value>,
 }
 
 /// Output from V8 Worker
@@ -89,10 +91,17 @@ impl WorkerBehavior for V8Worker {
             context_type: input.context_type,
         })?;
 
-        engine.execute_module_and_then(&input.specifier, |scope, context, object| {
-            let rust_value: serde_json::Value =
-                serde_v8::from_v8(scope, object.into()).map_err(V8WorkerError::SerdeError)?;
-            Ok(V8WorkerOutput { result: rust_value })
-        })?
+        let json_input = input.json_input.unwrap_or(serde_json::Value::Null);
+
+        engine.execute_module_with_json_and_then(
+            &input.specifier,
+            Some(input.source_code),
+            json_input,
+            |scope, _context, object| {
+                let rust_value: serde_json::Value =
+                    serde_v8::from_v8(scope, object.into()).map_err(V8WorkerError::SerdeError)?;
+                Ok(V8WorkerOutput { result: rust_value })
+            },
+        )?
     }
 }
