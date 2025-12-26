@@ -1,19 +1,14 @@
 use crate::consts;
-use crate::context::BuildContext;
 use crate::global_state::GlobalState;
 use crate::worker::WorkerBehavior;
 use oxc_allocator::Allocator;
-use oxc_codegen::{Codegen, CodegenOptions};
+use oxc_codegen::Codegen;
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 use oxc_transformer::{TransformOptions, Transformer};
-use std::collections::HashMap;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tracing::instrument;
 use zako_cancel::CancelToken;
@@ -70,11 +65,11 @@ impl WorkerBehavior for OxcTranspilerWorker {
         }
     }
 
-    #[instrument(skip(state, cancel_token))]
+    #[instrument(skip(state, _cancel_token))]
     fn process(
         state: &mut Self::State,
         input: Self::Input,
-        cancel_token: CancelToken,
+        _cancel_token: CancelToken,
     ) -> Self::Output {
         let allocator = &mut state.allocator; // 128kb for each buffer
         allocator.reset(); // in case last run return error and do not reset at last
@@ -145,7 +140,7 @@ impl WorkerBehavior for OxcTranspilerWorker {
         return Ok(output);
     }
 
-    fn gc(mut state: &mut Self::State) {
-        std::mem::replace(&mut state.allocator, Allocator::with_capacity(128 * 1024));
+    fn gc(state: &mut Self::State) {
+        state.allocator = Allocator::with_capacity(128 * 1024);
     }
 }

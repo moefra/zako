@@ -26,8 +26,8 @@ pub type HoneResult<T> = Result<T, error::HoneError>;
 
 pub type SharedHoneResult<T> = Result<T, Arc<error::HoneError>>;
 
-const TABLE_NODES: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_nodes");
+const _TABLE_NODES: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_nodes");
 
-const TABLE_PARENTS: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_parents");
+const _TABLE_PARENTS: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_parents");
 
-const TABLE_CHILDREN: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_children");
+const _TABLE_CHILDREN: TableDefinition<&[u8], &[u8]> = TableDefinition::new("hone_v1_children");

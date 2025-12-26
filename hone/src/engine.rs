@@ -1,25 +1,16 @@
 use crate::dependency::DependencyGraph;
-use crate::node::Persistent;
-use crate::status::{HashPair, NodeStatusCode, get_node_status_code};
-use crate::{FastMap, HoneResult, SharedHoneResult, context::Context, status::NodeData};
-use crate::{FastSet, TABLE_NODES};
-use ahash::{AHashMap, HashSet, HashSetExt};
+use crate::{SharedHoneResult, context::Context, status::NodeData};
 use dashmap::DashMap;
 use dashmap::Entry::{Occupied, Vacant};
-use eyre::Error;
 use futures::StreamExt;
-use redb::{ReadableDatabase, ReadableTable};
 use redb::{TableError, TransactionError};
-use std::ops::Not;
-use std::rc::Rc;
 use std::sync::Arc;
-use tracing::event;
 
 use crate::{
     context::Computer,
     error::HoneError,
     node::{NodeKey, NodeValue},
-    status::{self, NodeStatus},
+    status::NodeStatus,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -43,7 +34,7 @@ pub struct Engine<C, K: NodeKey, V: NodeValue> {
     status_map: DashMap<K, NodeStatus<C, V>>,
     computer: Arc<dyn Computer<C, K, V>>,
     dependency_graph: Arc<DependencyGraph<K>>,
-    database: Arc<redb::Database>,
+    _database: Arc<redb::Database>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +61,7 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
             status_map: DashMap::new(),
             computer: computer,
             dependency_graph: Arc::new(DependencyGraph::new()),
-            database,
+            _database: database,
         };
         //this.fill_from_db()?;
         Ok(this)
@@ -320,7 +311,7 @@ impl<C, K: NodeKey, V: NodeValue> Engine<C, K, V> {
         cancel_token: zako_cancel::CancelToken,
         context: &C,
     ) -> SharedHoneResult<NodeData<C, V>> {
-        let mut result: Option<SharedHoneResult<NodeData<C, V>>> = None;
+        let result;
 
         loop {
             let notify = Arc::new(tokio::sync::Notify::new());

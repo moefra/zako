@@ -1,12 +1,8 @@
 pub mod heuristics;
 
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+use std::collections::{HashMap, VecDeque};
 
 use ahash::AHashMap;
-use dashmap::DashMap;
 use parking_lot::Mutex;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
@@ -33,7 +29,7 @@ impl ResourceRequest {
         requested.insert(ResourceType::Processor, count);
         Self { requested }
     }
-    pub fn cpu_range(least: u64, most: u64) -> Self {
+    pub fn cpu_range(least: u64, _most: u64) -> Self {
         // TODO: Implement range based resource request
         Self::cpu(least)
     }
@@ -143,7 +139,7 @@ impl ResourcePool {
         loop {
             if let Some(request) = locked.requested.pop_front() {
                 if Self::try_occupy_inner(locked, &request.0) {
-                    request.1.send(());
+                    let _ = request.1.send(());
                 } else {
                     locked.requested.push_front(request);
                     break;
@@ -180,7 +176,7 @@ impl ResourcePool {
         }
     }
 
-    fn can_occupy(locked: &mut RawResourcePool, request: &ResourceRequest) -> bool {
+    fn _can_occupy(locked: &mut RawResourcePool, request: &ResourceRequest) -> bool {
         for (resource_type, count) in request.requested.iter() {
             let rest = locked.rest_resources.get(resource_type);
             if let Some(rest) = rest {

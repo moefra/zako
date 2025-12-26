@@ -1,4 +1,3 @@
-use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
 use crate::protobuf::transport::upload_request::Payload::Metadata;
 use crate::protobuf::transport::{
@@ -10,7 +9,6 @@ use std::sync::atomic::AtomicU64;
 use tokio_stream::{Stream, StreamExt};
 use tonic::async_trait;
 use tonic::{Request, Response, Status, Streaming};
-use zako_digest::Digest;
 
 #[derive(Debug)]
 pub struct TransportServer {

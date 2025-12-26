@@ -1,13 +1,8 @@
-use hone::node::Persistent;
-use smol_str::SmolStr;
-use std::path::PathBuf;
-use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
-    context::BuildContext,
     intern::InternedAbsolutePath,
     package::InternedPackageId,
-    package_source::{PackageSource, ResolvedPackageSource},
+    package_source::PackageSource,
     project::ResolvedProject,
 };
 

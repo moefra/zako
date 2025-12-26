@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 use thiserror::Error;

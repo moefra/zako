@@ -1,7 +1,7 @@
 use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     num::NonZeroU64,
-    ops::{Range, RangeFrom, RangeFull},
+    ops::{RangeFrom, RangeFull},
 };
 use thiserror::Error;
 use tonic::Status;

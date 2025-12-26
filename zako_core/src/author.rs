@@ -86,6 +86,8 @@ pub enum AuthorError {
     AuthorNameError,
     #[error("The email format is invalid")]
     EmailFormatError(#[from] email_address::Error),
+    #[error("Interner error while processing author `{1}`: {0}")]
+    InternerError(#[source] ::zako_interner::InternerError, String),
 }
 
 impl Author {
@@ -112,22 +114,39 @@ impl Author {
         format!("{} <{}>", self.name, self.email.as_str())
     }
 
-    pub fn intern(self, context: &BuildContext) -> InternedAuthor {
-        InternedAuthor {
-            name: context.interner().get_or_intern(self.name.as_str()),
-            email: context.interner().get_or_intern(self.email.as_str()),
-        }
+    pub fn intern(self, context: &BuildContext) -> Result<InternedAuthor, AuthorError> {
+        Ok(InternedAuthor {
+            name: context
+                .interner()
+                .get_or_intern(self.name.as_str())
+                .map_err(|err| AuthorError::InternerError(err, self.name.clone()))?,
+            email: context
+                .interner()
+                .get_or_intern(self.email.as_str())
+                .map_err(|err| AuthorError::InternerError(err, self.email.to_string()))?,
+        })
     }
 }
 
 impl InternedAuthor {
-    pub fn resolve(interned: &InternedAuthor, context: &BuildContext) -> Author {
-        Author {
-            name: context.interner().resolve(&interned.name).to_string(),
+    pub fn resolve(
+        interned: &InternedAuthor,
+        context: &BuildContext,
+    ) -> Result<Author, AuthorError> {
+        Ok(Author {
+            name: context
+                .interner()
+                .resolve(&interned.name)
+                .map_err(|err| AuthorError::InternerError(err, "resolving name".to_string()))?
+                .to_string(),
             email: EmailAddress::new_unchecked(
-                context.interner().resolve(&interned.email).to_string(),
+                context
+                    .interner()
+                    .resolve(&interned.email)
+                    .map_err(|err| AuthorError::InternerError(err, "resolving email".to_string()))?
+                    .to_string(),
             ),
-        }
+        })
     }
 }
 

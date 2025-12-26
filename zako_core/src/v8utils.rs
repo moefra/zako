@@ -1,14 +1,9 @@
 use crate::module_loader::specifier::ModuleSpecifier;
 use crate::v8error::{ExecutionResult, V8Error};
-use deno_core::anyhow::Context;
-use deno_core::v8::{self, PinScope};
+use deno_core::v8::{self};
 use deno_core::v8::{
-    Global, HandleScope, Isolate, Local, OwnedIsolate, PinnedRef, Platform, Value,
+    Global, HandleScope, Isolate, Local, PinnedRef, Platform,
 };
-use std::borrow::BorrowMut;
-use std::cell::{RefCell, RefMut};
-use std::ops::DerefMut;
-use std::time::Duration;
 
 pub fn check_try_catch<'s>(
     mut scope: &mut PinnedRef<v8::TryCatch<'s, '_, HandleScope>>,

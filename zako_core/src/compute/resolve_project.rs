@@ -1,11 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8PathBuf;
 use eyre::{Context, OptionExt};
 use hone::{
     HoneResult,
     error::HoneError,
-    status::{HashPair, NodeData},
+    status::HashPair,
 };
 use zako_digest::blake3_hash::Blake3Hash;
 
@@ -20,7 +20,6 @@ use crate::{
         parse_manifest::ParseManifest,
         resolve_project::{ResolveProject, ResolveProjectResult},
     },
-    project::{Project, ResolvedProject},
 };
 
 /// Compute and resolve a project file
@@ -32,9 +31,12 @@ pub async fn compute_resolve_project<'c>(
     let ctx = ctx.context();
     let interner = ctx.interner();
 
-    let package_id_to_path = key.package.resolved(interner);
+    let package_id_to_path = key
+        .package
+        .resolved(interner)
+        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
 
-    let input_hash: blake3::Hash = package_id_to_path.get_blake3();
+    let _input_hash: blake3::Hash = package_id_to_path.get_blake3();
 
     let path = if let Some(root) = key.root {
         root.into()
@@ -49,7 +51,9 @@ pub async fn compute_resolve_project<'c>(
             ))?)
     };
 
-    let path_str = interner.resolve(path.interned);
+    let path_str = interner
+        .resolve(path.interned)
+        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
     let path = Path::new(path_str);
     let path =
         Utf8PathBuf::try_from(path.canonicalize().map_err(|e| eyre::eyre!(e))?).map_err(|e| {
@@ -95,7 +99,7 @@ pub async fn compute_resolve_project<'c>(
     }
     .clone();
 
-    let resolved = parsed.project.resolve(&new_ctx, &path).map_err(|err| {
+    let _resolved = parsed.project.resolve(&new_ctx, &path).map_err(|err| {
         eyre::eyre!(err).wrap_err(format!(
             "while resolving project {:?}, path {:?}",
             &key.package, &path

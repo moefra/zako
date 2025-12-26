@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
@@ -7,7 +6,7 @@ use ts_rs::TS;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
-    intern::{InternedString, Interner},
+    intern::Interner,
     package::{InternedPackageId, PackageParseError},
 };
 
@@ -17,6 +16,8 @@ pub enum PackageSourceResolveError {
     FailedToResolve(#[from] PackageParseError),
     #[error("IO error")]
     IoError(#[from] std::io::Error),
+    #[error("Interner error while processing package source: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
 }
 
 #[derive(
@@ -120,24 +121,24 @@ impl PackageSource {
 }
 
 impl ResolvedPackageSource {
-    pub fn to_raw(&self, interner: &Interner) -> PackageSource {
+    pub fn to_raw(&self, interner: &Interner) -> Result<PackageSource, PackageSourceResolveError> {
         match self {
-            ResolvedPackageSource::Registry { package } => PackageSource::Registry {
+            ResolvedPackageSource::Registry { package } => Ok(PackageSource::Registry {
                 package: format!(
                     "{}:{}@{}",
-                    interner.resolve(&package.name.group.0),
-                    interner.resolve(&package.name.name.0),
-                    interner.resolve(&package.version.0)
+                    interner.resolve(&package.name.group.0)?,
+                    interner.resolve(&package.name.name.0)?,
+                    interner.resolve(&package.version.0)?
                 ),
-            },
-            ResolvedPackageSource::Git { repo, checkout } => PackageSource::Git {
+            }),
+            ResolvedPackageSource::Git { repo, checkout } => Ok(PackageSource::Git {
                 repo: repo.clone(),
                 checkout: checkout.clone(),
-            },
-            ResolvedPackageSource::Http { url } => PackageSource::Http { url: url.clone() },
-            ResolvedPackageSource::Path { path } => PackageSource::Path {
+            }),
+            ResolvedPackageSource::Http { url } => Ok(PackageSource::Http { url: url.clone() }),
+            ResolvedPackageSource::Path { path } => Ok(PackageSource::Path {
                 path: path.to_string(),
-            },
+            }),
         }
     }
 }

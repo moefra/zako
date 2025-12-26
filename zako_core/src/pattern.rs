@@ -85,18 +85,26 @@ pub struct InternedPattern {
     pub ignore_hidden_files: bool,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum PatternError {
+    #[error("Interner error while processing pattern: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
+    #[error("IO error while walking pattern: {0}")]
+    IoError(#[from] std::io::Error),
+}
+
 impl Pattern {
-    pub fn intern(self, context: &BuildContext) -> InternedPattern {
+    pub fn intern(self, context: &BuildContext) -> Result<InternedPattern, PatternError> {
         let interner = context.interner();
-        InternedPattern {
+        Ok(InternedPattern {
             patterns: self
                 .patterns
                 .into_iter()
                 .map(|p| interner.get_or_intern(&p))
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()?,
             following_ignore_files: self.following_ignore_files,
             ignore_hidden_files: self.ignore_hidden_files,
-        }
+        })
     }
 }
 
@@ -105,16 +113,16 @@ impl InternedPattern {
         self.patterns.is_empty()
     }
 
-    pub fn resolve(&self, interner: &Interner) -> Pattern {
-        Pattern {
+    pub fn resolve(&self, interner: &Interner) -> Result<Pattern, PatternError> {
+        Ok(Pattern {
             patterns: self
                 .patterns
                 .iter()
-                .map(|p| interner.resolve(&p).to_string())
-                .collect(),
+                .map(|p| interner.resolve(&p).map(|s| s.to_string()))
+                .collect::<Result<Vec<_>, _>>()?,
             following_ignore_files: self.following_ignore_files,
             ignore_hidden_files: self.ignore_hidden_files,
-        }
+        })
     }
 
     pub fn walk(
@@ -122,7 +130,7 @@ impl InternedPattern {
         interner: &Interner,
         current: &Path,
         threads: usize,
-    ) -> Result<Vec<PathBuf>, std::io::Error> {
+    ) -> Result<Vec<PathBuf>, PatternError> {
         let mut walker = ignore::WalkBuilder::new(current);
 
         walker.threads(threads);
@@ -130,7 +138,7 @@ impl InternedPattern {
         walker.hidden(self.ignore_hidden_files);
 
         for pattern in &self.patterns {
-            walker.add(interner.resolve(pattern));
+            walker.add(interner.resolve(pattern)?);
         }
 
         let bag = orx_concurrent_bag::ConcurrentBag::new();

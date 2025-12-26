@@ -1,6 +1,5 @@
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
-use crate::node::NodeKey;
 
 #[derive(thiserror::Error, Debug)]
 pub enum HoneError {

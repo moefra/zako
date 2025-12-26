@@ -18,8 +18,7 @@ pub struct V8Error {
     pub addition_message: Option<String>,
 }
 
-use deno_core::v8::{Global, Promise, Value};
-use strum::Display;
+use deno_core::v8::{Global, Value};
 
 /// 代表 JS 代码执行后的结果状态（前提是 V8 引擎本身没有崩溃）
 #[derive(Debug)]

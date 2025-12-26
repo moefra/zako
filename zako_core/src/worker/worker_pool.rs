@@ -49,7 +49,7 @@ struct Job<I, O> {
 }
 
 enum Command<B: WorkerBehavior> {
-    Gc,
+    _Gc,
     Process(Job<B::Input, B::Output>),
 }
 
@@ -89,7 +89,7 @@ impl<B: WorkerBehavior> WorkerPool<B> {
 
                 match timeout {
                     Ok(command) => match command {
-                        Command::Gc => B::gc(&mut state),
+                        Command::_Gc => B::gc(&mut state),
                         Command::Process(job) => {
                             last_active_time = Instant::now(); // reset the last active time
 

@@ -1,24 +1,16 @@
-use std::{path::Path, sync::Arc};
 
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 use hone::{
     HoneResult,
     error::HoneError,
-    status::{HashPair, NodeData},
+    status::HashPair,
 };
 use is_executable::is_executable;
-use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     blob_handle::BlobHandle,
     computer::ZakoComputeContext,
-    context::BuildContext,
-    node::{
-        file::{File, FileResult},
-        node_key::ZakoKey,
-        node_value::ZakoValue,
-    },
-    path::interned::InternedNeutralPath,
+    node::file::{File, FileResult},
 };
 
 pub async fn compute_file<'c>(
@@ -29,8 +21,12 @@ pub async fn compute_file<'c>(
 
     let build_ctx = ctx.context();
     let interner = build_ctx.interner();
-    let abs_root = interner.resolve(build_ctx.project_root().interned);
-    let path_str = interner.resolve(path.interned());
+    let abs_root = interner
+        .resolve(build_ctx.project_root().interned)
+        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
+    let path_str = interner
+        .resolve(path.interned())
+        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
     let physical_path = Utf8Path::new(abs_root).join(path_str);
 
     if std::fs::exists(physical_path.as_path())

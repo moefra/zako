@@ -1,8 +1,7 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::collections::HashMap;
 
 use crate::config::{Configuration, ResolvedConfiguration};
-use crate::config_value::ResolvedConfigValue;
-use crate::id::{InternedAtom, InternedPath};
+use crate::id::InternedAtom;
 use crate::package_source::ResolvedPackageSource;
 use crate::pattern::{InternedPattern, Pattern};
 use crate::{
@@ -14,7 +13,6 @@ use crate::{
     package_source::PackageSource,
 };
 use camino::Utf8Path;
-use eyre::Context;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
@@ -34,6 +32,14 @@ pub enum ProjectResolveError {
     IdParseError(String, &'static str, #[source] crate::id::IdParseError),
     #[error("failed to resolve configuration of the project: {0}")]
     ConfigResolveError(#[source] eyre::Report),
+    #[error("Author resolution error: {0}")]
+    AuthorError(#[from] crate::author::AuthorError),
+    #[error("Pattern resolution error: {0}")]
+    PatternError(#[from] crate::pattern::PatternError),
+    #[error("Config resolution error: {0}")]
+    ConfigError(#[from] crate::config::ConfigError),
+    #[error("Interner error: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
 }
 
 #[derive(
@@ -119,7 +125,7 @@ impl Project {
         let authors = if let Some(authors) = self.authors {
             let mut interned_authors: Vec<InternedAuthor> = Vec::with_capacity(authors.len());
             for author in authors.into_iter() {
-                interned_authors.push(author.intern(context));
+                interned_authors.push(author.intern(context)?);
             }
             Some(interned_authors)
         } else {
@@ -157,12 +163,25 @@ impl Project {
             license: self
                 .license
                 .as_ref()
-                .map(|s| context.interner().get_or_intern(s)),
-            builds: self.builds.map(|pattern| pattern.intern(context)),
+                .map(|s| context.interner().get_or_intern(s))
+                .transpose()?,
+            builds: self
+                .builds
+                .map(|pattern| pattern.intern(context))
+                .transpose()?,
             configure_script: self.configure_script,
-            rules: self.rules.map(|pattern| pattern.intern(context)),
-            toolchains: self.toolchains.map(|pattern| pattern.intern(context)),
-            subprojects: self.subprojects.map(|pattern| pattern.intern(context)),
+            rules: self
+                .rules
+                .map(|pattern| pattern.intern(context))
+                .transpose()?,
+            toolchains: self
+                .toolchains
+                .map(|pattern| pattern.intern(context))
+                .transpose()?,
+            subprojects: self
+                .subprojects
+                .map(|pattern| pattern.intern(context))
+                .transpose()?,
             dependencies: self
                 .dependencies
                 .map(|deps| {
@@ -190,48 +209,62 @@ impl Project {
 }
 
 impl ResolvedProject {
-    pub fn to_raw(&self, context: &BuildContext) -> Project {
+    pub fn to_raw(&self, context: &BuildContext) -> Result<Project, ProjectResolveError> {
         let interner = context.interner();
-        Project {
-            group: context.interner().resolve(&self.group.0).to_string(),
+        Ok(Project {
+            group: context.interner().resolve(&self.group.0)?.to_string(),
             artifact: self.artifact.clone(),
-            version: context.interner().resolve(&self.version.0).to_string(),
+            version: context.interner().resolve(&self.version.0)?.to_string(),
             description: self.description.clone(),
-            authors: self.authors.as_ref().map(|v| {
-                v.iter()
-                    .map(|a| InternedAuthor::resolve(a, context))
-                    .collect()
-            }),
+            authors: self
+                .authors
+                .as_ref()
+                .map(|v| {
+                    v.iter()
+                        .map(|a| InternedAuthor::resolve(a, context))
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?,
             configure_script: self.configure_script.clone(),
             license: self
                 .license
                 .as_ref()
-                .map(|s| context.interner().resolve(&s).to_string()),
+                .map(|s| context.interner().resolve(&s).map(|s| s.to_string()))
+                .transpose()?,
             builds: self
                 .builds
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner)),
+                .map(|p| InternedPattern::resolve(p, interner))
+                .transpose()?,
             rules: self
                 .rules
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner)),
+                .map(|p| InternedPattern::resolve(p, interner))
+                .transpose()?,
             toolchains: self
                 .toolchains
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner)),
+                .map(|p| InternedPattern::resolve(p, interner))
+                .transpose()?,
             subprojects: self
                 .subprojects
                 .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner)),
-            dependencies: self.dependencies.as_ref().map(|deps| {
-                deps.iter()
-                    .map(|(k, v)| (k.clone(), v.to_raw(context.interner())))
-                    .collect()
-            }),
+                .map(|p| InternedPattern::resolve(p, interner))
+                .transpose()?,
+            dependencies: self
+                .dependencies
+                .as_ref()
+                .map(|deps| {
+                    deps.iter()
+                        .map(|(k, v)| Ok((k.clone(), v.to_raw(context.interner())?)))
+                        .collect::<Result<HashMap<_, _>, ProjectResolveError>>()
+                })
+                .transpose()?,
             mount_config: self
                 .mount_config
-                .map(|s| context.interner().resolve(&s.0).to_string()),
-            config: Some(self.config.resolve(context.interner()).config),
-        }
+                .map(|s| context.interner().resolve(&s.0).map(|s| s.to_string()))
+                .transpose()?,
+            config: Some(self.config.resolve(context.interner())?.config),
+        })
     }
 }

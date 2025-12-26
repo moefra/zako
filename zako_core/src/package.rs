@@ -1,8 +1,4 @@
-use std::fmt::Display;
-
 use crate::intern::Interner;
-use serde::{Deserialize, Serialize};
-use smol_str::SmolStr;
 
 use crate::id::{InternedAtom, is_xid_loose_ident};
 use crate::intern::InternedString;
@@ -15,6 +11,8 @@ pub enum PackageParseError {
     InvalidFormat(String, String),
     #[error("Failed to parse part of package `{0}`:{1}")]
     IdParseError(String, #[source] crate::id::IdParseError),
+    #[error("Interner error while parsing package: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
 }
 
 /// 包版本号
@@ -31,7 +29,7 @@ impl InternedVersion {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, PackageParseError> {
         _ = ::semver::Version::parse(s)
             .map_err(|err| PackageParseError::VersionError(s.to_string(), err))?;
-        Ok(Self(interner.get_or_intern(s)))
+        Ok(Self(interner.get_or_intern(s)?))
     }
 }
 
@@ -66,7 +64,7 @@ impl InternedGroup {
             }
         }
 
-        Ok(Self(interner.get_or_intern(s)))
+        Ok(Self(interner.get_or_intern(s)?))
     }
 }
 
@@ -99,12 +97,12 @@ impl InternedArtifactId {
     }
 
     /// 还原为字符串 (Display)
-    pub fn resolved(&self, interner: &Interner) -> String {
-        format!(
+    pub fn resolved(&self, interner: &Interner) -> Result<String, PackageParseError> {
+        Ok(format!(
             "{}:{}",
-            interner.resolve(&self.group.0),
-            interner.resolve(&self.name.0)
-        )
+            interner.resolve(&self.group.0)?,
+            interner.resolve(&self.name.0)?
+        ))
     }
 }
 
@@ -140,11 +138,11 @@ impl InternedPackageId {
         Ok(Self { name, version })
     }
 
-    pub fn resolved(&self, interner: &Interner) -> String {
-        format!(
+    pub fn resolved(&self, interner: &Interner) -> Result<String, PackageParseError> {
+        Ok(format!(
             "{}@{}",
-            self.name.resolved(interner),
-            interner.resolve(&self.version.0),
-        )
+            self.name.resolved(interner)?,
+            interner.resolve(&self.version.0)?,
+        ))
     }
 }

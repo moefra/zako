@@ -1,8 +1,6 @@
-use std::{ops::Deref, path::PathBuf, sync::Arc};
+use std::{ops::Deref, sync::Arc};
 
-use ahash::AHashMap;
-use camino::{Utf8Path, Utf8PathBuf};
-use hone::FastMap;
+use camino::Utf8PathBuf;
 use sysinfo::System;
 use thiserror::Error;
 use tokio::runtime::Handle;
@@ -11,18 +9,18 @@ use crate::{
     cas_store::CasStore,
     global_state::GlobalState,
     intern::{InternedAbsolutePath, InternedString, Interner},
-    package::InternedPackageId,
     package_source::{PackageSource, ResolvedPackageSource},
-    project::ResolvedProject,
     worker::{oxc_worker::OxcTranspilerWorker, v8_worker::V8Worker, worker_pool::WorkerPool},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Error)]
 pub enum BuildContextError {
     #[error("the project root path `{0}` is not an absolute path")]
     ProjectRootNotAbsolute(Utf8PathBuf),
     #[error("failed to intern package source: {0}")]
     FailedToResolvePackageSource(String),
+    #[error("Interner error: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
 }
 
 #[derive(Debug, Clone)]
@@ -64,11 +62,11 @@ impl BuildContext {
 
         Ok(Self {
             project_root: InternedAbsolutePath::from_interned(
-                interner.get_or_intern(project_root.as_str()),
+                interner.get_or_intern(project_root.as_str())?,
                 interner,
-            )
+            )?
             .ok_or_else(|| BuildContextError::ProjectRootNotAbsolute(project_root.clone()))?,
-            project_entry_name: interner.get_or_intern(entry),
+            project_entry_name: interner.get_or_intern(entry)?,
             project_source: resolved,
             env,
         })

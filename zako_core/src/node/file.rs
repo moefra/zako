@@ -1,8 +1,6 @@
-use hone::node::Persistent;
-use serde::{Deserialize, Serialize};
 use zako_digest::blake3_hash::Blake3Hash;
 
-use crate::{blob_handle::BlobHandle, context::BuildContext, path::interned::InternedNeutralPath};
+use crate::{blob_handle::BlobHandle, path::interned::InternedNeutralPath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct File {

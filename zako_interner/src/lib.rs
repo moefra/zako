@@ -1,6 +1,6 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
-use lasso::{Capacity, Key, Reader, ThreadedRodeo};
+use lasso::{Capacity, Key, ThreadedRodeo};
 use rkyv::{
     Archive, Archived, Deserialize, Place, Resolver, Serialize,
     rancor::Fallible,
@@ -59,6 +59,7 @@ pub type LassoInterner = ThreadedRodeo<U32NonZeroKey, ::ahash::RandomState>;
 pub struct ThreadedInterner {
     #[rkyv(with=ArchivedThreadedRodeoToVec)]
     interner: LassoInterner,
+    id: u64,
 }
 
 struct ArchivedThreadedRodeoToVec;
@@ -67,8 +68,15 @@ impl ArchiveWith<LassoInterner> for ArchivedThreadedRodeoToVec {
     type Archived = Archived<Vec<u8>>;
     type Resolver = Resolver<Vec<u8>>;
 
+    #[allow(clippy::expect_used)]
     fn resolve_with(field: &LassoInterner, resolver: VecResolver, out: Place<ArchivedVec<u8>>) {
-        ArchivedVec::resolve_from_slice(&postcard::to_allocvec(field).unwrap(), resolver, out);
+        ArchivedVec::resolve_from_slice(
+            &postcard::to_allocvec(field).expect(
+                "Failed to convert ::zako_interner::ThreadedInterner::LassoInterner to Vec<u8> for ArchiveWith",
+            ),
+            resolver,
+            out,
+        );
     }
 }
 
@@ -77,11 +85,17 @@ impl<S: Fallible + ?Sized + rkyv::ser::Allocator + rkyv::ser::Writer>
 where
     Vec<u8>: Serialize<S>,
 {
+    #[allow(clippy::expect_used)]
     fn serialize_with(
         field: &LassoInterner,
         serializer: &mut S,
     ) -> Result<Self::Resolver, S::Error> {
-        ArchivedVec::serialize_from_slice(&postcard::to_allocvec(field).unwrap(), serializer)
+        ArchivedVec::serialize_from_slice(
+            &postcard::to_allocvec(field).expect(
+                "Failed to convert ::zako_interner::ThreadedInterner::LassoInterner to Vec<u8> for SerializeWith",
+            ),
+            serializer,
+        )
     }
 }
 
@@ -90,41 +104,79 @@ impl<D: Fallible + ?Sized> DeserializeWith<Archived<Vec<u8>>, LassoInterner, D>
 where
     Archived<Vec<u8>>: Deserialize<Vec<u8>, D>,
 {
+    #[allow(clippy::expect_used)]
     fn deserialize_with(
         field: &Archived<Vec<u8>>,
-        deserializer: &mut D,
+        _deserializer: &mut D,
     ) -> Result<LassoInterner, D::Error> {
-        Ok(postcard::from_bytes(field).unwrap())
+        Ok(postcard::from_bytes(field).expect(
+            "Failed to convert Vec<u8> to ::zako_interner::ThreadedInterner::LassoInterner for DeserializeWith",
+        ))
     }
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq, thiserror::Error)]
+pub enum InternerError {
+    #[error("Failed to create ThreadedInterner: {0}")]
+    CreationError(String),
+    #[error("Key out of bounds(Interner ID: {0}): {1:?}")]
+    KeyOutOfBounds(u64, U32NonZeroKey),
+    #[error("Get a lasso error(Interner ID: {0}): {1}")]
+    LassoError(u64, #[source] lasso::LassoError),
+}
+
 impl ThreadedInterner {
+    #[must_use]
     #[inline]
     pub fn interner(&self) -> &ThreadedRodeo<U32NonZeroKey, ::ahash::RandomState> {
         &self.interner
     }
 
-    pub fn new() -> Self {
-        Self {
+    #[must_use]
+    #[inline]
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn new() -> Result<Self, InternerError> {
+        Ok(Self {
+            id: ::getrandom::u64()
+                .map_err(|err| InternerError::CreationError(format!("{:?}", err)))?,
             interner: ThreadedRodeo::with_capacity_and_hasher(
-                Capacity::new(1024, NonZeroUsize::new(1024 * 8).unwrap()),
+                Capacity::new(
+                    1024,
+                    NonZeroUsize::new(1024 * 8).ok_or(InternerError::CreationError(
+                        "Failed to create NonZeroUsize for capacity of ThreadedInterner".into(),
+                    ))?,
+                ),
                 ::ahash::RandomState::default(),
             ),
-        }
+        })
     }
 
     #[inline]
-    pub fn resolve(&self, key: impl AsRef<U32NonZeroKey>) -> &str {
-        self.interner.resolve(key.as_ref())
+    #[must_use]
+    pub fn resolve(&self, key: impl AsRef<U32NonZeroKey>) -> Result<&str, InternerError> {
+        self.interner
+            .try_resolve(key.as_ref())
+            .ok_or_else(|| InternerError::KeyOutOfBounds(self.id, key.as_ref().clone()))
     }
 
     #[inline]
-    pub fn get_or_intern(&self, val: impl AsRef<str>) -> U32NonZeroKey {
-        self.interner.get_or_intern(val.as_ref())
+    #[must_use]
+    pub fn get_or_intern(&self, val: impl AsRef<str>) -> Result<U32NonZeroKey, InternerError> {
+        self.interner
+            .try_get_or_intern(val.as_ref())
+            .map_err(|err| InternerError::LassoError(self.id, err))
     }
 
     #[inline]
-    pub fn get_or_intern_static(&self, val: &'static str) -> U32NonZeroKey {
-        self.interner.get_or_intern_static(val)
+    #[must_use]
+    pub fn get_or_intern_static(&self, val: &'static str) -> Result<U32NonZeroKey, InternerError> {
+        self.interner
+            .try_get_or_intern_static(val)
+            .map_err(|err| InternerError::LassoError(self.id, err))
     }
 }

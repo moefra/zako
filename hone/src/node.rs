@@ -1,14 +1,9 @@
-use blake3::Hash;
-use rkyv::api::high::HighSerializer;
 use rkyv::bytecheck::CheckBytes;
-use rkyv::rancor::Strategy;
 use rkyv::util::AlignedVec;
 use std::fmt::Debug;
 use std::hash::Hash as StdHash;
-use zako_digest::blake3_hash::Blake3Hash;
 
-use rkyv::ser::Serializer;
-use rkyv::{Archive, Archived, Deserialize, Serialize};
+use rkyv::{Archive, Archived, Serialize};
 
 pub trait Persistent:
     Archive

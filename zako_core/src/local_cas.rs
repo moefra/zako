@@ -8,7 +8,6 @@ use std::pin::Pin;
 use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeekExt};
 use zako_digest::Digest;
-use zako_digest::DigestError;
 
 #[derive(Debug)]
 pub struct LocalCas {

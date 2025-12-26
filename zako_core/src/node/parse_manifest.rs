@@ -1,15 +1,6 @@
-use camino::Utf8PathBuf;
-use hone::node::Persistent;
-use serde::{Deserialize, Serialize};
-use smol_str::SmolStr;
-use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     blob_handle::BlobHandle,
-    context::BuildContext,
-    intern::InternedAbsolutePath,
-    path::interned::InternedNeutralPath,
-    pattern::{InternedPattern, Pattern},
     project::Project,
 };
 

@@ -1,9 +1,9 @@
 use rkyv::{Archive, Deserialize, Serialize};
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     error::HoneError,
-    node::{NodeKey, NodeValue, Persistent, SafeNodeKey, SafeNodeValue},
+    node::NodeValue,
 };
 
 pub type Hash = zako_digest::blake3_hash::Hash;

@@ -388,8 +388,11 @@ impl NeutralPath {
         false
     }
 
-    pub fn intern(&self, interner: &Interner) -> interned::InternedNeutralPath {
-        unsafe { InternedNeutralPath::from_raw(interner.get_or_intern(self)) }
+    pub fn intern(
+        &self,
+        interner: &Interner,
+    ) -> Result<interned::InternedNeutralPath, ::zako_interner::InternerError> {
+        Ok(unsafe { InternedNeutralPath::from_raw(interner.get_or_intern(self)?) })
     }
 }
 

@@ -16,15 +16,15 @@ pub fn determine_memory_cache_size_for_cas(system: &System) -> u64 {
     target.clamp(4 * 1024 * 1024, 4 * 1024 * 1024 * 1024) // 4MB ~ 4GB
 }
 
-pub fn determine_memory_ttl_for_cas(system: &System) -> Duration {
+pub fn determine_memory_ttl_for_cas(_system: &System) -> Duration {
     Duration::from_secs(60 * 30) // 30minutes
 }
 
-pub fn determine_memory_tti_for_cas(system: &System) -> Duration {
+pub fn determine_memory_tti_for_cas(_system: &System) -> Duration {
     Duration::from_secs(5 * 60) // 5 minutes
 }
 
-pub fn determine_oxc_workers_count(system: &System) -> usize {
+pub fn determine_oxc_workers_count(_system: &System) -> usize {
     1
 }
 

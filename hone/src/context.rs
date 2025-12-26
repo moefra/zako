@@ -1,4 +1,3 @@
-use std::hash::Hash;
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
@@ -7,10 +6,9 @@ use crate::SharedHoneResult;
 use crate::error::HoneError;
 use crate::status::NodeData;
 use crate::{
-    FastMap, FastSet, HoneResult,
+    HoneResult,
     engine::Engine,
     node::{NodeKey, NodeValue},
-    status::NodeStatus,
 };
 
 #[async_trait]

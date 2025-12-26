@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 
 use hone::node::NodeKey;
 use strum::IntoStaticStr;

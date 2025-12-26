@@ -1,26 +1,17 @@
-use std::{path::Path, sync::Arc};
 
 use eyre::Context;
 use hone::{
     HoneResult,
     error::HoneError,
-    status::{HashPair, NodeData},
+    status::HashPair,
 };
 use oxc_span::SourceType;
-#[cfg(unix)]
-use tokio::fs;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     blob_range::BlobRange,
     computer::ZakoComputeContext,
-    context::BuildContext,
-    node::{
-        node_key::ZakoKey,
-        node_value::ZakoValue,
-        transpile_ts::{TranspileTs, TranspileTsResult},
-    },
-    path::interned::InternedNeutralPath,
+    node::transpile_ts::{TranspileTs, TranspileTsResult},
     worker::oxc_worker::OxcTranspilerInput,
 };
 

@@ -1,9 +1,7 @@
-use blake3::Hash;
-use rkyv::{Archive, Deserialize, Serialize};
 use std::{
     hash::Hasher,
     pin::Pin,
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 use tokio::io::AsyncRead;
 use zako_digest::{Digest, blake3_hash::Blake3Hash};

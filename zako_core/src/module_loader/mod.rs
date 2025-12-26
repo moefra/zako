@@ -86,9 +86,9 @@ impl LoaderOptions {
 
 #[derive(Debug, Clone)]
 pub struct ModuleLoader {
-    read_module: im::HashMap<ModuleSpecifier, String, ahash::RandomState>,
+    _read_module: im::HashMap<ModuleSpecifier, String, ahash::RandomState>,
     source_maps: SourceMapStore,
-    loaded_source_sets: LoadedSourceSets,
+    _loaded_source_sets: LoadedSourceSets,
 }
 
 impl ModuleLoader {
@@ -97,11 +97,11 @@ impl ModuleLoader {
         read_module.extend(options.read_module);
 
         Self {
-            read_module,
+            _read_module: read_module,
             source_maps: Arc::new(RwLock::new(std::collections::HashMap::with_hasher(
                 ahash::RandomState::new(),
             ))),
-            loaded_source_sets: Arc::new(RwLock::new(HashSet::with_hasher(
+            _loaded_source_sets: Arc::new(RwLock::new(HashSet::with_hasher(
                 ahash::RandomState::new(),
             ))),
         }

@@ -1,16 +1,13 @@
 use std::pin::Pin;
 use std::time::Duration;
 
-use crate::FastMap;
 use crate::blob_handle::BlobHandle;
 use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
 use crate::local_cas::LocalCas;
-use futures::Stream;
 use moka::future::Cache;
-use sysinfo::System;
 use tokio::io::AsyncRead;
-use tracing::{instrument, trace_span};
+use tracing::instrument;
 use zako_digest::Digest;
 
 pub type CasCache = crate::FastCache<::zako_digest::blake3_hash::Hash, ::std::vec::Vec<u8>>;

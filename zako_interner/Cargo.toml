@@ -22,6 +22,8 @@ eyre.workspace = true
 xxhash-rust.workspace = true
 lasso.workspace = true
 postcard.workspace = true
+thiserror.workspace = true
+getrandom.workspace = true
 
 [lints]
 workspace = true

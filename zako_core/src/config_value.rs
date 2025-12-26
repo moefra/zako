@@ -5,7 +5,7 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     id::Label,
-    intern::{InternedString, Interner},
+    intern::Interner,
 };
 
 #[derive(
@@ -147,26 +147,26 @@ pub enum ResolvedConfigValue {
 }
 
 impl ResolvedConfigValue {
-    pub fn resolve(&self, interner: &Interner) -> ConfigValue {
+    pub fn resolve(&self, interner: &Interner) -> Result<ConfigValue, crate::config::ConfigError> {
         match self {
-            ResolvedConfigValue::Label(label) => ConfigValue {
+            ResolvedConfigValue::Label(label) => Ok(ConfigValue {
                 r#type: ConfigType::Label,
-                default: Some(ConfigDefault::Label(label.resolved(interner))),
-            },
-            ResolvedConfigValue::String(string) => ConfigValue {
+                default: Some(ConfigDefault::Label(label.resolved(interner)?)),
+            }),
+            ResolvedConfigValue::String(string) => Ok(ConfigValue {
                 r#type: ConfigType::String,
                 default: Some(ConfigDefault::String {
                     string: string.to_string(),
                 }),
-            },
-            ResolvedConfigValue::Boolean(boolean) => ConfigValue {
+            }),
+            ResolvedConfigValue::Boolean(boolean) => Ok(ConfigValue {
                 r#type: ConfigType::Boolean,
                 default: Some(ConfigDefault::Boolean(*boolean)),
-            },
-            ResolvedConfigValue::Number(number) => ConfigValue {
+            }),
+            ResolvedConfigValue::Number(number) => Ok(ConfigValue {
                 r#type: ConfigType::Number,
                 default: Some(ConfigDefault::Number(*number)),
-            },
+            }),
         }
     }
 }

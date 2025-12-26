@@ -10,7 +10,6 @@ use crate::{
     },
     context::BuildContext,
     node::{node_key::ZakoKey, node_value::ZakoValue},
-    path::interned::InternedNeutralPath,
 };
 
 #[derive(Debug)]

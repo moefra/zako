@@ -6473,6 +6473,7 @@ dependencies = [
  "ahash",
  "dashmap",
  "eyre",
+ "getrandom 0.3.4",
  "lasso",
  "memmap2",
  "parking_lot",
@@ -6481,6 +6482,7 @@ dependencies = [
  "rkyv",
  "serde",
  "smol_str",
+ "thiserror",
  "xxhash-rust",
 ]
 

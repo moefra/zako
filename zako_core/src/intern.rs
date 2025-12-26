@@ -1,7 +1,3 @@
-use std::num::NonZeroU32;
-
-use crate::context::BuildContext;
-
 pub type InternedString = ::zako_interner::U32NonZeroKey;
 
 pub type Interner = ::zako_interner::ThreadedInterner;
@@ -27,30 +23,36 @@ pub struct InternedAbsolutePath {
 }
 
 impl InternedAbsolutePath {
-    pub fn new(path: &str, interner: &mut Interner) -> Option<Self> {
+    pub fn new(
+        path: &str,
+        interner: &mut Interner,
+    ) -> Result<Option<Self>, ::zako_interner::InternerError> {
         // check if the interned string is an absolute path
         {
             let path = std::path::Path::new(path);
             if !path.is_absolute() {
-                return None;
+                return Ok(None);
             }
         }
 
-        Some(Self {
-            interned: interner.get_or_intern(path),
-        })
+        Ok(Some(Self {
+            interned: interner.get_or_intern(path)?,
+        }))
     }
-    pub fn from_interned(interned: InternedString, interner: &Interner) -> Option<Self> {
-        let s = interner.resolve(&interned);
-        let path = std::path::Path::new(&s);
+    pub fn from_interned(
+        interned: InternedString,
+        interner: &Interner,
+    ) -> Result<Option<Self>, ::zako_interner::InternerError> {
+        let s = interner.resolve(&interned)?;
+        let path = std::path::Path::new(s);
         if !path.is_absolute() {
-            return None;
+            return Ok(None);
         }
 
-        Some(Self { interned })
+        Ok(Some(Self { interned }))
     }
 
-    pub(crate) unsafe fn from_interned_unchecked(interned: InternedString) -> Self {
+    pub(crate) unsafe fn _from_interned_unchecked(interned: InternedString) -> Self {
         Self { interned }
     }
 }

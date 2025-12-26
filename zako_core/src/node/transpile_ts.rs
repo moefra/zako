@@ -1,4 +1,3 @@
-use hone::node::Persistent;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::blob_handle::BlobHandle;

@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, sync::Weak};
+use std::sync::Arc;
 
 use sysinfo::System;
 use tokio::runtime::{Builder, Runtime};
@@ -6,12 +6,11 @@ use tokio::runtime::{Builder, Runtime};
 use crate::{
     FastMap,
     cas_store::{CasStore, CasStoreOptions},
-    context::BuildContext,
-    intern::{InternedAbsolutePath, InternedString, Interner},
+    intern::{InternedAbsolutePath, Interner},
     local_cas::LocalCas,
     package::InternedPackageId,
     resource::{
-        self, ResourcePool,
+        ResourcePool,
         heuristics::{determine_local_cas_path, determine_tokio_thread_stack_size},
     },
     worker::{
@@ -27,6 +26,8 @@ pub enum GlobalStateError {
     WorkerPoolError(#[from] crate::worker::worker_pool::WorkerPoolError),
     #[error("Get an io error: {0}")]
     IOError(#[from] std::io::Error),
+    #[error("Interner error: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
 }
 
 #[derive(Debug)]
@@ -52,7 +53,7 @@ impl GlobalState {
         let cpu_count = resource_pool.get_cpu_count() as usize;
         let system = Arc::new(System::new_all());
         let this = Self {
-            interner: Arc::new(Interner::new()),
+            interner: Arc::new(Interner::new()?),
             resource_pool: Arc::new(resource_pool),
             package_id_to_path: Arc::new(FastMap::default()),
             tokio_runtime: Builder::new_multi_thread()

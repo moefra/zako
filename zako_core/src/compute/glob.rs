@@ -1,25 +1,12 @@
-use std::{path::Path, sync::Arc};
-
-use blake3::hazmat::HasherExt;
 use camino::Utf8Path;
-use eyre::OptionExt;
 use eyre::eyre;
-use hone::{
-    HoneResult,
-    status::{HashPair, NodeData},
-};
+use hone::{HoneResult, error::HoneError, status::HashPair};
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     computer::ZakoComputeContext,
-    context::BuildContext,
-    intern::InternedAbsolutePath,
-    node::{
-        glob::{Glob, GlobResult},
-        node_value::ZakoValue,
-    },
+    node::glob::{Glob, GlobResult},
     path::NeutralPath,
-    pattern::InternedPattern,
     resource::ResourceRequest,
 };
 
@@ -31,14 +18,19 @@ pub async fn compute_glob<'c>(
     let base_path = &glob.base_path;
     let pattern = &glob.pattern;
 
-    let old_data = ctx.old_data();
+    let _old_data = ctx.old_data();
     let ctx = ctx.context();
     let _resource = ctx.resource_pool().occupy(ResourceRequest::cpu(1));
-    let base_path = ctx.interner().resolve(base_path.interned);
-    let base_path = Utf8Path::new(base_path);
+    let base_path_str = ctx
+        .interner()
+        .resolve(base_path.interned)
+        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
+    let base_path = Utf8Path::new(base_path_str);
     let interner = ctx.interner();
 
-    let resolved_pattern = pattern.resolve(interner);
+    let resolved_pattern = pattern
+        .resolve(interner)
+        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
 
     let input_hash = {
         let mut input_hasher = blake3::Hasher::new();
@@ -53,7 +45,10 @@ pub async fn compute_glob<'c>(
             eyre::Report::new(err).wrap_err(format!(
                 "failed to walk directory `{:?}` with pattern `{:?}`",
                 base_path,
-                pattern.resolve(&interner) // To provide debug information
+                pattern
+                    .resolve(&interner)
+                    .map(|p| format!("{:?}", p))
+                    .unwrap_or_else(|_| "error resolving pattern".to_string()) // To provide debug information
             ))
         })?;
     // IMPORTANT: sort the result to ensure the same order
@@ -84,7 +79,9 @@ pub async fn compute_glob<'c>(
             ))
         })?;
         neutral_path.hash_into_blake3(&mut hasher);
-        let neutral_path = neutral_path.intern(ctx.interner());
+        let neutral_path = neutral_path
+            .intern(ctx.interner())
+            .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
         interned_neutral_result.push(neutral_path);
     }
 

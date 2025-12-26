@@ -1,10 +1,8 @@
 use std::{
     array::TryFromSliceError,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    ffi::{OsStr, OsString},
     marker::PhantomData,
     ops::Deref,
-    path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
 };
@@ -41,7 +39,7 @@ macro_rules! impl_blake3_for_tuple {
 }
 
 impl<T> Blake3Hash for PhantomData<T> {
-    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+    fn hash_into_blake3(&self, _hasher: &mut blake3::Hasher) {
         //hasher.update(b"::std::marker::PhantomData");
         // do nothing
     }

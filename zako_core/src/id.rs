@@ -1,5 +1,4 @@
 use crate::intern::{InternedString, Interner};
-use serde::{Deserialize, Serialize};
 
 /// Check a string match [Unicode Standard Annex #31](https://www.unicode.org/reports/tr31/)
 ///
@@ -63,6 +62,8 @@ pub enum IdParseError {
     InvalidComponent(String, String, String),
     #[error("invalid id `{0}` format: {1}")]
     InvalidFormat(String, String),
+    #[error("Interner error while parsing id: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
 }
 
 /// 原子标识符。
@@ -82,7 +83,7 @@ impl InternedAtom {
         if !is_xid_loose_ident(s) {
             return Err(IdParseError::NotMatchLooseXid(s.to_string(), None));
         }
-        Ok(Self(interner.get_or_intern(s)))
+        Ok(Self(interner.get_or_intern(s)?))
     }
 }
 
@@ -103,7 +104,7 @@ impl InternedPath {
     ) -> Result<(Self, Option<&'s str>), IdParseError> {
         // 路径允许为空。字符串是合法的根包路径
         if s.is_empty() {
-            return Ok((Self(interner.get_or_intern("")), None));
+            return Ok((Self(interner.get_or_intern("")?), None));
         }
 
         let mut last_segment = None;
@@ -126,7 +127,7 @@ impl InternedPath {
             last_segment = Some(segment);
         }
 
-        Ok((Self(interner.get_or_intern(s)), last_segment))
+        Ok((Self(interner.get_or_intern(s)?), last_segment))
     }
 }
 
@@ -159,7 +160,7 @@ impl InternedPackageRef {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
         if s.is_empty() {
             // 允许空字符串，代表当前包
-            return Ok(Self(interner.get_or_intern("")));
+            return Ok(Self(interner.get_or_intern("")?));
         }
         if !s.starts_with('@') || s.len() == 1 {
             return Err(IdParseError::InvalidFormat(
@@ -176,7 +177,7 @@ impl InternedPackageRef {
             ));
         }
 
-        Ok(Self(interner.get_or_intern(ident_str)))
+        Ok(Self(interner.get_or_intern(ident_str)?))
     }
 }
 
@@ -203,13 +204,13 @@ impl Label {
         }
     }
 
-    pub fn resolved(&self, interner: &Interner) -> String {
-        format!(
+    pub fn resolved(&self, interner: &Interner) -> Result<String, IdParseError> {
+        Ok(format!(
             "{}//{}:{}",
-            interner.resolve(&self.package_ref.0),
-            interner.resolve(&self.path.0),
-            interner.resolve(&self.target.0.0)
-        )
+            interner.resolve(&self.package_ref.0)?,
+            interner.resolve(&self.path.0)?,
+            interner.resolve(&self.target.0.0)?
+        ))
     }
 
     /// 格式: `@<package_ref>//<path>/<subpath>/.../final_path:<target>`

@@ -1,6 +1,6 @@
 use std::{fmt::Display, path::PathBuf};
 
-use url::{ParseError, Url};
+use url::Url;
 
 /// If a module start with this, it will seem as a builtin module.
 ///

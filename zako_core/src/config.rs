@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use eyre::{Context, Error};
+use eyre::Context;
 use smol_str::SmolStr;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     config_value::{ConfigDefault, ConfigValue, ResolvedConfigValue},
-    id::{IdParseError, Label},
-    intern::{InternedString, Interner},
+    id::Label,
+    intern::Interner,
 };
 
 /// Raw, immutable configuration.
@@ -87,19 +87,29 @@ pub struct ResolvedConfiguration {
     // pub index: HashMap<InternedString, usize> ?
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("Interner error while processing configuration: {0}")]
+    InternerError(#[from] ::zako_interner::InternerError),
+    #[error("Id parse error: {0}")]
+    IdParseError(#[from] crate::id::IdParseError),
+    #[error("Other error: {0}")]
+    Other(#[from] eyre::Report),
+}
+
 impl ResolvedConfiguration {
     pub fn empty() -> Self {
         Self { config: Vec::new() }
     }
 
-    pub fn resolve(&self, interner: &Interner) -> Configuration {
+    pub fn resolve(&self, interner: &Interner) -> Result<Configuration, ConfigError> {
         let mut config = HashMap::with_hasher(ahash::RandomState::new());
         for (key, value) in self.config.iter() {
             config.insert(
-                SmolStr::new(key.resolved(interner)),
-                value.resolve(interner),
+                SmolStr::new(key.resolved(interner)?),
+                value.resolve(interner)?,
             );
         }
-        Configuration { config }
+        Ok(Configuration { config })
     }
 }

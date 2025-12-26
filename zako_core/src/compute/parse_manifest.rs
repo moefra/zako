@@ -1,6 +1,4 @@
-use std::path::Path;
 
-use camino::Utf8Path;
 use hone::{HoneResult, status::HashPair};
 use zako_digest::blake3_hash::Blake3Hash;
 
