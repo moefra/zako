@@ -10,7 +10,7 @@ use crate::{
     global_state::{CommonInternedStrings, GlobalState},
     intern::{InternedAbsolutePath, InternedString, Interner},
     package_source::{PackageSource, ResolvedPackageSource},
-    worker::{oxc_worker::OxcTranspilerWorker, v8_worker::V8Worker, worker_pool::WorkerPool},
+    worker::{oxc_worker::OxcTranspilerWorker, v8worker::V8Worker, worker_pool::WorkerPool},
 };
 
 #[derive(Debug, Error)]
@@ -59,7 +59,7 @@ impl BuildContext {
         let entry = project_entry_name
             .as_ref()
             .map(|s| s.as_str())
-            .unwrap_or(crate::consts::PROJECT_MANIFEST_FILE_NAME);
+            .unwrap_or(crate::consts::PACKAGE_MANIFEST_FILE_NAME);
 
         Ok(Self {
             project_root: InternedAbsolutePath::from_interned(

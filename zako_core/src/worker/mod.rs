@@ -1,6 +1,6 @@
 pub mod oxc_worker;
 pub mod protocol;
-pub mod v8_worker;
+pub mod v8worker;
 pub mod worker_pool;
 
 use std::sync::Arc;

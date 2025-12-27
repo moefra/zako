@@ -2,6 +2,7 @@ use crate::{
     engine::{Engine, EngineError, EngineOptions},
     global_state::GlobalState,
     module_loader::specifier::ModuleSpecifier,
+    v8context::V8ContextInput,
     worker::WorkerBehavior,
 };
 use ::tracing::trace_span;
@@ -32,7 +33,7 @@ pub struct V8WorkerInput {
 
     /// 6. 上下文类型
     /// 决定引擎的权限和能力
-    pub context_type: crate::consts::V8ContextType,
+    pub context_type: V8ContextInput,
 
     /// 7. (可选) JSON 输入
     pub json_input: Option<serde_json::Value>,
@@ -91,7 +92,6 @@ impl WorkerBehavior for V8Worker {
 
         let mut engine = Engine::new(EngineOptions {
             tokio_handle: state.handle.clone(),
-            context_type: input.context_type,
         })?;
 
         let json_input = input.json_input.unwrap_or(serde_json::Value::Null);

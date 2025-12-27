@@ -1,7 +1,7 @@
 use crate::module_loader::{LoaderOptions, ModuleLoader, specifier::ModuleSpecifier};
 use crate::v8error::{ExecutionResult, V8Error};
 use crate::v8platform::get_set_platform_or_default;
-use crate::{builtin, consts, v8error, v8utils};
+use crate::{builtin, v8error, v8utils};
 use deno_core::error::CoreError;
 use deno_core::serde_v8;
 use deno_core::{JsRuntime, RuntimeOptions, v8};
@@ -16,7 +16,6 @@ use v8::{Local, PinScope};
 #[derive(Debug)]
 pub struct EngineOptions {
     pub tokio_handle: tokio::runtime::Handle,
-    pub context_type: crate::consts::V8ContextType,
 }
 
 #[derive(Error, Debug)]
@@ -49,15 +48,6 @@ impl Engine {
         let loader = Rc::new(ModuleLoader::new(LoaderOptions {
             ..Default::default()
         }));
-
-        // TODO: add extensions for different context types
-        // Issue URL: https://github.com/moefra/zako/issues/19
-        match options.context_type {
-            consts::V8ContextType::Project => {}
-            consts::V8ContextType::Build => {}
-            consts::V8ContextType::Rule => {}
-            consts::V8ContextType::Toolchain => {}
-        }
 
         let runtime = JsRuntime::try_new(RuntimeOptions {
             module_loader: Some(loader.clone()),

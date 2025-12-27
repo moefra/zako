@@ -171,16 +171,15 @@ console.log("mv project/....d.ts to .../....d.ts and make file references to `za
         collectedBuiltinCommonModules.push(`zako:${modName}`);
 
         // move project/build/... .d.ts to project/project.d.ts etc.
-        await fs.mkdir(`${dist}/types/project`, { recursive: true });
-        await fs.mkdir(`${dist}/types/project`, { recursive: true });
+        await fs.mkdir(`${dist}/types/package`, { recursive: true });
         await fs.mkdir(`${dist}/types/config`, { recursive: true });
         await fs.mkdir(`${dist}/types/build`, { recursive: true });
         await fs.mkdir(`${dist}/types/rule`, { recursive: true });
         await fs.mkdir(`${dist}/types/toolchain`, { recursive: true });
-        if(modName === "project"){
+        if(modName === "package"){
             await fs.rename(
                 `${dist}/types/${mod}`,
-                `${dist}/types/project/${mod}`
+                `${dist}/types/package/${mod}`
             );
         }
         else if(modName === "config"){
@@ -278,7 +277,7 @@ console.log("generate template/tsconfig.json...")
         references: [
             { path: "./tsconfig.config.json" },
             { path: "./tsconfig.library.json" },
-            { path: "./tsconfig.project.json" },
+            { path: "./tsconfig.package.json" },
             { path: "./tsconfig.build.json" },
             { path: "./tsconfig.rule.json" },
             { path: "./tsconfig.toolchain.json" },
@@ -287,7 +286,7 @@ console.log("generate template/tsconfig.json...")
     };
 
     const patterns = {
-        project: ["./**/zako.ts"],
+        package: ["./**/zako.ts"],
         build: ["./**/BUILD.ts"],
         rule: ["./**/*.rule.ts"],
         toolchain: ["./**/*.toolchain.ts"],
@@ -301,7 +300,7 @@ console.log("generate template/tsconfig.json...")
     patterns.library,
     undefined,
     [
-        ...patterns.project,
+        ...patterns.package,
         ...patterns.build,
         ...patterns.rule,
         ...patterns.toolchain,
@@ -313,10 +312,10 @@ console.log("generate template/tsconfig.json...")
 
     const commonRefs = ["./tsconfig.library.json"];
 
-    const projectConfig = createConfig(
-        "project",
-        patterns.project,
-    "project",
+    const packageConfig = createConfig(
+        "package",
+        patterns.package,
+    "package",
         [],
         commonRefs
     );
@@ -380,8 +379,8 @@ console.log("generate template/tsconfig.json...")
         "utf-8"
     );
     await fs.writeFile(
-        `${dist}/template/tsconfig.project.json`,
-        JSON.stringify(projectConfig, null, 4),
+        `${dist}/template/tsconfig.package.json`,
+        JSON.stringify(packageConfig, null, 4),
         "utf-8"
     );
     await fs.writeFile(

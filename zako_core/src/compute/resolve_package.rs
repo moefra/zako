@@ -65,7 +65,7 @@ pub async fn resolve_package<'c>(
                 path_str.to_string(),
             )
         })?;
-    let manifest = path.join(consts::PROJECT_MANIFEST_FILE_NAME);
+    let manifest = path.join(consts::PACKAGE_MANIFEST_FILE_NAME);
     let manifest_digest = ctx
         .cas_store()
         .get_local_cas()

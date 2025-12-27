@@ -70,7 +70,7 @@ pub struct Package {
     pub builds: Option<Pattern>,
     pub rules: Option<Pattern>,
     pub toolchains: Option<Pattern>,
-    pub subprojects: Option<Pattern>,
+    pub peers: Option<Pattern>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
     pub dependencies: Option<HashMap<SmolStr, PackageSource>>,
     /// Default mount config to [crate::consts::DEFAULT_CONFIGURATION_MOUNT_POINT]
@@ -91,7 +91,7 @@ impl Blake3Hash for Package {
         self.builds.hash_into_blake3(hasher);
         self.rules.hash_into_blake3(hasher);
         self.toolchains.hash_into_blake3(hasher);
-        self.subprojects.hash_into_blake3(hasher);
+        self.peers.hash_into_blake3(hasher);
         self.dependencies.hash_into_blake3(hasher);
         self.mount_config.hash_into_blake3(hasher);
         self.config.hash_into_blake3(hasher);
@@ -110,7 +110,7 @@ pub struct ResolvedPackage {
     pub builds: Option<InternedPattern>,
     pub rules: Option<InternedPattern>,
     pub toolchains: Option<InternedPattern>,
-    pub subprojects: Option<InternedPattern>,
+    pub peers: Option<InternedPattern>,
     pub dependencies: Option<HashMap<SmolStr, ResolvedPackageSource>>,
     pub mount_config: Option<InternedAtom>,
     pub config: ResolvedConfiguration,
@@ -183,8 +183,8 @@ impl Package {
                 .toolchains
                 .map(|pattern| pattern.intern(context))
                 .transpose()?,
-            subprojects: self
-                .subprojects
+            peers: self
+                .peers
                 .map(|pattern| pattern.intern(context))
                 .transpose()?,
             dependencies: self
@@ -268,8 +268,8 @@ impl ResolvedPackage {
                 .as_ref()
                 .map(|p| InternedPattern::resolve(p, interner))
                 .transpose()?,
-            subprojects: self
-                .subprojects
+            peers: self
+                .peers
                 .as_ref()
                 .map(|p| InternedPattern::resolve(p, interner))
                 .transpose()?,

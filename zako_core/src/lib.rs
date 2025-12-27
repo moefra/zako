@@ -70,6 +70,7 @@ pub mod tests;
 pub mod tool;
 pub mod transformer;
 pub mod transport_server;
+pub mod v8context;
 pub mod v8error;
 pub mod v8platform;
 pub mod v8utils;

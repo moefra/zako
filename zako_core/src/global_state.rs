@@ -15,7 +15,7 @@ use crate::{
     },
     worker::{
         oxc_worker::OxcTranspilerWorker,
-        v8_worker::V8Worker,
+        v8worker::V8Worker,
         worker_pool::{PoolConfig, WorkerPool},
     },
 };

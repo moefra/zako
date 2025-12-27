@@ -5,10 +5,10 @@ pub static SCRIPT_FILE_SUFFIX: &str = ".script.ts";
 pub static LIBRARY_FILE_SUFFIX: &str = ".ts";
 
 /// definition of project.see [crate] documents for details.
-pub static PROJECT_MANIFEST_FILE_NAME: &str = "zako.toml";
+pub static PACKAGE_MANIFEST_FILE_NAME: &str = "zako.toml";
 
 /// project file name.see [crate] documents for details.
-pub static PROJECT_SCRIPT_FILE_NAME: &str = "zako.ts";
+pub static PACKAGE_SCRIPT_FILE_NAME: &str = "zako.ts";
 
 /// build file name.see [crate] documents for details.
 pub static BUILD_FILE_NAME: &str = "BUILD.ts";
@@ -48,10 +48,10 @@ pub const fn default_false() -> bool {
 /// see [crate] documents for details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
-    /// [PROJECT_MANIFEST_FILE_NAME]
-    ProjectManifest,
-    /// [PROJECT_SCRIPT_FILE_NAME]
-    ProjectScript,
+    /// [PACKAGE_MANIFEST_FILE_NAME]
+    PackageManifest,
+    /// [PACKAGE_SCRIPT_FILE_NAME]
+    PackageScript,
     /// [BUILD_FILE_NAME]
     Build,
     /// [CONFIG_FILE_SUFFIX]
@@ -64,35 +64,4 @@ pub enum FileType {
     Script,
     /// [LIBRARY_FILE_SUFFIX]
     Library,
-}
-
-/// The type of V8 context used in Zako build system.
-///
-/// see [crate] documents for details.
-///
-/// Different context types have different permissions and capabilities.
-///
-/// The `Script` was not processed by zako. It usually create a new bun process.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum V8ContextType {
-    /// Enable `zako:project` for
-    ///
-    /// [PROJECT_MANIFEST_FILE_NAME]
-    ///
-    /// And
-    ///
-    /// [PROJECT_SCRIPT_FILE_NAME]
-    Project,
-    /// Enable `zako:build` for
-    ///
-    /// [BUILD_FILE_NAME]
-    Build,
-    /// Enable `zako:rule` for
-    ///
-    /// [RULE_FILE_SUFFIX]
-    Rule,
-    /// Enable `zako:toolchain` for
-    ///
-    /// [TOOLCHAIN_FILE_SUFFIX]
-    Toolchain,
 }
