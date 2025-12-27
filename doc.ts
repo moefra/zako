@@ -37,6 +37,7 @@ async function buildDocs() {
 </body>
 </html>`;
     // TODO: Add index.html
+    // Issue URL: https://github.com/moefra/zako/issues/27
     // await Bun.write(join(OUTPUT_DIR, "index.html"), entryHtml);
 
     console.log(`\n✅ Build successful!`);
