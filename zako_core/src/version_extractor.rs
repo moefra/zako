@@ -9,6 +9,14 @@ pub(crate) fn extract_from_string(string: &str) -> Option<Version> {
             return Some(version);
         } else if let Ok(version) = lenient_semver::parse(part) {
             return Some(version);
+        } else {
+            // remove prefix and suffix like -nightly, -beta, -alpha, etc.
+            let (_, version) = part.split_once('-').unwrap_or(("", part));
+            let (version, _) = version.split_once('_').unwrap_or((version, ""));
+
+            if let Ok(version) = lenient_semver::parse(version) {
+                return Some(version);
+            }
         }
     }
     None

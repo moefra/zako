@@ -10,5 +10,6 @@ pub mod blob_range_tests;
 pub mod config_value_tests;
 pub mod id_tests;
 pub mod intern_tests;
+pub mod neutral_path_tests;
 pub mod package_tests;
 pub mod version_extractor_tests;
