@@ -19,10 +19,18 @@ pub static RULE_FILE_SUFFIX: &str = ".rule.ts";
 /// toolchain file suffix.see [crate] documents for details.
 pub static TOOLCHAIN_FILE_SUFFIX: &str = ".toolchain.ts";
 
+/// config file suffix.see [crate] documents for details.
+pub static CONFIG_FILE_SUFFIX: &str = ".config.ts";
+
 // TODO: it seems es2026 means esnext. switch to es2025 once they release it.
 // Issue URL: https://github.com/moefra/zako/issues/12
 /// The target version for transpiling TypeScript code.
 pub static TRANSPILE_TARGET: &str = "es2026";
+
+/// By default, we mount the configuration to the `config` label path.
+///
+/// See [crate::package::Package::mount_config] for more details.
+pub static DEFAULT_CONFIGURATION_MOUNT_POINT: &str = "config";
 
 /// A function that returns true
 #[inline]
@@ -46,6 +54,8 @@ pub enum FileType {
     ProjectScript,
     /// [BUILD_FILE_NAME]
     Build,
+    /// [CONFIG_FILE_SUFFIX]
+    Config,
     /// [RULE_FILE_SUFFIX]
     Rule,
     /// [TOOLCHAIN_FILE_SUFFIX]

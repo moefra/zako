@@ -14,11 +14,12 @@
 //!
 //! - library file(`*.ts`): those file can be shared between other files. They can only import other library files and core built-in module like `zako:core`;
 //! - script file(`*.script.ts`): those file can be used to write custom scripts. They can do anything and access `node:xxx`(or `Bun`,`Deno` object) modules,but they can not access zako's built-in module.
-//! - project manifest file(`zako.json5`): those file is used to define project metadata like name,version,dependencies etc. It can not import any module.
-//! - project root(`zako.ts`): those file is used to define a project.It is usually placed in the project root.It export build,rule and toolchain file. They can only import library files,core built-in module and `zako:project` module.
+//! - package manifest file(`zako.toml`): those file is used to define project metadata like name,version,dependencies etc. It can not import any module.
+//! - package root(`zako.ts`): those file is used to define a project.It is usually placed in the project root.It export build,rule and toolchain file. They can only import library files,core built-in module and `zako:project` module.
 //! - build file(`BUILD.ts`): "Embrace the industry holy grail: BUILD.ts — as God intended." those file is used to define build targets.It is the most common file. They can only import library files,core built-in module and `zako:build` module.
 //! - rule file(`*.rule.ts`): those file is used to define build rules.They can not access to system,they just get source file set and configuration from build file,process and convert configuration, access abstract toolchain. They can only import library files,core built-in module and `zako:rule` module.
 //! - toolchain file(`*.toolchain.ts`): those file is used to define build tools.They can access to system,but they can only get input from rule files. They can only import library files,core built-in module and `zako:toolchain`
+//! - config file(`*.config.ts`): those file is used to define configuration.They can access to system and `zako:config` module.
 //!
 //! Those file is name rule is used by `tsconfig.json` file to provide type checking and code completion.
 //!
@@ -54,11 +55,11 @@ mod make_builtin;
 pub mod module_loader;
 pub mod node;
 pub mod package;
+pub mod package_id;
 pub mod package_source;
 pub mod path;
 pub mod pattern;
 pub mod persistent;
-pub mod project;
 pub mod project_resolver;
 pub mod resource;
 pub mod sandbox;

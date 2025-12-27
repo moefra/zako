@@ -4,6 +4,7 @@ use crate::{
     module_loader::specifier::ModuleSpecifier,
     worker::WorkerBehavior,
 };
+use ::tracing::trace_span;
 use deno_core::serde_v8;
 use serde_json;
 use std::{fmt::Debug, sync::Arc};
@@ -86,6 +87,8 @@ impl WorkerBehavior for V8Worker {
         input: Self::Input,
         _cancel_token: CancelToken,
     ) -> Self::Output {
+        let _span = trace_span!("v8 execution", input = ?input).entered();
+
         let mut engine = Engine::new(EngineOptions {
             tokio_handle: state.handle.clone(),
             context_type: input.context_type,

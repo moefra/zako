@@ -4,7 +4,7 @@ import type { ConfigValue } from "./config_value.d";
 import type { PackageSource } from "./dependency_source.d";
 import type { Pattern } from "./pattern.d";
 
-export type Project = {
+export type Package = {
   group: string;
   artifact: string;
   version: string;
@@ -21,7 +21,7 @@ export type Project = {
    */
   dependencies?: { [key in string]?: PackageSource };
   /**
-   * Default mount config to `config`
+   * Default mount config to [crate::consts::DEFAULT_CONFIGURATION_MOUNT_POINT]
    */
   mount_config?: string;
   /**

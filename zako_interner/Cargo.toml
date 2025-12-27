@@ -24,6 +24,8 @@ lasso.workspace = true
 postcard.workspace = true
 thiserror.workspace = true
 getrandom.workspace = true
+zako-digest.workspace = true
+blake3.workspace = true
 
 [lints]
 workspace = true

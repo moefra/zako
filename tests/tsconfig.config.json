@@ -5,18 +5,18 @@
             "zako:*": [
                 "./.zako/types/zako/*.d.ts"
             ],
-            "zako:project": [
-                "./.zako/types/zako/project/project.d.ts"
+            "zako:config": [
+                "./.zako/types/zako/config/config.d.ts"
             ]
         },
         "typeRoots": [
             "./.zako/types/",
             "./node_modules/@types/"
         ],
-        "outDir": "./dist/project"
+        "outDir": "./dist/config"
     },
     "include": [
-        "./**/zako.ts"
+        "./**/*.toolchain.ts"
     ],
     "exclude": [
         "node_modules",

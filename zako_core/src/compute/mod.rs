@@ -1,11 +1,13 @@
 mod file;
 mod glob;
 mod parse_manifest;
-mod resolve_project;
+mod resolve_label;
+mod resolve_package;
 mod transpile_ts;
 
-pub use file::compute_file;
-pub use glob::compute_glob;
-pub use parse_manifest::compute_parse_manifest;
-pub use resolve_project::compute_resolve_project;
-pub use transpile_ts::compute_transpile_ts;
+pub use file::file;
+pub use glob::glob;
+pub use parse_manifest::prase_manifest;
+pub use resolve_label::resolve_label;
+pub use resolve_package::resolve_package;
+pub use transpile_ts::transpile_ts;

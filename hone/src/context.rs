@@ -129,6 +129,8 @@ impl<'c, C, K: NodeKey, V: NodeValue> Context<'c, C, K, V> {
     /// 1. 将 (caller -> key) 边写入依赖图
     /// 2. 异步等待 key 计算完成
     /// 3. 返回结果
+    #[inline]
+    #[must_use]
     pub async fn request(&self, key: K) -> SharedHoneResult<NodeData<C, V>> {
         self.request_with_context(key, self.context).await
     }

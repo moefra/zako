@@ -156,7 +156,7 @@ impl Cas for LocalCas {
 
         let file_size = file.metadata().await.map_err(CasError::Io)?.len();
 
-        if range.is_out_of(file_size) {
+        if range.is_out_of_span_length(file_size) {
             return Err(CasError::RequestedIndexOutOfRange {
                 requested_range: range.clone(),
                 blob_digest: digest.clone(),

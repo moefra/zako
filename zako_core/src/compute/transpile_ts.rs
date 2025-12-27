@@ -15,7 +15,7 @@ use crate::{
     worker::oxc_worker::OxcTranspilerInput,
 };
 
-pub async fn compute_transpile_ts<'c>(
+pub async fn transpile_ts<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     key: &TranspileTs,
 ) -> HoneResult<(HashPair, TranspileTsResult)> {

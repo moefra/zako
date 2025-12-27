@@ -1,5 +1,6 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
+use ::zako_digest::blake3_hash::Blake3Hash;
 use lasso::{Capacity, Key, ThreadedRodeo};
 use rkyv::{
     Archive, Archived, Deserialize, Place, Resolver, Serialize,
@@ -50,6 +51,12 @@ unsafe impl Key for U32NonZeroKey {
 impl AsRef<U32NonZeroKey> for U32NonZeroKey {
     fn as_ref(&self) -> &U32NonZeroKey {
         self
+    }
+}
+
+impl Blake3Hash for U32NonZeroKey {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.0.get().hash_into_blake3(hasher);
     }
 }
 

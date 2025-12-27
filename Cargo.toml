@@ -73,6 +73,8 @@ opentelemetry_sdk = "0.31.0"
 opentelemetry-stdout = "0.31.0"
 tracing-opentelemetry = "0.32.0"
 
+derive_more = { version = "2.1.1", features = ["from"] }
+
 static_init = "1.0.4"
 
 redb = "3.1.0"

@@ -7,7 +7,7 @@ use tokio::runtime::Handle;
 
 use crate::{
     cas_store::CasStore,
-    global_state::GlobalState,
+    global_state::{CommonInternedStrings, GlobalState},
     intern::{InternedAbsolutePath, InternedString, Interner},
     package_source::{PackageSource, ResolvedPackageSource},
     worker::{oxc_worker::OxcTranspilerWorker, v8_worker::V8Worker, worker_pool::WorkerPool},
@@ -32,6 +32,7 @@ pub struct BuildContext {
 }
 
 impl BuildContext {
+    #[must_use]
     /// Create a new BuildContext
     ///
     /// `project_source`: The package source of the project, it should be absolute path to the project,
@@ -72,52 +73,82 @@ impl BuildContext {
         })
     }
 
+    #[inline]
+    #[must_use]
     pub fn project_root(&self) -> InternedAbsolutePath {
         self.project_root
     }
 
+    #[inline]
+    #[must_use]
     pub fn project_entry_name(&self) -> InternedString {
         self.project_entry_name
     }
 
+    #[inline]
+    #[must_use]
     pub fn project_source(&self) -> &ResolvedPackageSource {
         &self.project_source
     }
 
+    #[inline]
+    #[must_use]
     pub fn resource_pool(&self) -> &crate::resource::ResourcePool {
         self.env.resource_pool()
     }
 
+    #[inline]
+    #[must_use]
     pub fn interner<'c>(&'c self) -> &'c Interner {
         self.env.interner()
     }
 
+    #[inline]
+    #[must_use]
     pub fn get_handle(self: Arc<Self>) -> ContextHandler {
         crate::context::ContextHandler::new(self.clone())
     }
 
+    #[inline]
+    #[must_use]
     pub fn handle(&self) -> &Handle {
         self.env.handle()
     }
 
+    #[inline]
+    #[must_use]
     pub fn global_state(&self) -> Arc<GlobalState> {
         self.env.clone()
     }
 
+    #[inline]
+    #[must_use]
     pub fn cas_store(&self) -> &CasStore {
         self.env.cas_store()
     }
 
+    #[inline]
+    #[must_use]
     pub fn oxc_workers_pool(&self) -> &WorkerPool<OxcTranspilerWorker> {
         self.env.oxc_workers_pool()
     }
 
+    #[inline]
+    #[must_use]
     pub fn v8_workers_pool(&self) -> &WorkerPool<V8Worker> {
         self.env.v8_workers_pool()
     }
 
+    #[inline]
+    #[must_use]
     pub fn system(&self) -> &System {
         self.env.system()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn common_interneds(&self) -> &CommonInternedStrings {
+        self.env.common_interneds()
     }
 }
 

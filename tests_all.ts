@@ -3,7 +3,7 @@
 const current = import.meta.dir;
  
 const proc = Bun.spawn([
-    "cargo", "+nightly", "test", "--package", "zako-core"
+    "cargo", "+nightly", "test", "--workspace",
 ], {
     cwd: current,
 });

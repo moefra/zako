@@ -53,6 +53,12 @@ export type transitiveLevel = "public" | "private" | "interface";
  * git style author sign
  */
 type Author = `${string} <${string}@${string}>`;
+export interface OptionsDeclaration {
+    option: string;
+    description: string;
+    type: "boolean" | "string" | "number";
+    default?: boolean | string | number;
+}
 /**
  * The metadata of a zako project
  */

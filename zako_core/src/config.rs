@@ -27,6 +27,16 @@ impl Configuration {
         Self { config }
     }
 
+    pub fn generate_template_code(self) -> String {
+        let mut code = String::new();
+
+        for (key, value) in self.config.iter() {
+            code.push_str(&format!("{} = {}\n", key, format!("{:?}", value.default)));
+        }
+
+        code
+    }
+
     pub fn resolve(self, interner: &Interner) -> Result<ResolvedConfiguration, eyre::Report> {
         let mut configs = self.config.into_iter().collect::<Vec<_>>();
 
@@ -39,27 +49,17 @@ impl Configuration {
                 .wrap_err_with(|| format!("failed to resolve config key: {}", config.0))?;
 
             match config.1.default {
-                Some(ConfigDefault::Label(s)) => {
-                    let value_label =
-                        Label::try_parse(s.as_str(), interner).wrap_err_with(|| {
-                            format!("failed to resolve config value: {}", config.0)
-                        })?;
-                    built_config.push((label, ResolvedConfigValue::Label(value_label)));
-                }
-                Some(ConfigDefault::String { string }) => {
+                ConfigDefault::String(string) => {
                     built_config.push((label, ResolvedConfigValue::String(string.into())));
                 }
-                Some(ConfigDefault::Boolean(b)) => {
+                ConfigDefault::Boolean(b) => {
                     built_config.push((label, ResolvedConfigValue::Boolean(b)));
                 }
-                Some(ConfigDefault::Number(n)) => {
+                ConfigDefault::Number(n) => {
                     built_config.push((label, ResolvedConfigValue::Number(n)));
                 }
-                Some(ConfigDefault::Object(_)) => {
+                ConfigDefault::Object(_) => {
                     todo!();
-                }
-                None => {
-                    todo!("This branch means user must provide a default value");
                 }
             }
         }

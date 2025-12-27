@@ -2,23 +2,42 @@ use crate::id::*;
 use crate::tests::TEST_INTERNER;
 
 #[test]
-fn test_is_xid_ident() {
-    assert!(is_xid_ident("main"));
-    assert!(is_xid_ident("my_var"));
-    assert!(!is_xid_ident("_my_var"));
-    assert!(!is_xid_ident(""));
-    assert!(!is_xid_ident("123"));
-    assert!(!is_xid_ident("my-var"));
+fn test_is_ident() {
+    assert!(!is_ident(""));
+    assert!(!is_ident("123"));
+    assert!(!is_ident("my-var"));
+    assert!(is_ident("main"));
+    assert!(is_ident("my_var"));
+    assert!(is_ident("_my_var"));
 }
 
 #[test]
-fn test_is_xid_loose_ident() {
-    assert!(is_xid_loose_ident("main"));
-    assert!(is_xid_loose_ident("my-var"));
-    assert!(is_xid_loose_ident("_internal"));
-    assert!(is_xid_loose_ident("lib-utils"));
-    assert!(!is_xid_loose_ident(""));
-    assert!(!is_xid_loose_ident("123"));
+fn test_is_loose_ident() {
+    assert!(!is_loose_ident(""));
+    assert!(!is_loose_ident("123"));
+    assert!(is_loose_ident("my-var"));
+    assert!(is_loose_ident("main"));
+    assert!(is_loose_ident("my_var"));
+    assert!(is_loose_ident("_my_var"));
+}
+
+#[test]
+fn test_is_more_loose_ident() {
+    assert!(!is_more_loose_ident(""));
+    assert!(!is_more_loose_ident("123"));
+    assert!(is_more_loose_ident("my-var"));
+    assert!(is_more_loose_ident("main"));
+    assert!(is_more_loose_ident("my_var"));
+    assert!(is_more_loose_ident("_my_var"));
+    assert!(!is_more_loose_ident("file."));
+    assert!(!is_more_loose_ident("."));
+    assert!(!is_more_loose_ident(".."));
+    assert!(!is_more_loose_ident("..."));
+    assert!(is_more_loose_ident("file.txt"));
+    assert!(is_more_loose_ident("file...txt"));
+    assert!(is_more_loose_ident(".file"));
+    assert!(!is_more_loose_ident(".f...il...e"));
+    assert!(!is_more_loose_ident(".file."));
 }
 
 #[test]
@@ -40,6 +59,11 @@ fn test_interned_path() {
     assert!(InternedPath::try_parse("src/./button", interner).is_err());
     assert!(InternedPath::try_parse("src/../button", interner).is_err());
     assert!(InternedPath::try_parse("src//button", interner).is_err());
+    assert!(InternedPath::try_parse("/", interner).is_ok());
+    assert!(InternedPath::try_parse("//", interner).is_ok());
+    assert!(InternedPath::try_parse("/////", interner).is_ok());
+    assert!(InternedPath::try_parse(".", interner).is_err());
+    assert!(InternedPath::try_parse("..", interner).is_err());
 }
 
 #[test]
@@ -49,7 +73,7 @@ fn test_interned_package_ref() {
     assert!(InternedPackageRef::try_parse("", interner).is_ok());
     assert!(InternedPackageRef::try_parse("@", interner).is_err());
     assert!(InternedPackageRef::try_parse("zako", interner).is_err());
-    assert!(InternedPackageRef::try_parse("@zako-core", interner).is_err());
+    assert!(InternedPackageRef::try_parse("@zako-core", interner).is_ok());
 }
 
 #[test]

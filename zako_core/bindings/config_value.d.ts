@@ -2,4 +2,4 @@
 import type { ConfigDefault } from "./config_default.d";
 import type { ConfigType } from "./config_type.d";
 
-export type ConfigValue = { type: ConfigType; default?: ConfigDefault };
+export type ConfigValue = { type: ConfigType; default: ConfigDefault };

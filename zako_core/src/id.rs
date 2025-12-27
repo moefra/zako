@@ -1,3 +1,5 @@
+use ::zako_digest::blake3_hash::Blake3Hash;
+
 use crate::intern::{InternedString, Interner};
 
 /// Check a string match [Unicode Standard Annex #31](https://www.unicode.org/reports/tr31/)
@@ -5,18 +7,18 @@ use crate::intern::{InternedString, Interner};
 /// Or more detailed,it reject empty string,and string with invalid xid start at first character or xid continue at following character.
 ///
 /// This should be used all the way.
-pub fn is_xid_ident(s: &str) -> bool {
-    if s.is_empty() {
+pub fn is_ident(s: &str) -> bool {
+    let mut chars = s.chars();
+
+    if let Some(first) = chars.next() {
+        if !unicode_ident::is_xid_start(first) && first != '_' {
+            return false;
+        }
+    } else {
         return false;
     }
 
-    let mut s = s.chars();
-
-    if !unicode_ident::is_xid_start(s.next().unwrap()) {
-        return false;
-    }
-
-    for c in s {
+    for c in chars {
         if !unicode_ident::is_xid_continue(c) {
             return false;
         }
@@ -30,17 +32,15 @@ pub fn is_xid_ident(s: &str) -> bool {
 /// It reject empty string too,but allow `-` and `_` in any place of the input string.
 ///
 /// This should be used only when the system contact with physics world,like name a ident from a real file name.
-pub fn is_xid_loose_ident(s: &str) -> bool {
-    if s.is_empty() {
-        return false;
-    }
-
+pub fn is_loose_ident(s: &str) -> bool {
     let mut chars = s.chars();
 
     if let Some(first) = chars.next() {
         if !unicode_ident::is_xid_start(first) && first != '_' && first != '-' {
             return false;
         }
+    } else {
+        return false;
     }
 
     for c in chars {
@@ -50,6 +50,36 @@ pub fn is_xid_loose_ident(s: &str) -> bool {
     }
 
     return true;
+}
+
+/// The is the more loose version of function [is_loose_ident].
+///
+/// It allows `.` in the input string.But does not allow the string that only have `.`.
+///
+/// It also disallow `.` followed by the string like `file.`.
+pub fn is_more_loose_ident(s: &str) -> bool {
+    let mut chars = s.chars();
+
+    let mut last_char = if let Some(first) = chars.next() {
+        if !unicode_ident::is_xid_start(first) && first != '_' && first != '-' && first != '.' {
+            return false;
+        }
+        first
+    } else {
+        return false;
+    };
+
+    let mut only_dot = last_char == '.';
+
+    for c in chars {
+        if !unicode_ident::is_xid_continue(c) && c != '_' && c != '-' && c != '.' {
+            return false;
+        }
+        last_char = c;
+        only_dot = only_dot && last_char == '.';
+    }
+
+    return (!only_dot) && (last_char != '.');
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -80,16 +110,24 @@ pub struct InternedAtom(pub InternedString);
 
 impl InternedAtom {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
-        if !is_xid_loose_ident(s) {
+        if !is_loose_ident(s) {
             return Err(IdParseError::NotMatchLooseXid(s.to_string(), None));
         }
         Ok(Self(interner.get_or_intern(s)?))
     }
 }
 
-/// [InternedId]中的Path(或者叫做Label)部分
+impl Blake3Hash for InternedAtom {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        self.0.hash_into_blake3(hasher);
+    }
+}
+
+/// [InternedId]中的Path(或者叫做Label)部分。允许为空。
 ///
-/// 规则: 由斜杠 '/' 分隔的[InternedAtom]。允许为空，代表根路径
+/// 规则: 由斜杠 '/' 分隔的item组成，item需要通过[is_more_loose_ident]校验。
+///
+/// 尾随任何数量的斜杠都会被忽略。
 ///
 /// 例如: "src/ui/button", "core"
 #[derive(
@@ -109,7 +147,7 @@ impl InternedPath {
 
         let mut last_segment = None;
 
-        for segment in s.split('/') {
+        for segment in s.trim_end_matches('/').split('/') {
             if segment == "." || segment == ".." {
                 return Err(IdParseError::InvalidComponent(
                     s.to_string(),
@@ -118,7 +156,7 @@ impl InternedPath {
                 ));
             }
             // 校验每一段路径名必须合法
-            if !is_xid_loose_ident(segment) {
+            if !is_more_loose_ident(segment) {
                 return Err(IdParseError::NotMatchLooseXid(
                     s.to_string(),
                     Some(segment.to_string()),
@@ -148,7 +186,7 @@ impl InternedTarget {
 
 /// [InternedId]中的Package Reference部分
 ///
-/// 规则: 不为空时，必须以@开头，其余部分必须是合法XID标识符；为空时，代表当前包。
+/// 规则: 不为空时，必须以@开头，其余部分必须是合法标识符(by [is_loose_ident])；为空时，代表当前包。
 ///
 /// 贮存的字符不包含@符号
 ///
@@ -170,7 +208,7 @@ impl InternedPackageRef {
         }
         // check
         let ident_str = &s[1..];
-        if !is_xid_ident(ident_str) {
+        if !is_loose_ident(ident_str) {
             return Err(IdParseError::NotMatchLooseXid(
                 s.to_string(),
                 Some(ident_str.to_string()),

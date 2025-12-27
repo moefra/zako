@@ -1,8 +1,4 @@
-
-use crate::{
-    blob_handle::BlobHandle,
-    project::Project,
-};
+use crate::{blob_handle::BlobHandle, package::Package};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ParseManifest {
@@ -11,5 +7,5 @@ pub struct ParseManifest {
 
 #[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ParseManifestResult {
-    pub project: Project,
+    pub project: Package,
 }

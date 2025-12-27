@@ -1,6 +1,7 @@
 use crate::consts;
 use crate::global_state::GlobalState;
 use crate::worker::WorkerBehavior;
+use ::tracing::trace_span;
 use oxc_allocator::Allocator;
 use oxc_codegen::Codegen;
 use oxc_parser::Parser;
@@ -71,6 +72,8 @@ impl WorkerBehavior for OxcTranspilerWorker {
         input: Self::Input,
         _cancel_token: CancelToken,
     ) -> Self::Output {
+        let _span = trace_span!("oxc transpile", input = ?input).entered();
+
         let allocator = &mut state.allocator; // 128kb for each buffer
         allocator.reset(); // in case last run return error and do not reset at last
 

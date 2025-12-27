@@ -1,4 +1,3 @@
-
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -7,13 +6,13 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     intern::Interner,
-    package::{InternedPackageId, PackageParseError},
+    package_id::{InternedPackageId, PackageIdParseError},
 };
 
 #[derive(thiserror::Error, Debug)]
 pub enum PackageSourceResolveError {
     #[error("failed to parse package")]
-    FailedToResolve(#[from] PackageParseError),
+    FailedToResolve(#[from] PackageIdParseError),
     #[error("IO error")]
     IoError(#[from] std::io::Error),
     #[error("Interner error while processing package source: {0}")]

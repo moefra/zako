@@ -71,11 +71,11 @@ impl BlobRange {
         self.start
     }
 
-    pub fn is_out_of(&self, target_length: u64) -> bool {
-        if self.start() >= target_length {
+    pub fn is_out_of_span_length(&self, span_length: u64) -> bool {
+        if self.start() >= span_length {
             true
         } else if let Some(length) = self.length() {
-            self.start() + length > target_length
+            self.start() + length > span_length
         } else {
             false
         }

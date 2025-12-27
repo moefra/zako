@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-
 #[derive(thiserror::Error, Debug)]
 pub enum HoneError {
     #[error("Cycle detected when search `{current:?}` called from `{caller:?}`")]
@@ -12,7 +11,9 @@ pub enum HoneError {
     MissingDependency { caller: String, missing: String },
     #[error("Other error: {0}")]
     Other(#[from] eyre::Report),
-    #[error("Unknown(may a bug) error: {0}")]
+    #[error("Assertion: {1} <=> `{0}` failed, this should be seems as a bug of program")]
+    AssertionFailed(String, String),
+    #[error("Unexpected error: {0}d, this should be seems as a bug of hone")]
     UnexpectedError(String),
     #[error("Aggregative error:{0:?}")]
     AggregativeError(Vec<Arc<HoneError>>),
@@ -24,4 +25,31 @@ pub enum HoneError {
     },
     #[error("get IO error `{0}` when access `{1}`")]
     IOError(#[source] std::io::Error, String),
+    #[error("From Arc<HoneError> error: {0:?}")]
+    SharedError(#[from] Arc<HoneError>),
+}
+
+#[macro_export]
+macro_rules! assert {
+    ($message:expr, $condition:expr) => {
+        if !$condition {
+            return Err(HoneError::AssertionFailed(
+                $message.to_string(),
+                format!("{}", ::std::stringify!($condition)),
+            ));
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! debug_assert {
+    ($message:expr, $condition:expr) => {
+        #[cfg(debug_assertions)]
+        if !$condition {
+            return Err(HoneError::AssertionFailed(
+                $message.to_string(),
+                format!("{}", ::std::stringify!($condition)),
+            ));
+        }
+    };
 }

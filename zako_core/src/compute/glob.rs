@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// Compute glob results for a given base path and pattern
-pub async fn compute_glob<'c>(
+pub async fn glob<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     glob: &Glob,
 ) -> HoneResult<(HashPair, GlobResult)> {

@@ -15,15 +15,15 @@ use crate::{
         node_key::ZakoKey,
         node_value::ZakoValue,
         parse_manifest::ParseManifest,
-        resolve_project::{ResolveProject, ResolveProjectResult},
+        resolve_package::{ResolvePackage, ResolvePackageResult},
     },
 };
 
 /// Compute and resolve a project file
-pub async fn compute_resolve_project<'c>(
+pub async fn resolve_package<'c>(
     ctx: &'c ZakoComputeContext<'c>,
-    key: &ResolveProject,
-) -> HoneResult<(HashPair, ResolveProjectResult)> {
+    key: &ResolvePackage,
+) -> HoneResult<(HashPair, ResolvePackageResult)> {
     let raw_ctx = ctx;
     let ctx = ctx.context();
     let interner = ctx.interner();
@@ -33,7 +33,7 @@ pub async fn compute_resolve_project<'c>(
         .resolved(interner)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
 
-    let _input_hash: blake3::Hash = package_id_to_path.get_blake3();
+    let input_hash: blake3::Hash = package_id_to_path.get_blake3();
 
     let path = if let Some(root) = key.root {
         root.into()
@@ -88,7 +88,7 @@ pub async fn compute_resolve_project<'c>(
         .wrap_err("failed to request parse manifest")?;
 
     let parsed = match manifest.value().as_ref() {
-        ZakoValue::ParseManifestResult(resolved) => resolved,
+        ZakoValue::ParseManifest(resolved) => resolved,
         _ => {
             Err(eyre::eyre!("expected parse manifest result"))?;
             unreachable!()
@@ -96,24 +96,23 @@ pub async fn compute_resolve_project<'c>(
     }
     .clone();
 
-    let _resolved = parsed.project.resolve(&new_ctx, &path).map_err(|err| {
+    // TODO: Resolve the configuration and dependencies
+
+    // before intern it, calculate hash
+    let output_hash = parsed.project.get_blake3();
+
+    let resolved = parsed.project.resolve(&new_ctx, &path).map_err(|err| {
         eyre::eyre!(err).wrap_err(format!(
             "while resolving project {:?}, path {:?}",
             &key.package, &path
         ))
     })?;
 
-    todo!("Resolve the project, resolve configuration");
-
-    // TODO: Resolve the project, resolve configuration
-
-    /*
-    Ok((
-        HashPair::new(input_hash.into(), output_hash.into()),
-        ResolveProjectResult {
-            root: path.to_string_lossy().into(),
-            project: resolved_project,
+    return Ok((
+        HashPair {
+            input_hash: input_hash.into(),
+            output_hash: output_hash.into(),
         },
-    ))
-    */
+        ResolvePackageResult { package: resolved },
+    ));
 }

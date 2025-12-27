@@ -1,4 +1,4 @@
-use crate::package::*;
+use crate::package_id::*;
 use crate::tests::TEST_INTERNER;
 
 #[test]
@@ -39,4 +39,3 @@ fn test_interned_package_id() {
     assert!(InternedPackageId::try_parse("moe.fra:zako", interner).is_err());
     assert!(InternedPackageId::try_parse("moe.fra:zako@invalid", interner).is_err());
 }
-

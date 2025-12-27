@@ -3,10 +3,7 @@ use smol_str::SmolStr;
 use ts_rs::TS;
 use zako_digest::blake3_hash::Blake3Hash;
 
-use crate::{
-    id::Label,
-    intern::Interner,
-};
+use crate::{id::Label, intern::Interner};
 
 #[derive(
     TS,
@@ -25,7 +22,7 @@ use crate::{
 #[ts(optional_fields)]
 pub struct ConfigValue {
     pub r#type: ConfigType,
-    pub default: Option<ConfigDefault>,
+    pub default: ConfigDefault,
 }
 
 impl Blake3Hash for ConfigValue {
@@ -52,12 +49,7 @@ impl Blake3Hash for ConfigValue {
 #[ts(optional_fields)]
 #[serde(untagged)]
 pub enum ConfigDefault {
-    /// The label format is `group:artifact`.
-    #[ts(type = "`${string}:${string}`")]
-    Label(String),
-    String {
-        string: String,
-    },
+    String(String),
     Boolean(bool),
     Number(i64),
     Object(ConfigOperation),
@@ -66,14 +58,10 @@ pub enum ConfigDefault {
 impl Blake3Hash for ConfigDefault {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         match self {
-            ConfigDefault::Label(s) => s.hash_into_blake3(hasher),
+            ConfigDefault::String(s) => s.hash_into_blake3(hasher),
             ConfigDefault::Boolean(b) => b.hash_into_blake3(hasher),
             ConfigDefault::Number(n) => n.hash_into_blake3(hasher),
             ConfigDefault::Object(o) => o.hash_into_blake3(hasher),
-            ConfigDefault::String { string } => {
-                hasher.update(b"::"); // why `::`? because it invalid in Label, so it can separate the two
-                string.hash_into_blake3(hasher);
-            }
         }
     }
 }
@@ -94,6 +82,7 @@ impl Blake3Hash for ConfigDefault {
 #[ts(export, export_to = "config_operation.d.ts")]
 #[ts(optional_fields)]
 pub struct ConfigOperation {
+    #[ts(type = "`${string}:${string}`")]
     pub inherit: String,
     pub action: Option<String>,
 }
@@ -149,23 +138,24 @@ pub enum ResolvedConfigValue {
 impl ResolvedConfigValue {
     pub fn resolve(&self, interner: &Interner) -> Result<ConfigValue, crate::config::ConfigError> {
         match self {
-            ResolvedConfigValue::Label(label) => Ok(ConfigValue {
-                r#type: ConfigType::Label,
-                default: Some(ConfigDefault::Label(label.resolved(interner)?)),
-            }),
             ResolvedConfigValue::String(string) => Ok(ConfigValue {
                 r#type: ConfigType::String,
-                default: Some(ConfigDefault::String {
-                    string: string.to_string(),
-                }),
+                default: ConfigDefault::String(string.to_string()),
             }),
             ResolvedConfigValue::Boolean(boolean) => Ok(ConfigValue {
                 r#type: ConfigType::Boolean,
-                default: Some(ConfigDefault::Boolean(*boolean)),
+                default: ConfigDefault::Boolean(*boolean),
             }),
             ResolvedConfigValue::Number(number) => Ok(ConfigValue {
                 r#type: ConfigType::Number,
-                default: Some(ConfigDefault::Number(*number)),
+                default: ConfigDefault::Number(*number),
+            }),
+            ResolvedConfigValue::Label(label) => Ok(ConfigValue {
+                r#type: ConfigType::Label,
+                default: ConfigDefault::Object(ConfigOperation {
+                    inherit: label.resolved(interner)?,
+                    action: None,
+                }),
             }),
         }
     }

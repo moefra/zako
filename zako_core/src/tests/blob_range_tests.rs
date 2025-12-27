@@ -18,15 +18,15 @@ fn test_blob_range_new() {
 #[test]
 fn test_blob_range_is_out_of() {
     let r = BlobRange::new(10, Some(20)).unwrap();
-    assert!(!r.is_out_of(30));
-    assert!(r.is_out_of(29));
-    assert!(r.is_out_of(5));
+    assert!(!r.is_out_of_span_length(30));
+    assert!(r.is_out_of_span_length(29));
+    assert!(r.is_out_of_span_length(5));
 
     let r_full = BlobRange::full();
-    assert!(!r_full.is_out_of(100));
+    assert!(!r_full.is_out_of_span_length(100));
     let r_from = BlobRange::new(50, None).unwrap();
-    assert!(!r_from.is_out_of(100));
-    assert!(r_from.is_out_of(40));
+    assert!(!r_from.is_out_of_span_length(100));
+    assert!(r_from.is_out_of_span_length(40));
 }
 
 #[test]

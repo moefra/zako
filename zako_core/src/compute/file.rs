@@ -1,10 +1,5 @@
-
 use camino::Utf8Path;
-use hone::{
-    HoneResult,
-    error::HoneError,
-    status::HashPair,
-};
+use hone::{HoneResult, error::HoneError, status::HashPair};
 use is_executable::is_executable;
 
 use crate::{
@@ -13,7 +8,7 @@ use crate::{
     node::file::{File, FileResult},
 };
 
-pub async fn compute_file<'c>(
+pub async fn file<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     key: &File,
 ) -> HoneResult<(HashPair, FileResult)> {
@@ -24,9 +19,7 @@ pub async fn compute_file<'c>(
     let abs_root = interner
         .resolve(build_ctx.project_root().interned)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
-    let path_str = interner
-        .resolve(path.interned())
-        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
+    let path_str = path.as_str();
     let physical_path = Utf8Path::new(abs_root).join(path_str);
 
     if std::fs::exists(physical_path.as_path())
