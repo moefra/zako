@@ -8,17 +8,8 @@ const builtins_src = `${src}/builtins/`;
 const builtins_dist = `${dist}/builtins/`;
 
 // transpile builtins/*.ts into dist/builtins/*.js
-console.log("transpile...");
+console.log("bundle...");
 {
-    const transpiler = new Bun.Transpiler({
-        loader: "ts",
-        treeShaking: false,
-        allowBunRuntime: false,
-        trimUnusedImports: false,
-        target: "browser",
-        tsconfig: await fs.readFile(`${src}/tsconfig.json`, "utf-8"), // TODO:Process the path of extends `../tsconfig.json`
-    });
-
     let transformTasks = [];
     const dirs = await fs.readdir(`${builtins_src}`,
         { withFileTypes: true,
@@ -40,11 +31,30 @@ console.log("transpile...");
         console.log(`transpile ${entry} -> ${out}`);
 
         transformTasks.push(
-            fs.readFile(entry, "utf-8").then(async (source) =>
-            transpiler.transform(source).then(async result => {
-                return await fs.writeFile(out, result);
-            })
-        ));
+            async function (){
+                await Bun.build({
+                    entrypoints: [entry],
+                    minify: true,
+                    sourcemap: "inline",
+                    target: 'browser',
+                    format: 'esm',
+                    external: ["zako:*"],
+                    packages: "external",
+                })
+                .then(async result => {
+                    if(result.success){
+                        let output = result.outputs[0];
+                        if(output == undefined){
+                            throw new Error("Failed to get output text")
+                        }
+
+                        await fs.writeFile(out, await output.text());
+                    }
+                    else{
+                        throw new Error(`Failed to build:${result.logs.join("\n")}`);
+                    }
+                });
+            }());
     }
 
     for(let task of transformTasks){
@@ -133,7 +143,7 @@ console.log("remove needless directory...");
 }
 
 let collectedBuiltinCommonModules: string[] = [];
-console.log("mv project/....d.ts to .../....d.ts and make file references to global...");
+console.log("mv project/....d.ts to .../....d.ts and make file references to `zako:global`...");
 {
     let modules = await fs.readdir(`${dist}/types/`);
     for (let mod of modules){
@@ -163,6 +173,7 @@ console.log("mv project/....d.ts to .../....d.ts and make file references to glo
         // move project/build/... .d.ts to project/project.d.ts etc.
         await fs.mkdir(`${dist}/types/project`, { recursive: true });
         await fs.mkdir(`${dist}/types/project`, { recursive: true });
+        await fs.mkdir(`${dist}/types/config`, { recursive: true });
         await fs.mkdir(`${dist}/types/build`, { recursive: true });
         await fs.mkdir(`${dist}/types/rule`, { recursive: true });
         await fs.mkdir(`${dist}/types/toolchain`, { recursive: true });
@@ -170,6 +181,12 @@ console.log("mv project/....d.ts to .../....d.ts and make file references to glo
             await fs.rename(
                 `${dist}/types/${mod}`,
                 `${dist}/types/project/${mod}`
+            );
+        }
+        else if(modName === "config"){
+            await fs.rename(
+                `${dist}/types/${mod}`,
+                `${dist}/types/config/${mod}`
             );
         }
         else if(modName === "build"){
@@ -259,6 +276,7 @@ console.log("generate template/tsconfig.json...")
     const rootConfig = {
         files: [],
         references: [
+            { path: "./tsconfig.config.json" },
             { path: "./tsconfig.library.json" },
             { path: "./tsconfig.project.json" },
             { path: "./tsconfig.build.json" },
@@ -274,7 +292,8 @@ console.log("generate template/tsconfig.json...")
         rule: ["./**/*.rule.ts"],
         toolchain: ["./**/*.toolchain.ts"],
         script: ["./**/*.script.ts", "./**/scripts/**/*.ts"],
-        library: ["./**/*.ts"]
+        library: ["./**/*.ts"],
+        config: ["./**/*.config.ts"]
     };
 
     const libraryConfig = createConfig(
@@ -286,7 +305,8 @@ console.log("generate template/tsconfig.json...")
         ...patterns.build,
         ...patterns.rule,
         ...patterns.toolchain,
-        ...patterns.script
+        ...patterns.script,
+        ...patterns.config
     ],
     []
     );
@@ -324,7 +344,13 @@ console.log("generate template/tsconfig.json...")
         [],
         commonRefs
     );
-
+    const configConfig = createConfig(
+        "config",
+        patterns.toolchain,
+        "config",
+        [],
+        commonRefs
+    );
     let scriptConfig = createConfig(
         "script",
         patterns.script,
@@ -332,6 +358,9 @@ console.log("generate template/tsconfig.json...")
         [],
         commonRefs
     );
+    // done
+    // ------
+
     delete scriptConfig.compilerOptions.paths;
     scriptConfig.compilerOptions["types"] = ["node"];
 
@@ -373,6 +402,11 @@ console.log("generate template/tsconfig.json...")
     await fs.writeFile(
         `${dist}/template/tsconfig.script.json`,
         JSON.stringify(scriptConfig, null, 4),
+        "utf-8"
+    );
+    await fs.writeFile(
+        `${dist}/template/tsconfig.config.json`,
+        JSON.stringify(configConfig, null, 4),
         "utf-8"
     );
 }

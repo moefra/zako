@@ -3,6 +3,7 @@
     "compilerOptions": {
         "paths": {
             "zako:rt": ["./builtins/rt/index.ts"],
+            "zako:config": ["./builtins/config/index.ts"],
             "zako:syscall": ["./builtins/syscall/index.ts"],
             "zako:global": ["./builtins/global/index.ts"],
             "zako:semver": ["./builtins/semver/index.ts"],
