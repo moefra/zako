@@ -14,7 +14,7 @@ pub enum V8ContextInput {
     /// Enable `zako:package` for
     ///
     /// [crate::consts::PACKAGE_SCRIPT_FILE_NAME]
-    Package { package: ConfiguredPackage },
+    Package { package: Package },
     /// Enable `zako:build` for
     ///
     /// [crate::consts::BUILD_FILE_NAME]

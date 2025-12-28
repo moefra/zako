@@ -1,17 +1,11 @@
 use ::smol_str::SmolStr;
 use zako_digest::blake3_hash::Blake3Hash;
 
-use crate::blob_handle::BlobHandle;
+use crate::{blob_handle::BlobHandle, intern::InternedAbsolutePath};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct File {
-    pub path: SmolStr,
-}
-
-impl Blake3Hash for File {
-    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(&self.path.as_str().as_bytes());
-    }
+    pub path: InternedAbsolutePath,
 }
 
 #[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
@@ -27,6 +21,7 @@ pub struct FileResult {
 impl Blake3Hash for FileResult {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         self.is_executable.hash_into_blake3(hasher);
+        self.is_symlink.hash_into_blake3(hasher);
         self.content.hash_into_blake3(hasher);
     }
 }

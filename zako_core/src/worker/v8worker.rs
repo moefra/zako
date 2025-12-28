@@ -21,11 +21,11 @@ pub struct V8WorkerInput {
 
     /// The source code of the module that will be executed.
     ///
-    /// It should not be typescript, use [crate::compute::transform_typescript] to transform it to javascript.
+    /// It should will be seems as typescript code.
     pub source_code: String,
 
     // If the module is a typescript module, use this channel to request the transformer to transform it to javascript.
-    pub request_channel: flume::Sender<crate::worker::protocol::V8Request>,
+    pub request_channel: flume::Sender<crate::worker::protocol::V8TranspileRequest>,
 
     /// 5. (可选) 预编译的字节码 (Optimization)
     /// 如果 Engine 缓存里有 V8 Bytecode，传进去可以跳过 Parsing
@@ -34,9 +34,6 @@ pub struct V8WorkerInput {
     /// 6. 上下文类型
     /// 决定引擎的权限和能力
     pub context_type: V8ContextInput,
-
-    /// 7. (可选) JSON 输入
-    pub json_input: Option<serde_json::Value>,
 }
 
 /// Output from V8 Worker
@@ -95,17 +92,18 @@ impl WorkerBehavior for V8Worker {
             extensions: vec![],
         })?;
 
-        let json_input = input.json_input.unwrap_or(serde_json::Value::Null);
-
-        engine.execute_module_with_json_and_then(
+        let result = engine.execute_module_and_then(
             &input.specifier,
             Some(input.source_code),
-            json_input,
             |scope, _context, object| {
                 let rust_value: serde_json::Value =
                     serde_v8::from_v8(scope, object.into()).map_err(V8WorkerError::SerdeError)?;
                 Ok(V8WorkerOutput { result: rust_value })
             },
-        )?
+        )?;
+
+        drop(input.request_channel);
+
+        result
     }
 }

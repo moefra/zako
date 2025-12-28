@@ -1,4 +1,4 @@
-use ::eyre::Context;
+use ::eyre::{Context, OptionExt};
 use ::hone::debug_assert;
 use ::smol_str::SmolStr;
 use ::zako_digest::blake3_hash::Blake3Hash;
@@ -8,6 +8,7 @@ use crate::{
     blob_range::BlobRange,
     computer::ZakoComputeContext,
     consts,
+    intern::InternedAbsolutePath,
     node::{
         file::File,
         node_value::ZakoValue,
@@ -74,12 +75,15 @@ pub async fn resolve_label<'c>(
             .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?)
     );
 
-    let path = SmolStr::new(format!("{}/{}", path, consts::BUILD_FILE_NAME));
+    let path = format!("{}/{}", path, consts::BUILD_FILE_NAME);
+    let path_id = InternedAbsolutePath::new(&path, interner)
+        .wrap_err("failed to resolve path")?
+        .ok_or_eyre("failed to build absolute path")?;
 
     let cas_store = context.cas_store();
 
     // check if the build script exists
-    let handle = ctx.request(File { path: path.clone() }.into()).await?;
+    let handle = ctx.request(File { path: path_id }.into()).await?;
 
     let handle = match &**handle.value() {
         ZakoValue::FileResult(file_result) => file_result,
