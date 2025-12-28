@@ -4,5 +4,6 @@ pub mod node_key;
 pub mod node_value;
 pub mod parse_manifest;
 pub mod resolve_label;
+pub mod resolve_manifest_script;
 pub mod resolve_package;
 pub mod transpile_ts;

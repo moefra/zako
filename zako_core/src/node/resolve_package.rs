@@ -1,6 +1,6 @@
 use crate::{
-    intern::InternedAbsolutePath, package::ResolvedPackage, package_id::InternedPackageId,
-    package_source::PackageSource,
+    configured_project::ConfiguredPackage, intern::InternedAbsolutePath,
+    package_id::InternedPackageId, package_source::PackageSource,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
@@ -12,5 +12,5 @@ pub struct ResolvePackage {
 
 #[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolvePackageResult {
-    pub package: ResolvedPackage,
+    pub package: ConfiguredPackage,
 }

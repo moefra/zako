@@ -127,7 +127,7 @@ impl Blake3Hash for ConfigType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub enum ResolvedConfigValue {
     Label(Label),
     String(SmolStr),

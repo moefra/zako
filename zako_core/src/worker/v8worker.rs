@@ -92,6 +92,7 @@ impl WorkerBehavior for V8Worker {
 
         let mut engine = Engine::new(EngineOptions {
             tokio_handle: state.handle.clone(),
+            extensions: vec![],
         })?;
 
         let json_input = input.json_input.unwrap_or(serde_json::Value::Null);

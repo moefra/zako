@@ -1,10 +1,13 @@
-use crate::module_loader::{LoaderOptions, ModuleLoader, specifier::ModuleSpecifier};
 use crate::v8error::{ExecutionResult, V8Error};
 use crate::v8platform::get_set_platform_or_default;
 use crate::{builtin, v8error, v8utils};
+use crate::{
+    module_loader::{LoaderOptions, ModuleLoader, specifier::ModuleSpecifier},
+    v8platform,
+};
 use deno_core::error::CoreError;
 use deno_core::serde_v8;
-use deno_core::{JsRuntime, RuntimeOptions, v8};
+use deno_core::{Extension, JsRuntime, RuntimeOptions, v8};
 use serde_json;
 use std::cell::RefCell;
 use std::fmt::Debug;
@@ -13,9 +16,9 @@ use thiserror::Error;
 use tracing::trace_span;
 use v8::{Local, PinScope};
 
-#[derive(Debug)]
 pub struct EngineOptions {
     pub tokio_handle: tokio::runtime::Handle,
+    pub extensions: Vec<Extension>,
 }
 
 #[derive(Error, Debug)]
@@ -29,14 +32,14 @@ pub enum EngineError {
 
 /// An engine,that should be used in one thread.
 pub struct Engine {
-    options: EngineOptions,
+    tokio_handle: tokio::runtime::Handle,
     runtime: Rc<RefCell<JsRuntime>>,
 }
 
 impl Debug for Engine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Engine")
-            .field("options", &self.options)
+            .field("tokio_handle", &self.tokio_handle)
             .finish()
     }
 }
@@ -49,21 +52,26 @@ impl Engine {
             ..Default::default()
         }));
 
+        let mut extensions = options.extensions;
+        extensions.extend(vec![
+            // common extensions
+            builtin::extension::rt::zako_rt::init(),
+            builtin::extension::syscall::zako_syscall::init(),
+            builtin::extension::global::zako_global::init(),
+            builtin::extension::semver::zako_semver::init(),
+            builtin::extension::core::zako_core::init(),
+            builtin::extension::console::zako_console::init(),
+        ]);
+
         let runtime = JsRuntime::try_new(RuntimeOptions {
             module_loader: Some(loader.clone()),
-            extensions: vec![
-                builtin::extension::rt::zako_rt::init(),
-                builtin::extension::syscall::zako_syscall::init(),
-                builtin::extension::global::zako_global::init(),
-                builtin::extension::semver::zako_semver::init(),
-                builtin::extension::core::zako_core::init(),
-                builtin::extension::console::zako_console::init(),
-            ],
+            v8_platform: Some(v8platform::get_set_platform_or_default()),
+            extensions,
             ..Default::default()
         })?;
 
         let engine = Engine {
-            options,
+            tokio_handle: options.tokio_handle,
             runtime: Rc::new(RefCell::new(runtime)),
         };
 
@@ -99,7 +107,7 @@ impl Engine {
                 js_runtime.get_module_namespace(module_id)?,
             )
         };
-        Ok(self.options.tokio_handle.block_on(future)?)
+        Ok(self.tokio_handle.block_on(future)?)
     }
 
     pub fn execute_module_with_json(
@@ -156,7 +164,7 @@ impl Engine {
                 js_runtime.get_module_namespace(module_id)?,
             )
         };
-        Ok(self.options.tokio_handle.block_on(future)?)
+        Ok(self.tokio_handle.block_on(future)?)
     }
 
     pub fn execute_module_and_then<F, R>(
@@ -222,7 +230,7 @@ impl Engine {
             };
         };
 
-        Ok(self.options.tokio_handle.block_on(future)?)
+        Ok(self.tokio_handle.block_on(future)?)
     }
 
     pub fn execute_module_with_json_and_then<F, R>(
@@ -290,7 +298,7 @@ impl Engine {
             };
         };
 
-        Ok(self.options.tokio_handle.block_on(future)?)
+        Ok(self.tokio_handle.block_on(future)?)
     }
 
     pub fn get_runtime(self: &Self) -> Rc<RefCell<JsRuntime>> {

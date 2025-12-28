@@ -4,7 +4,8 @@ use strum::IntoStaticStr;
 
 use crate::node::{
     file::File, glob::Glob, parse_manifest::ParseManifest, resolve_label::ResolveLabel,
-    resolve_package::ResolvePackage, transpile_ts::TranspileTs,
+    resolve_manifest_script::ResolveManifestScript, resolve_package::ResolvePackage,
+    transpile_ts::TranspileTs,
 };
 
 /// The key of the building graph.
@@ -31,6 +32,7 @@ pub enum ZakoKey {
     TranspileTs(TranspileTs),
     ParseManifest(ParseManifest),
     ResolveLabel(ResolveLabel),
+    ResolveManifestScript(ResolveManifestScript),
 }
 
 impl NodeKey for ZakoKey {}

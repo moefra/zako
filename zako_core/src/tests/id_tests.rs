@@ -9,6 +9,15 @@ fn test_is_ident() {
     assert!(is_ident("main"));
     assert!(is_ident("my_var"));
     assert!(is_ident("_my_var"));
+    assert!(!is_ident("file."));
+    assert!(!is_ident("."));
+    assert!(!is_ident(".."));
+    assert!(!is_ident("..."));
+    assert!(!is_ident("file.txt"));
+    assert!(!is_ident("file...txt"));
+    assert!(!is_ident(".file"));
+    assert!(!is_ident(".f...il...e"));
+    assert!(!is_ident(".file."));
 }
 
 #[test]
@@ -19,6 +28,15 @@ fn test_is_loose_ident() {
     assert!(is_loose_ident("main"));
     assert!(is_loose_ident("my_var"));
     assert!(is_loose_ident("_my_var"));
+    assert!(!is_loose_ident("file."));
+    assert!(!is_loose_ident("."));
+    assert!(!is_loose_ident(".."));
+    assert!(!is_loose_ident("..."));
+    assert!(!is_loose_ident("file.txt"));
+    assert!(!is_loose_ident("file...txt"));
+    assert!(!is_loose_ident(".file"));
+    assert!(!is_loose_ident(".f...il...e"));
+    assert!(!is_loose_ident(".file."));
 }
 
 #[test]
@@ -36,7 +54,7 @@ fn test_is_more_loose_ident() {
     assert!(is_more_loose_ident("file.txt"));
     assert!(is_more_loose_ident("file...txt"));
     assert!(is_more_loose_ident(".file"));
-    assert!(!is_more_loose_ident(".f...il...e"));
+    assert!(is_more_loose_ident(".f...il...e"));
     assert!(!is_more_loose_ident(".file."));
 }
 

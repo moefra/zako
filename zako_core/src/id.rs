@@ -2,9 +2,9 @@ use ::zako_digest::blake3_hash::Blake3Hash;
 
 use crate::intern::{InternedString, Interner};
 
-/// Check a string match [Unicode Standard Annex #31](https://www.unicode.org/reports/tr31/)
+/// Check a string match [Unicode Standard Annex #31](https://www.unicode.org/reports/tr31/), and it allows `_`.
 ///
-/// Or more detailed,it reject empty string,and string with invalid xid start at first character or xid continue at following character.
+/// Or more detailed,it reject empty string,and string with invalid xid start at first character or xid continue at following character.And `_` can be used everywhere.
 ///
 /// This should be used all the way.
 pub fn is_ident(s: &str) -> bool {
@@ -27,9 +27,9 @@ pub fn is_ident(s: &str) -> bool {
     return true;
 }
 
-/// The is the loose version of function [is_xid_ident].
+/// The is the loose version of function [is_ident].
 ///
-/// It reject empty string too,but allow `-` and `_` in any place of the input string.
+/// It reject empty string too,but allow `-` in any place of the input string.
 ///
 /// This should be used only when the system contact with physics world,like name a ident from a real file name.
 pub fn is_loose_ident(s: &str) -> bool {
@@ -44,7 +44,7 @@ pub fn is_loose_ident(s: &str) -> bool {
     }
 
     for c in chars {
-        if !unicode_ident::is_xid_continue(c) && c != '_' && c != '-' {
+        if !unicode_ident::is_xid_continue(c) && c != '-' {
             return false;
         }
     }
@@ -56,7 +56,7 @@ pub fn is_loose_ident(s: &str) -> bool {
 ///
 /// It allows `.` in the input string.But does not allow the string that only have `.`.
 ///
-/// It also disallow `.` followed by the string like `file.`.
+/// It disallow `.` at the end of input like `file.`.
 pub fn is_more_loose_ident(s: &str) -> bool {
     let mut chars = s.chars();
 
@@ -127,7 +127,7 @@ impl Blake3Hash for InternedAtom {
 ///
 /// 规则: 由斜杠 '/' 分隔的item组成，item需要通过[is_more_loose_ident]校验。
 ///
-/// 尾随任何数量的斜杠都会被忽略。
+/// 前导和尾随的任何数量的斜杠都会被忽略。
 ///
 /// 例如: "src/ui/button", "core"
 #[derive(
@@ -140,6 +140,8 @@ impl InternedPath {
         s: &'s str,
         interner: &Interner,
     ) -> Result<(Self, Option<&'s str>), IdParseError> {
+        let s = s.trim_end_matches('/').trim_start_matches('/');
+
         // 路径允许为空。字符串是合法的根包路径
         if s.is_empty() {
             return Ok((Self(interner.get_or_intern("")?), None));
@@ -147,7 +149,7 @@ impl InternedPath {
 
         let mut last_segment = None;
 
-        for segment in s.trim_end_matches('/').split('/') {
+        for segment in s.split('/') {
             if segment == "." || segment == ".." {
                 return Err(IdParseError::InvalidComponent(
                     s.to_string(),
@@ -222,7 +224,7 @@ impl InternedPackageRef {
 /// 一个贮存的ID，包含包引用、路径和目标名称，例如`@curl//src:main`
 ///
 /// 分别由[InternedPackageRef]、[InternedPath]和[InternedTarget]组成
-#[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct Label {
     pub package_ref: InternedPackageRef,
     pub path: InternedPath,

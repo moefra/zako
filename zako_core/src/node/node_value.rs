@@ -1,4 +1,4 @@
-use crate::node::glob::GlobResult;
+use crate::node::{glob::GlobResult, resolve_manifest_script::ResolveManifestScriptResult};
 use crate::node::parse_manifest::ParseManifestResult;
 use crate::node::transpile_ts::TranspileTsResult;
 use crate::node::{
@@ -15,6 +15,7 @@ pub enum ZakoValue {
     TranspileTs(TranspileTsResult),
     ParseManifest(ParseManifestResult),
     ResolveLabel(ResolveLabelResult),
+    ResolveManifestScript(ResolveManifestScriptResult),
 }
 
 impl NodeValue for ZakoValue {}

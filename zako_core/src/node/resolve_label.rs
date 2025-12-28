@@ -1,19 +1,21 @@
 use ::std::hash::Hasher;
 
 use crate::{
-    id::Label, intern::InternedAbsolutePath, package::ResolvedPackage,
-    package_id::InternedPackageId, package_source::PackageSource, target::Target,
+    configured_project::ConfiguredPackage, id::Label,
+    target::Target,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolveLabel {
-    pub package: ResolvedPackage,
+    pub package: ConfiguredPackage,
     pub label: Label,
 }
 
 impl std::hash::Hash for ResolveLabel {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.package.get_id().hash(state);
+        self.package.source.hash(state);
+        self.package.package.get_id().hash(state);
+        self.label.hash(state);
     }
 }
 

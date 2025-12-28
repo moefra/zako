@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use camino::Utf8PathBuf;
-use eyre::eyre;
 use eyre::{Context, OptionExt};
 use hone::{HoneResult, error::HoneError, status::HashPair};
 use zako_digest::blake3_hash::Blake3Hash;
@@ -9,6 +8,7 @@ use zako_digest::blake3_hash::Blake3Hash;
 use crate::{
     blob_handle::BlobHandle,
     computer::ZakoComputeContext,
+    configured_project::ConfiguredPackage,
     consts,
     context::BuildContext,
     node::{
@@ -28,14 +28,14 @@ pub async fn resolve_package<'c>(
     let ctx = ctx.context();
     let interner = ctx.interner();
 
-    let package_id_to_path = key
+    let package_id = key
         .package
         .resolved(interner)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
 
-    let input_hash: blake3::Hash = package_id_to_path.get_blake3();
+    let input_hash: blake3::Hash = (package_id.as_str(), key.source.clone()).get_blake3();
 
-    let path = if let Some(root) = key.root {
+    let path_id = if let Some(root) = key.root {
         root.into()
     } else {
         *(ctx
@@ -44,12 +44,12 @@ pub async fn resolve_package<'c>(
             .get(&key.package)
             .ok_or_eyre( format!(
                 "the package `{}` is not found in the global state. Only registered package is supported now ",
-                package_id_to_path.as_str()
+                package_id.as_str()
             ))?)
     };
 
     let path_str = interner
-        .resolve(path.interned)
+        .resolve(path_id.interned)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
     let path = Path::new(path_str);
     let path =
@@ -99,6 +99,7 @@ pub async fn resolve_package<'c>(
     // TODO: Resolve the configuration and dependencies
 
     // before intern it, calculate hash
+    // only hash result `ResolvedPackage`
     let output_hash = parsed.project.get_blake3();
 
     let resolved = parsed.project.resolve(&new_ctx, &path).map_err(|err| {
@@ -113,6 +114,13 @@ pub async fn resolve_package<'c>(
             input_hash: input_hash.into(),
             output_hash: output_hash.into(),
         },
-        ResolvePackageResult { package: resolved },
+        ResolvePackageResult {
+            package: ConfiguredPackage {
+                source: new_ctx.package_source().clone(),
+                package: resolved,
+                source_root: path_id,
+                raw_source: key.source.clone(),
+            },
+        },
     ));
 }

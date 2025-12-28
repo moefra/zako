@@ -1,6 +1,6 @@
+use ::std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use crate::package_source::ResolvedPackageSource;
 use crate::pattern::{InternedPattern, Pattern};
 use crate::{
     author::{Author, InternedAuthor},
@@ -15,6 +15,7 @@ use crate::{
     package_id::InternedArtifactId,
 };
 use crate::{id::InternedAtom, package_id::InternedPackageId};
+use crate::{intern::Interner, package_source::ResolvedPackageSource};
 use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -50,6 +51,7 @@ pub enum PackageResolveError {
     Serialize,
     Deserialize,
     Debug,
+    Hash,
     Clone,
     PartialEq,
     Eq,
@@ -72,11 +74,11 @@ pub struct Package {
     pub toolchains: Option<Pattern>,
     pub peers: Option<Pattern>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
-    pub dependencies: Option<HashMap<SmolStr, PackageSource>>,
+    pub dependencies: Option<BTreeMap<SmolStr, PackageSource>>,
     /// Default mount config to [crate::consts::DEFAULT_CONFIGURATION_MOUNT_POINT]
     pub mount_config: Option<SmolStr>,
     /// The key will be checked by [crate::id::is_xid_loose_ident]
-    pub config: Option<HashMap<SmolStr, ConfigValue, ahash::RandomState>>,
+    pub config: Option<BTreeMap<SmolStr, ConfigValue>>,
 }
 
 impl Blake3Hash for Package {
@@ -98,7 +100,7 @@ impl Blake3Hash for Package {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolvedPackage {
     pub group: InternedGroup,
     pub artifact: InternedAtom,
@@ -111,7 +113,7 @@ pub struct ResolvedPackage {
     pub rules: Option<InternedPattern>,
     pub toolchains: Option<InternedPattern>,
     pub peers: Option<InternedPattern>,
-    pub dependencies: Option<HashMap<SmolStr, ResolvedPackageSource>>,
+    pub dependencies: Option<BTreeMap<SmolStr, ResolvedPackageSource>>,
     pub mount_config: Option<InternedAtom>,
     pub config: ResolvedConfiguration,
 }
@@ -195,7 +197,7 @@ impl Package {
                             v.resolve(project_root, context.interner())
                                 .map(|resolved| (k, resolved))
                         })
-                        .collect::<Result<HashMap<_, _>, _>>()
+                        .collect::<Result<BTreeMap<_, _>, _>>()
                 })
                 .transpose()?,
             mount_config: self
@@ -226,19 +228,18 @@ impl ResolvedPackage {
         InternedPackageId::new(self.get_artifact_id(), self.version)
     }
 
-    pub fn to_raw(&self, context: &BuildContext) -> Result<Package, PackageResolveError> {
-        let interner = context.interner();
+    pub fn to_raw(&self, interner: &Interner) -> Result<Package, PackageResolveError> {
         Ok(Package {
-            group: SmolStr::new(context.interner().resolve(&self.group.0)?),
-            artifact: SmolStr::new(context.interner().resolve(&self.artifact.0)?),
-            version: SmolStr::new(context.interner().resolve(&self.version.0)?),
+            group: SmolStr::new(interner.resolve(&self.group.0)?),
+            artifact: SmolStr::new(interner.resolve(&self.artifact.0)?),
+            version: SmolStr::new(interner.resolve(&self.version.0)?),
             description: self.description.clone(),
             authors: self
                 .authors
                 .as_ref()
                 .map(|v| {
                     v.iter()
-                        .map(|a| InternedAuthor::resolve(a, context))
+                        .map(|a| InternedAuthor::resolve(a, interner))
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?,
@@ -246,12 +247,7 @@ impl ResolvedPackage {
             license: self
                 .license
                 .as_ref()
-                .map(|s| {
-                    context
-                        .interner()
-                        .resolve(&s)
-                        .map(|string| SmolStr::new(string))
-                })
+                .map(|s| interner.resolve(&s).map(|string| SmolStr::new(string)))
                 .transpose()?,
             builds: self
                 .builds
@@ -278,20 +274,15 @@ impl ResolvedPackage {
                 .as_ref()
                 .map(|deps| {
                     deps.iter()
-                        .map(|(k, v)| Ok((k.clone(), v.to_raw(context.interner())?)))
-                        .collect::<Result<HashMap<_, _>, PackageResolveError>>()
+                        .map(|(k, v)| Ok((k.clone(), v.to_raw(interner)?)))
+                        .collect::<Result<BTreeMap<_, _>, PackageResolveError>>()
                 })
                 .transpose()?,
             mount_config: self
                 .mount_config
-                .map(|s| {
-                    context
-                        .interner()
-                        .resolve(&s.0)
-                        .map(|string| SmolStr::new(string))
-                })
+                .map(|s| interner.resolve(&s.0).map(|string| SmolStr::new(string)))
                 .transpose()?,
-            config: Some(self.config.resolve(context.interner())?.config),
+            config: Some(self.config.resolve(interner)?.config),
         })
     }
 }

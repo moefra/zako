@@ -6,7 +6,10 @@ use thiserror::Error;
 use ts_rs::TS;
 use zako_digest::blake3_hash::Blake3Hash;
 
-use crate::{context::BuildContext, intern::InternedString};
+use crate::{
+    context::BuildContext,
+    intern::{InternedString, Interner},
+};
 
 /// The `Author` should be a string with format `Author Name <emabil@example.com>`
 ///
@@ -129,19 +132,14 @@ impl Author {
 }
 
 impl InternedAuthor {
-    pub fn resolve(
-        interned: &InternedAuthor,
-        context: &BuildContext,
-    ) -> Result<Author, AuthorError> {
+    pub fn resolve(interned: &InternedAuthor, interner: &Interner) -> Result<Author, AuthorError> {
         Ok(Author {
-            name: context
-                .interner()
+            name: interner
                 .resolve(&interned.name)
                 .map_err(|err| AuthorError::InternerError(err, "resolving name".to_string()))?
                 .to_string(),
             email: EmailAddress::new_unchecked(
-                context
-                    .interner()
+                interner
                     .resolve(&interned.email)
                     .map_err(|err| AuthorError::InternerError(err, "resolving email".to_string()))?
                     .to_string(),

@@ -135,15 +135,20 @@ async fn download_bun() -> eyre::Result<()> {
         ),
     )
     .await?;
-    zstd_compress(
-        &std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"))
-            .join("bun")
-            .to_string_lossy(),
-        &std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"))
-            .join("bun.zst")
-            .to_string_lossy(),
-    )
-    .await
+    if !std::fs::exists(
+        std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set")).join("bun.zst"),
+    )? {
+        zstd_compress(
+            &std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"))
+                .join("bun")
+                .to_string_lossy(),
+            &std::path::PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set"))
+                .join("bun.zst")
+                .to_string_lossy(),
+        )
+        .await?
+    }
+    Ok(())
 }
 
 async fn download_deno() -> eyre::Result<()> {

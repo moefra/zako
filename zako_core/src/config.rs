@@ -1,3 +1,4 @@
+use ::std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use eyre::Context;
@@ -11,19 +12,19 @@ use crate::{
 };
 
 /// Raw, immutable configuration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct Configuration {
-    pub config: HashMap<SmolStr, ConfigValue, ahash::RandomState>,
+    pub config: BTreeMap<SmolStr, ConfigValue>,
 }
 
 impl Configuration {
     pub fn new() -> Self {
         Self {
-            config: HashMap::with_hasher(ahash::RandomState::new()),
+            config: BTreeMap::new(),
         }
     }
 
-    pub fn from(config: HashMap<SmolStr, ConfigValue, ahash::RandomState>) -> Self {
+    pub fn from(config: BTreeMap<SmolStr, ConfigValue>) -> Self {
         Self { config }
     }
 
@@ -79,7 +80,7 @@ impl Blake3Hash for Configuration {
 /// Interned, immutable configuration.
 ///
 /// It is used to store the configuration in the build graph.
-#[derive(Debug, Clone, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct ResolvedConfiguration {
     pub config: Vec<(Label, ResolvedConfigValue)>,
     // TODO: Use index to get the value by key
@@ -103,7 +104,7 @@ impl ResolvedConfiguration {
     }
 
     pub fn resolve(&self, interner: &Interner) -> Result<Configuration, ConfigError> {
-        let mut config = HashMap::with_hasher(ahash::RandomState::new());
+        let mut config = BTreeMap::new();
         for (key, value) in self.config.iter() {
             config.insert(
                 SmolStr::new(key.resolved(interner)?),

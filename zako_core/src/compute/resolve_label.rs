@@ -1,23 +1,19 @@
 use ::eyre::Context;
-use ::hone::{assert, debug_assert};
+use ::hone::debug_assert;
 use ::smol_str::SmolStr;
 use ::zako_digest::blake3_hash::Blake3Hash;
-use ::zako_interner::InternerError;
-use camino::Utf8Path;
 use hone::{HoneResult, error::HoneError, status::HashPair};
-use is_executable::is_executable;
 
 use crate::{
-    blob_handle::BlobHandle,
     blob_range::BlobRange,
     computer::ZakoComputeContext,
-    consts, intern,
+    consts,
     node::{
-        file::{File, FileResult},
-        node_key::ZakoKey,
+        file::File,
         node_value::ZakoValue,
         resolve_label::{ResolveLabel, ResolveLabelResult},
     },
+    worker::v8worker::V8WorkerInput,
 };
 
 pub async fn resolve_label<'c>(
@@ -40,12 +36,25 @@ pub async fn resolve_label<'c>(
     // check if it's configuration target
     if key.label.path.0
         == package
+            .package
             .mount_config
             .map(|s| s.0)
             .unwrap_or(context.common_interneds().config_mount)
     {
-        // construct configuration target
-        todo!();
+        let resolved = package
+            .package
+            .config
+            .resolve(interner)
+            .wrap_err("failed to resolve configuration for mount_config target")?;
+        return Ok((
+            HashPair {
+                input_hash: input_hash.into(),
+                output_hash: resolved.get_blake3().into(),
+            },
+            ResolveLabelResult {
+                target: crate::target::Target::Configuration(package.package.config.clone()),
+            },
+        ));
     }
 
     let path = interner
@@ -57,6 +66,7 @@ pub async fn resolve_label<'c>(
         path.ne(interner
             .resolve(
                 package
+                    .package
                     .mount_config
                     .map(|s| s.0)
                     .unwrap_or(context.common_interneds().config_mount)

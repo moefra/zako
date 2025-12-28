@@ -1,11 +1,11 @@
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
-    intern::Interner,
+    intern::{InternedAbsolutePath, Interner},
     package_id::{InternedPackageId, PackageIdParseError},
 };
 
@@ -17,6 +17,8 @@ pub enum PackageSourceResolveError {
     IoError(#[from] std::io::Error),
     #[error("Interner error while processing package source: {0}")]
     InternerError(#[from] ::zako_interner::InternerError),
+    #[error("the path `{0}` is not an absolute path")]
+    PathNotAbsolute(String),
 }
 
 #[derive(
@@ -35,7 +37,11 @@ pub enum PackageSourceResolveError {
 #[ts(export, export_to = "dependency_source.d.ts")]
 #[ts(optional_fields)]
 #[serde(untagged)]
-/// 一个包的来源
+/// The source of a package.
+///
+/// Its path should be relative path, relative to the project root.
+///
+/// Use it to calculate hash, not [ResolvedPackageSource].
 pub enum PackageSource {
     /// 来源于远程仓库
     Registry { package: String },
@@ -70,6 +76,11 @@ impl Blake3Hash for PackageSource {
     }
 }
 
+/// The resolved source of a package.
+///
+/// Its path should be absolute path, absolute to the project root.
+///
+/// Do not use it to calculate hash, use [PackageSource] instead.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub enum ResolvedPackageSource {
     Registry {
@@ -83,14 +94,14 @@ pub enum ResolvedPackageSource {
         url: SmolStr,
     },
     Path {
-        path: SmolStr,
+        path: InternedAbsolutePath,
     },
 }
 
 impl PackageSource {
     pub fn resolve(
         self,
-        current_path: &Utf8Path,
+        _current_path: &Utf8Path,
         interner: &Interner,
     ) -> Result<ResolvedPackageSource, PackageSourceResolveError> {
         match self {
@@ -104,17 +115,10 @@ impl PackageSource {
                 Ok(ResolvedPackageSource::Git { repo, checkout })
             }
             PackageSource::Http { url } => Ok(ResolvedPackageSource::Http { url }),
-            PackageSource::Path { path } => {
-                let pathbuf = Utf8PathBuf::from(path.as_str());
-                let resolved_path = if pathbuf.is_absolute() {
-                    SmolStr::new(path)
-                } else {
-                    SmolStr::new(current_path.join(pathbuf).canonicalize()?.to_string_lossy())
-                };
-                Ok(ResolvedPackageSource::Path {
-                    path: SmolStr::new(resolved_path),
-                })
-            }
+            PackageSource::Path { path } => Ok(ResolvedPackageSource::Path {
+                path: InternedAbsolutePath::new(path.as_str(), interner)?
+                    .ok_or_else(|| PackageSourceResolveError::PathNotAbsolute(path.clone()))?,
+            }),
         }
     }
 }
@@ -136,7 +140,7 @@ impl ResolvedPackageSource {
             }),
             ResolvedPackageSource::Http { url } => Ok(PackageSource::Http { url: url.clone() }),
             ResolvedPackageSource::Path { path } => Ok(PackageSource::Path {
-                path: path.to_string(),
+                path: interner.resolve(path.interned)?.into(),
             }),
         }
     }

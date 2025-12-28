@@ -15,7 +15,7 @@ export type Package = {
   builds?: Pattern;
   rules?: Pattern;
   toolchains?: Pattern;
-  subprojects?: Pattern;
+  peers?: Pattern;
   /**
    * The key will be checked by [crate::id::is_xid_loose_ident]
    */

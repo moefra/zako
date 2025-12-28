@@ -39,6 +39,7 @@ pub mod compute;
 pub mod computer;
 pub mod config;
 pub mod config_value;
+pub mod configured_project;
 pub mod consts;
 pub mod context;
 pub mod engine;

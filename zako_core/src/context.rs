@@ -1,5 +1,6 @@
 use std::{ops::Deref, sync::Arc};
 
+use ::eyre::ContextCompat;
 use camino::Utf8PathBuf;
 use sysinfo::System;
 use thiserror::Error;
@@ -7,6 +8,7 @@ use tokio::runtime::Handle;
 
 use crate::{
     cas_store::CasStore,
+    configured_project::ConfiguredPackage,
     global_state::{CommonInternedStrings, GlobalState},
     intern::{InternedAbsolutePath, InternedString, Interner},
     package_source::{PackageSource, ResolvedPackageSource},
@@ -21,8 +23,13 @@ pub enum BuildContextError {
     FailedToResolvePackageSource(String),
     #[error("Interner error: {0}")]
     InternerError(#[from] ::zako_interner::InternerError),
+    #[error("other error: {0}")]
+    Other(#[from] eyre::Report),
 }
 
+/// A context for building a package.
+///
+/// This is stateless, meaning it can built from information and it can copy easily.
 #[derive(Debug, Clone)]
 pub struct BuildContext {
     project_root: InternedAbsolutePath,
@@ -73,6 +80,23 @@ impl BuildContext {
         })
     }
 
+    pub fn new_from_configured_project(
+        configured_project: &ConfiguredPackage,
+        interner: &Interner,
+        env: Arc<GlobalState>,
+    ) -> Result<Self, BuildContextError> {
+        let project_root = configured_project.source_root;
+        let project_source = configured_project.source.clone();
+        let project_entry_name =
+            interner.get_or_intern(crate::consts::PACKAGE_MANIFEST_FILE_NAME)?;
+        Ok(Self {
+            project_root,
+            project_entry_name,
+            project_source,
+            env,
+        })
+    }
+
     #[inline]
     #[must_use]
     pub fn project_root(&self) -> InternedAbsolutePath {
@@ -87,7 +111,7 @@ impl BuildContext {
 
     #[inline]
     #[must_use]
-    pub fn project_source(&self) -> &ResolvedPackageSource {
+    pub fn package_source(&self) -> &ResolvedPackageSource {
         &self.project_source
     }
 
