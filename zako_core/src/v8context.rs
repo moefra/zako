@@ -36,12 +36,12 @@ pub enum V8ContextInput {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum V8ContextOutput {
     /// Enable `zako:package` for
     ///
     /// [crate::consts::PACKAGE_SCRIPT_FILE_NAME]
-    Package { package: ConfiguredPackage },
+    Package { package: Package },
     /// Enable `zako:build` for
     ///
     /// [crate::consts::BUILD_FILE_NAME]
@@ -57,7 +57,5 @@ pub enum V8ContextOutput {
     /// Enable `zako:config` for
     ///
     /// [crate::consts::CONFIG_FILE_SUFFIX]
-    Config {
-        configuration: ResolvedConfiguration,
-    },
+    Config {},
 }

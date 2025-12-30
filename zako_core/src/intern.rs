@@ -19,7 +19,13 @@ pub type Interner = ::zako_interner::ThreadedInterner;
     rkyv::Archive,
 )]
 pub struct InternedAbsolutePath {
-    pub interned: InternedString,
+    interned: InternedString,
+}
+
+impl AsRef<InternedString> for InternedAbsolutePath {
+    fn as_ref(&self) -> &InternedString {
+        &self.interned
+    }
 }
 
 impl InternedAbsolutePath {
@@ -39,6 +45,7 @@ impl InternedAbsolutePath {
             interned: interner.get_or_intern(path)?,
         }))
     }
+
     pub fn from_interned(
         interned: InternedString,
         interner: &Interner,

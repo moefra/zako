@@ -28,10 +28,30 @@ impl LocalCas {
         self.root.join(&hex[0..2]).join(&hex[2..])
     }
 
-    pub async fn digest(file: &Utf8Path, metadata: &std::fs::Metadata) -> std::io::Result<Digest> {
+    pub async fn digest(
+        file: &Utf8Path,
+        metadata: &std::fs::Metadata,
+        is_symlink: bool,
+    ) -> std::io::Result<Digest> {
         // if the file is bigger than 64kb,use mmap. Otherwise, use read.
 
         let file_size = metadata.len();
+
+        if is_symlink {
+            let link = std::fs::read_link(file.as_std_path())?;
+            match link.to_str() {
+                Some(link) => {
+                    let hash = blake3::hash(link.as_bytes());
+                    return Ok(Digest::new(link.len() as u64, hash.into()));
+                }
+                None => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "link is not a valid utf-8 string",
+                    ));
+                }
+            };
+        }
 
         let mut file = std::fs::File::open(file)?;
 
@@ -41,7 +61,6 @@ impl LocalCas {
             let hash = hasher.finalize();
             return Ok(Digest::new(file_size, hash.as_bytes().clone()));
         }
-
         unsafe {
             let mmap = MmapOptions::new().map(&file)?;
 
@@ -50,10 +69,14 @@ impl LocalCas {
         }
     }
 
-    pub async fn input_file(&self, source_path: &Utf8Path) -> std::io::Result<Digest> {
+    pub async fn input_file(
+        &self,
+        source_path: &Utf8Path,
+        is_symlink: bool,
+    ) -> std::io::Result<Digest> {
         let metadata = std::fs::metadata(source_path)?;
 
-        let digest = Self::digest(source_path, &metadata).await?;
+        let digest = Self::digest(source_path, &metadata, is_symlink).await?;
 
         let target_path = self.get_path_for_digest(&digest);
 

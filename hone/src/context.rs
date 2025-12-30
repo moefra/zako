@@ -32,6 +32,7 @@ pub struct Context<'c, C, K: NodeKey, V: NodeValue> {
 }
 
 impl<'c, C, K: NodeKey, V: NodeValue> Context<'c, C, K, V> {
+    #[must_use]
     pub fn new(
         engine: &'c Engine<C, K, V>,
         caller: Option<K>,
@@ -52,30 +53,43 @@ impl<'c, C, K: NodeKey, V: NodeValue> Context<'c, C, K, V> {
         }
     }
 
+    #[must_use]
+    #[inline]
     pub fn engine(&'c self) -> &'c Engine<C, K, V> {
         self.engine
     }
 
+    #[must_use]
+    #[inline]
     pub fn caller(&self) -> Option<&K> {
         self.caller.as_ref()
     }
 
+    #[must_use]
+    #[inline]
     pub fn this(&'c self) -> &'c K {
         self.this
     }
 
+    #[must_use]
+    #[inline]
     pub fn old_data(&'c self) -> Option<&'c NodeData<C, V>> {
         self.old_data.as_ref()
     }
 
+    #[must_use]
+    #[inline]
     pub fn context(&'c self) -> &'c C {
         self.context
     }
 
+    #[must_use]
+    #[inline]
     pub fn cancel_token(&self) -> zako_cancel::CancelToken {
         self.cancel_token.clone()
     }
 
+    #[must_use]
     pub async fn request_with_context(
         &self,
         key: K,

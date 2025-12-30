@@ -1,10 +1,8 @@
+use ::std::ops::Deref;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{
-    error::HoneError,
-    node::NodeValue,
-};
+use crate::{error::HoneError, node::NodeValue};
 
 pub type Hash = zako_digest::blake3_hash::Hash;
 
@@ -50,6 +48,14 @@ impl<C, V: NodeValue> NodeData<C, V> {
 
     pub fn hash_pair(&self) -> &HashPair {
         &self.hash_pair
+    }
+}
+
+impl<C, V: NodeValue> Deref for NodeData<C, V> {
+    type Target = Arc<V>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
     }
 }
 

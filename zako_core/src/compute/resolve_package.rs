@@ -7,6 +7,7 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     blob_handle::BlobHandle,
+    compute::file,
     computer::ZakoComputeContext,
     configured_project::ConfiguredPackage,
     consts,
@@ -49,38 +50,23 @@ pub async fn resolve_package<'c>(
     };
 
     let path_str = interner
-        .resolve(path_id.interned)
+        .resolve(path_id)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
-    let path = Path::new(path_str);
-    let path =
-        Utf8PathBuf::try_from(path.canonicalize().map_err(|e| eyre::eyre!(e))?).map_err(|e| {
-            HoneError::IOError(
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidFilename,
-                    format!(
-                        "Invalid filename: {:?}(contains non-utf8 characters: {:?})",
-                        &path_str, e
-                    ),
-                ),
-                path_str.to_string(),
-            )
-        })?;
+    let path = Utf8PathBuf::from(path_str);
     let manifest = path.join(consts::PACKAGE_MANIFEST_FILE_NAME);
-    let manifest_digest = ctx
-        .cas_store()
-        .get_local_cas()
-        .input_file(&manifest)
-        .await
-        .wrap_err("failed to input file to local cas")?;
+
+    // TODO: DO not read the file into memory, just read the file into a blob handle
+    let (_, result) = file::read_text(raw_ctx, manifest).await?;
 
     // build new context
+
     let new_ctx = BuildContext::new(&path, key.source.clone(), None, ctx.global_state().clone())
         .wrap_err("failed to build new context")?;
 
     let manifest = raw_ctx
         .request_with_context(
             ZakoKey::ParseManifest(ParseManifest {
-                blob_handle: BlobHandle::new_referenced(manifest_digest),
+                blob_handle: BlobHandle::new_referenced(*result.content.digest()),
             }),
             &new_ctx,
         )

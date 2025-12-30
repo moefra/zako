@@ -1,17 +1,16 @@
-
 use eyre::Context;
-use hone::{
-    HoneResult,
-    error::HoneError,
-    status::HashPair,
-};
+use hone::{HoneResult, error::HoneError, status::HashPair};
 use oxc_span::SourceType;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
+    blob_handle::BlobHandle,
     blob_range::BlobRange,
     computer::ZakoComputeContext,
-    node::transpile_ts::{TranspileTs, TranspileTsResult},
+    node::{
+        node_value::ZakoValue,
+        transpile_ts::{TranspileTs, TranspileTsResult},
+    },
     worker::oxc_worker::OxcTranspilerInput,
 };
 
@@ -83,4 +82,31 @@ pub async fn transpile_ts<'c>(
         },
         output,
     ))
+}
+
+pub async fn transpile_ts_string<'c>(
+    ctx: &'c ZakoComputeContext<'c>,
+    name: String,
+    blob_handle: BlobHandle,
+) -> HoneResult<TranspileTsResult> {
+    let result = ctx
+        .request(
+            TranspileTs {
+                name: name,
+                code: blob_handle,
+            }
+            .into(),
+        )
+        .await?;
+
+    let result = match &**result.value() {
+        ZakoValue::TranspileTs(result) => result,
+        _ => {
+            return Err(HoneError::UnexpectedError(
+                "Unexpected node value".to_string(),
+            ));
+        }
+    };
+
+    Ok(result.clone())
 }

@@ -140,7 +140,7 @@ impl ResolvedPackageSource {
             }),
             ResolvedPackageSource::Http { url } => Ok(PackageSource::Http { url: url.clone() }),
             ResolvedPackageSource::Path { path } => Ok(PackageSource::Path {
-                path: interner.resolve(path.interned)?.into(),
+                path: interner.resolve(path)?.into(),
             }),
         }
     }

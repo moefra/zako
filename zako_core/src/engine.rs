@@ -45,12 +45,10 @@ impl Debug for Engine {
 }
 
 impl Engine {
-    pub fn new(options: EngineOptions) -> Result<Self, EngineError> {
+    pub fn new(options: EngineOptions, loader: LoaderOptions) -> Result<Self, EngineError> {
         JsRuntime::init_platform(Some(get_set_platform_or_default()), false);
 
-        let loader = Rc::new(ModuleLoader::new(LoaderOptions {
-            ..Default::default()
-        }));
+        let loader = Rc::new(ModuleLoader::new(loader));
 
         let mut extensions = options.extensions;
         extensions.extend(vec![
@@ -170,7 +168,6 @@ impl Engine {
     pub fn execute_module_and_then<F, R>(
         self: &mut Self,
         module_specifier: &ModuleSpecifier,
-        source_code: Option<String>,
         then: F,
     ) -> Result<R, EngineError>
     where
@@ -187,15 +184,9 @@ impl Engine {
 
         let future = async move {
             let mut js_runtime = js_runtime.borrow_mut();
-            let mod_id = if let Some(source_code) = source_code {
-                js_runtime
-                    .load_main_es_module_from_code(&module_specifier.url, source_code)
-                    .await?
-            } else {
-                js_runtime
-                    .load_main_es_module(&module_specifier.url)
-                    .await?
-            };
+            let mod_id = js_runtime
+                .load_main_es_module(&module_specifier.url)
+                .await?;
             let result = js_runtime.mod_evaluate(mod_id);
             js_runtime.run_event_loop(Default::default()).await?;
             result.await?;

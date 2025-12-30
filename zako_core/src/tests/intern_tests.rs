@@ -21,8 +21,8 @@ fn test_interned_absolute_path() {
 
     // Test from_interned
     if let Some(p) = p1 {
-        let p3 = InternedAbsolutePath::from_interned(p.interned, interner).unwrap();
+        let p3 = InternedAbsolutePath::from_interned(*p.as_ref(), interner).unwrap();
         assert!(p3.is_some());
-        assert_eq!(p3.unwrap().interned, p.interned);
+        assert_eq!(p3.unwrap(), p);
     }
 }

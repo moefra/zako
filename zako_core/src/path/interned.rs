@@ -22,8 +22,10 @@ impl InternedNeutralPath {
     pub unsafe fn from_raw(interned: InternedString) -> Self {
         Self { interned }
     }
+}
 
-    pub fn interned(&self) -> &InternedString {
+impl AsRef<InternedString> for InternedNeutralPath {
+    fn as_ref(&self) -> &InternedString {
         &self.interned
     }
 }

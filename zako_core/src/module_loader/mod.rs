@@ -1,9 +1,11 @@
 pub mod specifier;
 
-use crate::module_loader::specifier::{ModuleSpecifier, ModuleType};
+use crate::{
+    module_loader::specifier::{ModuleSpecifier, ModuleType},
+    worker::protocol::V8ImportRequest,
+};
 use ahash::HashMap;
 use ahash::HashSet;
-use deno_core::ModuleCodeBytes;
 use deno_core::ModuleLoadOptions;
 use deno_core::ModuleLoadReferrer;
 use deno_core::ModuleLoadResponse;
@@ -21,7 +23,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use tracing::trace_span;
-use url::{ParseError, Url};
+use url::ParseError;
 
 #[derive(thiserror::Error, Debug, deno_error::JsError)]
 #[class(generic)]
@@ -44,7 +46,7 @@ pub type AsyncLoadHook = Box<
 
 pub struct LoaderOptions {
     pub read_module: HashMap<ModuleSpecifier, String>,
-    pub load_hook: AsyncLoadHook,
+    pub import_channel: flume::Sender<crate::worker::protocol::V8ImportRequest>,
 }
 
 impl Debug for LoaderOptions {
@@ -55,40 +57,12 @@ impl Debug for LoaderOptions {
     }
 }
 
-impl Default for LoaderOptions {
-    fn default() -> Self {
-        Self {
-            read_module: HashMap::with_hasher(ahash::RandomState::new()),
-            load_hook: Box::new(|path| {
-                let callback = async move || {
-                    let text = tokio::fs::read(&path).await.unwrap();
-
-                    Ok(ModuleSource::new(
-                        deno_core::ModuleType::JavaScript,
-                        ModuleSourceCode::Bytes(ModuleCodeBytes::Boxed(text.into())),
-                        &Url::from_file_path(path).unwrap(),
-                        None,
-                    ))
-                };
-                let callback = callback();
-
-                return Box::pin(callback);
-            }),
-        }
-    }
-}
-
-impl LoaderOptions {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ModuleLoader {
     _read_module: im::HashMap<ModuleSpecifier, String, ahash::RandomState>,
     source_maps: SourceMapStore,
     _loaded_source_sets: LoadedSourceSets,
+    import_channel: flume::Sender<crate::worker::protocol::V8ImportRequest>,
 }
 
 impl ModuleLoader {
@@ -104,6 +78,7 @@ impl ModuleLoader {
             _loaded_source_sets: Arc::new(RwLock::new(HashSet::with_hasher(
                 ahash::RandomState::new(),
             ))),
+            import_channel: options.import_channel,
         }
     }
 }
@@ -131,9 +106,8 @@ impl DenoModuleLoader for ModuleLoader {
         match referrer.module_type {
             ModuleType::File => match specifier.module_type {
                 ModuleType::File => {
-                    let resolved =
-                        resolve_import(&specifier.url.to_string(), &referrer.url.to_string())
-                            .map_err(JsErrorBox::from_err)?;
+                    let resolved = resolve_import(&specifier.url.as_str(), &referrer.url.as_str())
+                        .map_err(JsErrorBox::from_err)?;
                     Ok(resolved)
                 }
                 ModuleType::Builtin => Ok(builtin_specifier?),
@@ -181,7 +155,11 @@ impl DenoModuleLoader for ModuleLoader {
         maybe_referrer: Option<&ModuleLoadReferrer>,
         options: ModuleLoadOptions,
     ) -> ModuleLoadResponse {
-        ModuleLoadResponse::Sync((move || {
+        let import_channel = self.import_channel.clone();
+        let module_specifier = module_specifier.clone();
+        let maybe_referrer = maybe_referrer.cloned();
+
+        let future = async move || {
             let _span = trace_span!(
                 "load module",
                 maybe_referrer = format!("{:?}", maybe_referrer),
@@ -199,15 +177,45 @@ impl DenoModuleLoader for ModuleLoader {
                 .to_file_path()
                 .map_err(|_| JsErrorBox::generic("Only file:// URLs are supported."))?;
 
-            let code = std::fs::read_to_string(&path).map_err(JsErrorBox::from_err)?;
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            import_channel
+                .send_async(V8ImportRequest {
+                    specifier: path.to_string_lossy().to_string(),
+                    resp: tx,
+                })
+                .await
+                .map_err(|e| {
+                    JsErrorBox::generic(format!(
+                        "Failed to send import request {:?}:{:?}",
+                        module_specifier, e
+                    ))
+                })?;
+
+            let result = rx
+                .await
+                .map_err(|e| {
+                    JsErrorBox::generic(format!(
+                        "failed to recv import response {:?}:{:?}",
+                        module_specifier, e
+                    ))
+                })?
+                .map_err(|e| {
+                    JsErrorBox::generic(format!(
+                        "failed to resolve import request {:?}:{:?}",
+                        module_specifier, e
+                    ))
+                })?;
 
             Ok(ModuleSource::new(
                 deno_core::ModuleType::JavaScript,
-                ModuleSourceCode::String(code.into()),
-                module_specifier,
+                ModuleSourceCode::String(result.into()),
+                &module_specifier,
                 None,
             ))
-        })())
+        };
+
+        ModuleLoadResponse::Async(Box::pin(async move { future().await }))
     }
 
     fn get_source_map(&self, specifier: &str) -> Option<Cow<'_, [u8]>> {

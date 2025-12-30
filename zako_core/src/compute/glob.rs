@@ -23,7 +23,7 @@ pub async fn glob<'c>(
     let _resource = ctx.resource_pool().occupy(ResourceRequest::cpu(1));
     let base_path_str = ctx
         .interner()
-        .resolve(base_path.interned)
+        .resolve(base_path)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
     let base_path = Utf8Path::new(base_path_str);
     let interner = ctx.interner();
