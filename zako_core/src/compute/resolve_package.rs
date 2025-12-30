@@ -56,6 +56,7 @@ pub async fn resolve_package<'c>(
     let manifest = path.join(consts::PACKAGE_MANIFEST_FILE_NAME);
 
     // TODO: DO not read the file into memory, just read the file into a blob handle
+    // Issue URL: https://github.com/moefra/zako/issues/28
     let (_, result) = file::read_text(raw_ctx, manifest).await?;
 
     // build new context
