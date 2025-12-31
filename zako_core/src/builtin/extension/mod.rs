@@ -7,9 +7,10 @@
 //! The exported js module name will be `zako:$name`
 pub mod config;
 pub mod console;
+pub mod context;
 pub mod core;
 pub mod global;
-pub mod project;
+pub mod package;
 pub mod rt;
 pub mod semver;
 pub mod syscall;

@@ -1,3 +1,13 @@
+[workspace.package]
+version = "0.1.0"
+authors = ["MoeGodot <me@kawayi.moe>"]
+description = "The post-modern building tool that your mom warned you about."
+documentation = "https://github.com/moefra/zako"
+repository = "https://github.com/moefra/zako"
+homepage = "https://github.com/moefra/zako"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
 [workspace]
 members = [
     "zako_core",
@@ -6,7 +16,7 @@ members = [
     "zako_digest",
     "zako_interner",
     "hone",
-    #"kagami",
+    "zako_kgp",
 ]
 default-members = ["zako_core", "zako_cli"]
 resolver = "3"
@@ -23,6 +33,7 @@ missing_docs = "warn"
 zako-cli = { path = "./zako_cli" }
 zako-core = { path = "./zako_core" }
 zako-cancel = { path = "./zako_cancel" }
+zako-kgp = { path = "./zako_kgp" }
 hone = { path = "./hone" }
 zako-digest = { path = "./zako_digest" }
 zako-interner = { path = "./zako_interner" }
@@ -141,7 +152,8 @@ flume = { version = "0.12.0", features = ["async"] }
 async-stream = "0.3.6"
 
 deno_core = "0.376.0"
-deno_error = "0.7.1"
+deno_error = "0.7.3"
+boxed_error = "0.2.3"
 
 parking_lot = "0.12.5"
 
@@ -258,6 +270,9 @@ sysinfo = "0.37.2"
 # used by zako_camino, we just make them happy
 bincode = "1"
 
+ratatui = { version = "0.30", features = ["crossterm_0_29"] }
+crossterm = "0.29"
+
 [profile.dev]
 opt-level = 0
 debug = true
@@ -284,13 +299,3 @@ incremental = false
 
 [profile.bench]
 inherits = "release"
-
-[workspace.package]
-version = "0.1.0"
-authors = ["MoeGodot <me@kawayi.moe>"]
-description = "The post-modern building tool that your mom warned you about."
-documentation = "https://github.com/moefra/zako"
-repository = "https://github.com/moefra/zako"
-homepage = "https://github.com/moefra/zako"
-edition = "2024"
-license = "GPL-3.0-or-later"

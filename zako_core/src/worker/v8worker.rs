@@ -3,6 +3,7 @@ use crate::{
     global_state::GlobalState,
     module_loader::{LoaderOptions, specifier::ModuleSpecifier},
     v8context::{V8ContextInput, V8ContextOutput},
+    v8utils,
     worker::WorkerBehavior,
 };
 use ::eyre::eyre;
@@ -96,6 +97,18 @@ impl WorkerBehavior for V8Worker {
                 import_channel: input.request_channel,
             },
         )?;
+
+        let runtime = engine.get_runtime();
+        let mut runtime = runtime.borrow_mut();
+        let context = runtime.main_context();
+        let mut isolate = runtime.v8_isolate();
+        v8utils::with_try_catch(&mut isolate, &context, |scope, context| {
+            let global = context.global(scope);
+
+            global.get(scope, key, value)?;
+
+            Ok(())
+        });
 
         let specifier = url::Url::from_file_path(&input.specifier)
             .map_err(|_| eyre!("failed to parse the {:?} into file url", input.specifier))?;

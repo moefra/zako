@@ -322,7 +322,19 @@ impl Blake3Hash for bool {
     }
 }
 
-#[derive(Clone, Debug, Hash, Copy, PartialEq, Eq, Archive, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Hash,
+    Copy,
+    PartialEq,
+    Eq,
+    Archive,
+    Serialize,
+    Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct Hash {
     hash_bytes: [u8; 32],
 }

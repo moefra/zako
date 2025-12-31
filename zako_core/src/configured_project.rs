@@ -15,22 +15,26 @@ use crate::{
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ConfiguredPackage {
-    pub raw_source: PackageSource,
+    pub raw_package_blake3: ::zako_digest::blake3_hash::Hash,
+    pub raw_source_blake3: ::zako_digest::blake3_hash::Hash,
+    pub source_root_blake3: ::zako_digest::blake3_hash::Hash,
     pub source: ResolvedPackageSource,
     pub package: ResolvedPackage,
     pub source_root: InternedAbsolutePath,
 }
 
-impl ConfiguredPackage {
-    pub fn to_blake3_compatible<'i>(
-        &self,
-        interner: &'i Interner,
-    ) -> Result<(Package, PackageSource), PackageResolveError> {
-        let package = self.package.to_raw(&interner)?;
-        let source = self.raw_source.clone();
-        Ok((package, source))
+impl Blake3Hash for ConfiguredPackage {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        (
+            self.raw_package_blake3,
+            self.raw_source_blake3,
+            self.source_root_blake3,
+        )
+            .hash_into_blake3(hasher);
     }
+}
 
+impl ConfiguredPackage {
     pub fn get_context(
         &self,
         interner: &Interner,

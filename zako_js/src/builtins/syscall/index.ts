@@ -3,11 +3,15 @@
 // to instantiate rt module
 import * as _rt from "zako:rt";
 
+const syscalls = Deno.core.ops as any;
+
+export default syscalls;
+
 export function log(
         level: "trace" | "debug" | "info" | "warn" | "error",
         message: string,
     ): void{
-    Deno.core.ops.syscall_log(level, message);
+    syscalls.syscall_core_log(level, message);
 }
 
-export const version: string = Deno.core.ops.syscall_version() as string;
+export const version: string = syscalls.syscall_core_version() as string;

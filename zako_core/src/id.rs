@@ -106,7 +106,7 @@ pub enum IdParseError {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
-pub struct InternedAtom(pub InternedString);
+pub struct InternedAtom(InternedString);
 
 impl InternedAtom {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
@@ -114,6 +114,12 @@ impl InternedAtom {
             return Err(IdParseError::NotMatchLooseXid(s.to_string(), None));
         }
         Ok(Self(interner.get_or_intern(s)?))
+    }
+}
+
+impl AsRef<InternedString> for InternedAtom {
+    fn as_ref(&self) -> &InternedString {
+        &self.0
     }
 }
 
@@ -133,7 +139,13 @@ impl Blake3Hash for InternedAtom {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
-pub struct InternedPath(pub InternedString);
+pub struct InternedPath(InternedString);
+
+impl AsRef<InternedString> for InternedPath {
+    fn as_ref(&self) -> &InternedString {
+        &self.0
+    }
+}
 
 impl InternedPath {
     pub fn try_parse<'s>(
@@ -177,12 +189,18 @@ impl InternedPath {
 ///
 /// 例如: "main", "lib-utils", "test_suite"
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
-pub struct InternedTarget(pub InternedAtom);
+pub struct InternedTarget(InternedAtom);
 
 impl InternedTarget {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {
         let atom = InternedAtom::try_parse(s, interner)?;
         Ok(Self(atom))
+    }
+}
+
+impl AsRef<InternedString> for InternedTarget {
+    fn as_ref(&self) -> &InternedString {
+        self.0.as_ref()
     }
 }
 
@@ -194,7 +212,13 @@ impl InternedTarget {
 ///
 /// 例如: "@zako","@curl","@openssl",""(当前包)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
-pub struct InternedPackageRef(pub InternedString);
+pub struct InternedPackageRef(InternedString);
+
+impl AsRef<InternedString> for InternedPackageRef {
+    fn as_ref(&self) -> &InternedString {
+        &self.0
+    }
+}
 
 impl InternedPackageRef {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, IdParseError> {

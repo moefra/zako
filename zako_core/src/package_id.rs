@@ -25,11 +25,17 @@ pub enum PackageIdParseError {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
-pub struct InternedVersion(pub InternedString);
+pub struct InternedVersion(InternedString);
 
 impl Blake3Hash for InternedVersion {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         self.0.hash_into_blake3(hasher);
+    }
+}
+
+impl AsRef<InternedString> for InternedVersion {
+    fn as_ref(&self) -> &InternedString {
+        &self.0
     }
 }
 
@@ -49,11 +55,17 @@ impl InternedVersion {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
-pub struct InternedGroup(pub InternedString);
+pub struct InternedGroup(InternedString);
 
 impl Blake3Hash for InternedGroup {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         self.0.hash_into_blake3(hasher);
+    }
+}
+
+impl AsRef<InternedString> for InternedGroup {
+    fn as_ref(&self) -> &InternedString {
+        &self.0
     }
 }
 
@@ -121,8 +133,8 @@ impl InternedArtifactId {
     pub fn resolved(&self, interner: &Interner) -> Result<String, PackageIdParseError> {
         Ok(format!(
             "{}:{}",
-            interner.resolve(&self.group.0)?,
-            interner.resolve(&self.name.0)?
+            interner.resolve(&self.group)?,
+            interner.resolve(&self.name)?
         ))
     }
 }

@@ -5,15 +5,15 @@
             "zako:*": [
                 "./.zako/types/zako/*.d.ts"
             ],
-            "zako:project": [
-                "./.zako/types/zako/project/project.d.ts"
+            "zako:package": [
+                "./.zako/types/zako/package/package.d.ts"
             ]
         },
         "typeRoots": [
             "./.zako/types/",
             "./node_modules/@types/"
         ],
-        "outDir": "./dist/project"
+        "outDir": "./dist/package"
     },
     "include": [
         "./**/zako.ts"

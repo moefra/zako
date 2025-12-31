@@ -24,7 +24,8 @@
         "./**/*.rule.ts",
         "./**/*.toolchain.ts",
         "./**/*.script.ts",
-        "./**/scripts/**/*.ts"
+        "./**/scripts/**/*.ts",
+        "./**/*.config.ts"
     ],
     "references": []
 }

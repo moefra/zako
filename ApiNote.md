@@ -11,6 +11,7 @@ Below ecmascript standard APIs are banned.
 - whole performance: it is useless,we use open telemetry to monitor performance,and it cause script unsealed
 - Math.random(): is is useless and cause script unsealed. For hermetic and unique ID and temporary file,provide utility in `zako:unique`.
 - whole Crypto - it use random. and the version of non-random crypto is **not-secure**. Use `zako:hash` and `zako:crypto` instead.
+- CryptoKey,CryptoKeyPair: it is useless and cause script unsealed
 - whole FinalizationRegistry: it is useless and cause script unsealed
 - whole WeakRef: reason same as `FinalizationRegistry`
 - setTimeout: it is useless and cause script unsealed

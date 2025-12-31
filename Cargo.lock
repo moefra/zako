@@ -6647,6 +6647,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "blake3",
+ "boxed_error",
  "bytes",
  "camino",
  "cfg-if",
@@ -6757,6 +6758,10 @@ dependencies = [
  "xxhash-rust",
  "zako-digest",
 ]
+
+[[package]]
+name = "zako-kgp"
+version = "0.1.0"
 
 [[package]]
 name = "zerocopy"

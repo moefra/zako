@@ -101,7 +101,6 @@ pub enum ResolvedPackageSource {
 impl PackageSource {
     pub fn resolve(
         self,
-        _current_path: &Utf8Path,
         interner: &Interner,
     ) -> Result<ResolvedPackageSource, PackageSourceResolveError> {
         match self {
@@ -129,9 +128,9 @@ impl ResolvedPackageSource {
             ResolvedPackageSource::Registry { package } => Ok(PackageSource::Registry {
                 package: format!(
                     "{}:{}@{}",
-                    interner.resolve(&package.name.group.0)?,
-                    interner.resolve(&package.name.name.0)?,
-                    interner.resolve(&package.version.0)?
+                    interner.resolve(&package.name.group)?,
+                    interner.resolve(&package.name.name)?,
+                    interner.resolve(&package.version)?
                 ),
             }),
             ResolvedPackageSource::Git { repo, checkout } => Ok(PackageSource::Git {

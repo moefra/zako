@@ -55,7 +55,12 @@ pub async fn execute_script<'c>(
         let script =
             transpile_ts_string(ctx, request_script_path.to_string(), handle.content).await?;
 
-        request.resp.send(Ok(script.code));
+        match request.resp.send(Ok(script.code)) {
+            Err(_) => {
+                break;
+            }
+            Ok(_) => (),
+        }
     }
 
     drop(rx);

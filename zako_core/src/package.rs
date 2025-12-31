@@ -1,7 +1,7 @@
 use ::std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use crate::pattern::{InternedPattern, Pattern};
+use crate::pattern::{InternedPattern, Pattern, PatternError, PatternGroup};
 use crate::{
     author::{Author, InternedAuthor},
     config_value::ConfigValue,
@@ -16,6 +16,8 @@ use crate::{
 };
 use crate::{id::InternedAtom, package_id::InternedPackageId};
 use crate::{intern::Interner, package_source::ResolvedPackageSource};
+use ::camino::Utf8PathBuf;
+use ::zako_interner::InternerError;
 use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -73,12 +75,30 @@ pub struct Package {
     pub rules: Option<Pattern>,
     pub toolchains: Option<Pattern>,
     pub peers: Option<Pattern>,
-    /// The key will be checked by [crate::id::is_xid_loose_ident]
+    /// The key will be checked by [crate::id::is_loose_ident]
     pub dependencies: Option<BTreeMap<SmolStr, PackageSource>>,
     /// Default mount config to [crate::consts::DEFAULT_CONFIGURATION_MOUNT_POINT]
     pub mount_config: Option<SmolStr>,
-    /// The key will be checked by [crate::id::is_xid_loose_ident]
+    /// The key will be checked by [crate::id::is_loose_ident]
     pub config: Option<BTreeMap<SmolStr, ConfigValue>>,
+}
+
+impl Package {
+    #[must_use]
+    pub fn pre_resolve(&self) -> Result<(), PackageResolveError> {
+        if let Some(wrong_config_key) = self.config.as_ref().and_then(|cfg| {
+            cfg.keys().find(|k| {
+                let parsed = crate::id::is_loose_ident(k);
+                parsed == false
+            })
+        }) {
+            return Err(PackageResolveError::InvalidConfigKey(
+                wrong_config_key.to_string(),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 impl Blake3Hash for Package {
@@ -101,33 +121,32 @@ impl Blake3Hash for Package {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
-pub struct ResolvedPackage {
-    pub group: InternedGroup,
-    pub artifact: InternedAtom,
-    pub version: InternedVersion,
-    pub configure_script: Option<SmolStr>,
-    pub description: Option<SmolStr>,
-    pub authors: Option<Vec<InternedAuthor>>,
-    pub license: Option<InternedString>,
-    pub builds: Option<InternedPattern>,
-    pub rules: Option<InternedPattern>,
-    pub toolchains: Option<InternedPattern>,
-    pub peers: Option<InternedPattern>,
-    pub dependencies: Option<BTreeMap<SmolStr, ResolvedPackageSource>>,
-    pub mount_config: Option<InternedAtom>,
-    pub config: ResolvedConfiguration,
+pub struct ResolvingPackage {
+    pub original: Package,
+    pub resolved_config: ResolvedConfiguration,
+    pub additional_peers: Vec<Pattern>,
+    pub additional_builds: Vec<Pattern>,
+    pub additional_rules: Vec<Pattern>,
+    pub additional_toolchains: Vec<Pattern>,
 }
 
-impl Package {
-    #[must_use]
-    pub fn resolve(
-        self,
-        context: &BuildContext,
-        project_root: &Utf8Path,
-    ) -> Result<ResolvedPackage, PackageResolveError> {
-        let dbg_msg = format!("while resolving project {:?}", &self);
+impl ResolvingPackage {
+    pub fn new(original: Package, resolved_config: ResolvedConfiguration) -> Self {
+        Self {
+            original,
+            resolved_config,
+            additional_peers: Default::default(),
+            additional_builds: Default::default(),
+            additional_rules: Default::default(),
+            additional_toolchains: Default::default(),
+        }
+    }
 
-        let authors = if let Some(authors) = self.authors {
+    #[must_use]
+    pub fn resolve(self, context: &BuildContext) -> Result<ResolvedPackage, PackageResolveError> {
+        let project_root = Utf8PathBuf::from(context.interner().resolve(context.project_root())?);
+
+        let authors = if let Some(authors) = self.original.authors {
             let mut interned_authors: Vec<InternedAuthor> = Vec::with_capacity(authors.len());
             for author in authors.into_iter() {
                 interned_authors.push(author.intern(context)?);
@@ -137,7 +156,7 @@ impl Package {
             None
         };
 
-        if let Some(wrong_dependency_key) = self.dependencies.as_ref().and_then(|deps| {
+        if let Some(wrong_dependency_key) = self.original.dependencies.as_ref().and_then(|deps| {
             deps.keys().find(|k| {
                 let parsed = crate::id::is_loose_ident(k);
                 parsed == false
@@ -148,59 +167,55 @@ impl Package {
             ));
         }
 
-        if let Some(wrong_config_key) = self.config.as_ref().and_then(|cfg| {
-            cfg.keys().find(|k| {
-                let parsed = crate::id::is_loose_ident(k);
-                parsed == false
-            })
-        }) {
-            return Err(PackageResolveError::InvalidConfigKey(
-                wrong_config_key.to_string(),
-            ));
-        }
+        let trans = |pattern: Option<Pattern>,
+                     additional: Vec<Pattern>|
+         -> Result<PatternGroup, PatternError> {
+            let mut results = Vec::with_capacity(additional.len() + 1);
+
+            if let Some(pattern) = pattern {
+                results.push(pattern);
+            }
+
+            results.extend(additional);
+
+            Ok(PatternGroup::new(results, context.interner())?)
+        };
 
         Ok(ResolvedPackage {
-            group: InternedGroup::try_parse(&self.group, context.interner())?,
-            artifact: InternedAtom::try_parse(&self.artifact, context.interner()).map_err(
-                |err| PackageResolveError::IdParseError(self.artifact.to_string(), "artifact", err),
-            )?,
-            version: InternedVersion::try_parse(&self.version, context.interner())?,
-            description: self.description,
+            group: InternedGroup::try_parse(&self.original.group, context.interner())?,
+            artifact: InternedAtom::try_parse(&self.original.artifact, context.interner())
+                .map_err(|err| {
+                    PackageResolveError::IdParseError(
+                        self.original.artifact.to_string(),
+                        "artifact",
+                        err,
+                    )
+                })?,
+            version: InternedVersion::try_parse(&self.original.version, context.interner())?,
+            description: self.original.description,
             authors,
             license: self
+                .original
                 .license
                 .as_ref()
                 .map(|s| context.interner().get_or_intern(s))
                 .transpose()?,
-            builds: self
-                .builds
-                .map(|pattern| pattern.intern(context))
-                .transpose()?,
-            configure_script: self.configure_script,
-            rules: self
-                .rules
-                .map(|pattern| pattern.intern(context))
-                .transpose()?,
-            toolchains: self
-                .toolchains
-                .map(|pattern| pattern.intern(context))
-                .transpose()?,
-            peers: self
-                .peers
-                .map(|pattern| pattern.intern(context))
-                .transpose()?,
+            builds: trans(self.original.builds, self.additional_builds)?,
+            configure_script: self.original.configure_script,
+            rules: trans(self.original.rules, self.additional_rules)?,
+            toolchains: trans(self.original.toolchains, self.additional_toolchains)?,
+            peers: trans(self.original.peers, self.additional_peers)?,
             dependencies: self
+                .original
                 .dependencies
                 .map(|deps| {
                     deps.into_iter()
-                        .map(|(k, v)| {
-                            v.resolve(project_root, context.interner())
-                                .map(|resolved| (k, resolved))
-                        })
+                        .map(|(k, v)| v.resolve(context.interner()).map(|resolved| (k, resolved)))
                         .collect::<Result<BTreeMap<_, _>, _>>()
                 })
                 .transpose()?,
             mount_config: self
+                .original
                 .mount_config
                 .as_ref()
                 .map(|s| {
@@ -209,11 +224,27 @@ impl Package {
                     })
                 })
                 .transpose()?,
-            config: Configuration::from(self.config.unwrap_or_default())
-                .resolve(context.interner())
-                .map_err(|err| PackageResolveError::ConfigResolveError(err.wrap_err(dbg_msg)))?,
+            config: self.resolved_config,
         })
     }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+pub struct ResolvedPackage {
+    pub group: InternedGroup,
+    pub artifact: InternedAtom,
+    pub version: InternedVersion,
+    pub configure_script: Option<SmolStr>,
+    pub description: Option<SmolStr>,
+    pub authors: Option<Vec<InternedAuthor>>,
+    pub license: Option<InternedString>,
+    pub builds: PatternGroup,
+    pub rules: PatternGroup,
+    pub toolchains: PatternGroup,
+    pub peers: PatternGroup,
+    pub dependencies: Option<BTreeMap<SmolStr, ResolvedPackageSource>>,
+    pub mount_config: Option<InternedAtom>,
+    pub config: ResolvedConfiguration,
 }
 
 impl ResolvedPackage {
@@ -226,63 +257,5 @@ impl ResolvedPackage {
 
     pub fn get_id(&self) -> InternedPackageId {
         InternedPackageId::new(self.get_artifact_id(), self.version)
-    }
-
-    pub fn to_raw(&self, interner: &Interner) -> Result<Package, PackageResolveError> {
-        Ok(Package {
-            group: SmolStr::new(interner.resolve(&self.group.0)?),
-            artifact: SmolStr::new(interner.resolve(&self.artifact.0)?),
-            version: SmolStr::new(interner.resolve(&self.version.0)?),
-            description: self.description.clone(),
-            authors: self
-                .authors
-                .as_ref()
-                .map(|v| {
-                    v.iter()
-                        .map(|a| InternedAuthor::resolve(a, interner))
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?,
-            configure_script: self.configure_script.clone(),
-            license: self
-                .license
-                .as_ref()
-                .map(|s| interner.resolve(&s).map(|string| SmolStr::new(string)))
-                .transpose()?,
-            builds: self
-                .builds
-                .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner))
-                .transpose()?,
-            rules: self
-                .rules
-                .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner))
-                .transpose()?,
-            toolchains: self
-                .toolchains
-                .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner))
-                .transpose()?,
-            peers: self
-                .peers
-                .as_ref()
-                .map(|p| InternedPattern::resolve(p, interner))
-                .transpose()?,
-            dependencies: self
-                .dependencies
-                .as_ref()
-                .map(|deps| {
-                    deps.iter()
-                        .map(|(k, v)| Ok((k.clone(), v.to_raw(interner)?)))
-                        .collect::<Result<BTreeMap<_, _>, PackageResolveError>>()
-                })
-                .transpose()?,
-            mount_config: self
-                .mount_config
-                .map(|s| interner.resolve(&s.0).map(|string| SmolStr::new(string)))
-                .transpose()?,
-            config: Some(self.config.resolve(interner)?.config),
-        })
     }
 }

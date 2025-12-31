@@ -99,22 +99,22 @@ fn test_label_parsing() {
     let interner = &TEST_INTERNER;
 
     let l1 = Label::try_parse("//:main", interner).unwrap();
-    assert_eq!(interner.resolve(&l1.package_ref.0).unwrap(), "");
-    assert_eq!(interner.resolve(&l1.path.0).unwrap(), "");
-    assert_eq!(interner.resolve(&l1.target.0.0).unwrap(), "main");
+    assert_eq!(interner.resolve(&l1.package_ref).unwrap(), "");
+    assert_eq!(interner.resolve(&l1.path).unwrap(), "");
+    assert_eq!(interner.resolve(&l1.target).unwrap(), "main");
 
     let l2 = Label::try_parse("//src", interner).unwrap();
-    assert_eq!(interner.resolve(&l2.path.0).unwrap(), "src");
-    assert_eq!(interner.resolve(&l2.target.0.0).unwrap(), "src");
+    assert_eq!(interner.resolve(&l2.path).unwrap(), "src");
+    assert_eq!(interner.resolve(&l2.target).unwrap(), "src");
 
     let l3 = Label::try_parse("@curl//src:lib", interner).unwrap();
-    assert_eq!(interner.resolve(&l3.package_ref.0).unwrap(), "curl");
-    assert_eq!(interner.resolve(&l3.path.0).unwrap(), "src");
-    assert_eq!(interner.resolve(&l3.target.0.0).unwrap(), "lib");
+    assert_eq!(interner.resolve(&l3.package_ref).unwrap(), "curl");
+    assert_eq!(interner.resolve(&l3.path).unwrap(), "src");
+    assert_eq!(interner.resolve(&l3.target).unwrap(), "lib");
 
     let l4 = Label::try_parse("@curl//crypto", interner).unwrap();
-    assert_eq!(interner.resolve(&l4.path.0).unwrap(), "crypto");
-    assert_eq!(interner.resolve(&l4.target.0.0).unwrap(), "crypto");
+    assert_eq!(interner.resolve(&l4.path).unwrap(), "crypto");
+    assert_eq!(interner.resolve(&l4.target).unwrap(), "crypto");
 }
 
 #[test]

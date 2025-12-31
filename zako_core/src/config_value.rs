@@ -129,7 +129,6 @@ impl Blake3Hash for ConfigType {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub enum ResolvedConfigValue {
-    Label(Label),
     String(SmolStr),
     Boolean(bool),
     Number(i64),
@@ -149,13 +148,6 @@ impl ResolvedConfigValue {
             ResolvedConfigValue::Number(number) => Ok(ConfigValue {
                 r#type: ConfigType::Number,
                 default: ConfigDefault::Number(*number),
-            }),
-            ResolvedConfigValue::Label(label) => Ok(ConfigValue {
-                r#type: ConfigType::Label,
-                default: ConfigDefault::Object(ConfigOperation {
-                    inherit: label.resolved(interner)?,
-                    action: None,
-                }),
             }),
         }
     }

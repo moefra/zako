@@ -8,7 +8,7 @@
             "zako:global": ["./builtins/global/index.ts"],
             "zako:semver": ["./builtins/semver/index.ts"],
             "zako:core": ["./builtins/core/index.ts"],
-            "zako:project": ["./builtins/project/index.ts"],
+            "zako:package": ["./builtins/package/index.ts"],
             "zako:build": ["./builtins/build/index.ts"],
             "zako:rule": ["./builtins/rule/index.ts"],
             "zako:console": ["./builtins/console/index.ts"],

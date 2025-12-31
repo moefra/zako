@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use ::rkyv::Archive;
 use camino::Utf8PathBuf;
 use eyre::{Context, OptionExt};
 use hone::{HoneResult, error::HoneError, status::HashPair};
@@ -9,6 +10,7 @@ use crate::{
     blob_handle::BlobHandle,
     compute::file,
     computer::ZakoComputeContext,
+    config::Configuration,
     configured_project::ConfiguredPackage,
     consts,
     context::BuildContext,
@@ -18,6 +20,7 @@ use crate::{
         parse_manifest::ParseManifest,
         resolve_package::{ResolvePackage, ResolvePackageResult},
     },
+    package::ResolvingPackage,
 };
 
 /// Compute and resolve a project file
@@ -34,9 +37,10 @@ pub async fn resolve_package<'c>(
         .resolved(interner)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
 
+    let raw_source_blake3 = key.source.clone().get_blake3();
     let input_hash: blake3::Hash = (package_id.as_str(), key.source.clone()).get_blake3();
 
-    let path_id = if let Some(root) = key.root {
+    let interned_path = if let Some(root) = key.root {
         root.into()
     } else {
         *(ctx
@@ -50,7 +54,7 @@ pub async fn resolve_package<'c>(
     };
 
     let path_str = interner
-        .resolve(path_id)
+        .resolve(interned_path)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
     let path = Utf8PathBuf::from(path_str);
     let manifest = path.join(consts::PACKAGE_MANIFEST_FILE_NAME);
@@ -81,19 +85,40 @@ pub async fn resolve_package<'c>(
         }
     }
     .clone();
+    let raw_package_blake3 = parsed.project.get_blake3();
 
     // TODO: Resolve the configuration and dependencies
 
     // before intern it, calculate hash
     // only hash result `ResolvedPackage`
-    let output_hash = parsed.project.get_blake3();
 
-    let resolved = parsed.project.resolve(&new_ctx, &path).map_err(|err| {
+    _ = parsed.project.pre_resolve()?;
+
+    let resolving = ResolvingPackage::new(
+        parsed.project,
+        Configuration::from(parsed.project.config.unwrap_or_default()).resolve(interner)?,
+    );
+
+    // TODO: call v8 js script to poll more information
+    // e.g. engine.execute_manifest_initialize_script(resolving)
+
+    let resolved = resolving.resolve(&new_ctx).map_err(|err| {
         eyre::eyre!(err).wrap_err(format!(
             "while resolving project {:?}, path {:?}",
             &key.package, &path
         ))
     })?;
+
+    let configured = ConfiguredPackage {
+        raw_package_blake3: resolved.get_blake3(),
+        raw_source_blake3: raw_source_blake3,
+        source_root_blake3: interned_path.get_blake3(),
+        source: new_ctx.package_source().clone(),
+        package: resolved,
+        source_root: interned_path,
+    };
+
+    let output = resolved.get_blake3();
 
     return Ok((
         HashPair {
@@ -101,12 +126,7 @@ pub async fn resolve_package<'c>(
             output_hash: output_hash.into(),
         },
         ResolvePackageResult {
-            package: ConfiguredPackage {
-                source: new_ctx.package_source().clone(),
-                package: resolved,
-                source_root: path_id,
-                raw_source: key.source.clone(),
-            },
+            package: configured,
         },
     ));
 }

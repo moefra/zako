@@ -4,6 +4,6 @@
  *
  * It contains things that back zmake(like ZMake specified error)
  */
-export declare class ZMakeInternalError extends Error {
+export declare class ZakoInternalError extends Error {
     constructor(message: string);
 }

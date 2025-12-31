@@ -1,5 +1,7 @@
+use ::std::sync::Arc;
 use std::path::{Path, PathBuf};
 
+use ::zako_interner::InternerError;
 use ignore::WalkState;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event};
@@ -78,6 +80,8 @@ impl Blake3Hash for Pattern {
     rkyv::Deserialize,
     rkyv::Serialize,
     rkyv::Archive,
+    serde::Serialize,
+    serde::Deserialize,
 )]
 pub struct InternedPattern {
     pub patterns: Vec<InternedString>,
@@ -94,8 +98,7 @@ pub enum PatternError {
 }
 
 impl Pattern {
-    pub fn intern(self, context: &BuildContext) -> Result<InternedPattern, PatternError> {
-        let interner = context.interner();
+    pub fn intern(self, interner: &Interner) -> Result<InternedPattern, PatternError> {
         Ok(InternedPattern {
             patterns: self
                 .patterns
@@ -186,5 +189,58 @@ impl Blake3Hash for InternedPattern {
         } else {
             [0u8]
         });
+    }
+}
+
+/// Pattern group,but interned and helper function provided.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub struct PatternGroup {
+    pub patterns: Arc<[InternedPattern]>,
+}
+
+impl PatternGroup {
+    pub fn new(patterns: Vec<Pattern>, interner: &Interner) -> Result<Self, PatternError> {
+        let mut errs = vec![];
+
+        let patterns: Vec<InternedPattern> = patterns
+            .into_iter()
+            .map(|p| p.intern(interner))
+            .filter_map(|x| match x {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    errs.push(e);
+                    None
+                }
+            })
+            .collect();
+
+        let mut errs = errs.into_iter();
+
+        if let Some(err) = errs.next() {
+            return Err(err);
+        }
+
+        Ok(Self {
+            patterns: patterns.into_boxed_slice().into(),
+        })
+    }
+}
+
+impl Blake3Hash for PatternGroup {
+    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        (&*self.patterns).hash_into_blake3(hasher);
     }
 }

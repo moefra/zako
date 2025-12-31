@@ -23,8 +23,8 @@ fn test_interned_group() {
 fn test_interned_artifact_id() {
     let interner = &TEST_INTERNER;
     let aid = InternedArtifactId::try_parse("moe.fra:zako", interner).unwrap();
-    assert_eq!(interner.resolve(&aid.group.0).unwrap(), "moe.fra");
-    assert_eq!(interner.resolve(&aid.name.0).unwrap(), "zako");
+    assert_eq!(interner.resolve(&aid.group).unwrap(), "moe.fra");
+    assert_eq!(interner.resolve(&aid.name).unwrap(), "zako");
 
     assert!(InternedArtifactId::try_parse("zako", interner).is_err());
     assert!(InternedArtifactId::try_parse("moe.fra:", interner).is_err());
