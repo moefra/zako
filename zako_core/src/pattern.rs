@@ -10,7 +10,7 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     context::BuildContext,
-    intern::{InternedString, Interner},
+    intern::{Internable, InternedString, Interner, Uninternable},
 };
 
 /// The pattern to match file paths.
@@ -95,10 +95,14 @@ pub enum PatternError {
     InternerError(#[from] ::zako_interner::InternerError),
     #[error("IO error while walking pattern: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("Other error while processing pattern: {0}")]
+    OtherError(#[from] eyre::Report),
 }
 
-impl Pattern {
-    pub fn intern(self, interner: &Interner) -> Result<InternedPattern, PatternError> {
+impl Internable for Pattern {
+    type Interned = InternedPattern;
+
+    fn intern(self, interner: &Interner) -> eyre::Result<Self::Interned> {
         Ok(InternedPattern {
             patterns: self
                 .patterns
@@ -111,23 +115,23 @@ impl Pattern {
     }
 }
 
-impl InternedPattern {
-    pub fn is_empty(&self) -> bool {
-        self.patterns.is_empty()
-    }
+impl Uninternable for InternedPattern {
+    type Uninterned = Pattern;
 
-    pub fn resolve(&self, interner: &Interner) -> Result<Pattern, PatternError> {
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
         Ok(Pattern {
             patterns: self
                 .patterns
                 .iter()
-                .map(|p| interner.resolve(&p).map(|s| s.to_string()))
+                .map(|p| interner.resolve(p).map(|s| s.to_string()))
                 .collect::<Result<Vec<_>, _>>()?,
             following_ignore_files: self.following_ignore_files,
             ignore_hidden_files: self.ignore_hidden_files,
         })
     }
+}
 
+impl InternedPattern {
     pub fn walk(
         &self,
         interner: &Interner,
@@ -230,7 +234,7 @@ impl PatternGroup {
         let mut errs = errs.into_iter();
 
         if let Some(err) = errs.next() {
-            return Err(err);
+            return Err(err.into());
         }
 
         Ok(Self {

@@ -10,8 +10,8 @@ use crate::{
     cas_store::CasStore,
     configured_project::ConfiguredPackage,
     global_state::{CommonInternedStrings, GlobalState},
-    intern::{InternedAbsolutePath, InternedString, Interner},
-    package_source::{PackageSource, ResolvedPackageSource},
+    intern::{Internable, InternedAbsolutePath, InternedString, Interner},
+    package_source::{PackageSource, PackageSourceResolveArguments, ResolvedPackageSource},
     worker::{oxc_worker::OxcTranspilerWorker, v8worker::V8Worker, worker_pool::WorkerPool},
 };
 
@@ -48,7 +48,7 @@ impl BuildContext {
     /// `project_root`: The root path of the project,it was usually built from the project_source
     ///
     /// `project_entry_name`: The entry point file name of the project,
-    /// If it is None, use [crate::consts::PROJECT_MANIFEST_FILE_NAME] as entry point
+    /// If it is None, use [crate::consts::PACKAGE_MANIFEST_FILE_NAME] as entry point
     ///
     /// `env`: The global state
     pub fn new(
@@ -59,8 +59,13 @@ impl BuildContext {
     ) -> Result<Self, BuildContextError> {
         let interner = env.interner();
 
-        let resolved = project_source
-            .resolve(&project_root.as_path(), interner)
+        let args = PackageSourceResolveArguments {
+            interner,
+            root_path: project_root,
+        };
+
+        let project_source = project_source
+            .intern(&args)
             .map_err(|err| BuildContextError::FailedToResolvePackageSource(err.to_string()))?;
 
         let entry = project_entry_name
@@ -75,7 +80,7 @@ impl BuildContext {
             )?
             .ok_or_else(|| BuildContextError::ProjectRootNotAbsolute(project_root.clone()))?,
             project_entry_name: interner.get_or_intern(entry)?,
-            project_source: resolved,
+            project_source,
             env,
         })
     }
@@ -212,5 +217,11 @@ impl Deref for ContextHandler {
 
     fn deref(&self) -> &Self::Target {
         &self.context
+    }
+}
+
+impl AsRef<Interner> for BuildContext {
+    fn as_ref(&self) -> &Interner {
+        self.interner()
     }
 }

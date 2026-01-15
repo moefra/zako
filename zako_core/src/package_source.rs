@@ -1,11 +1,11 @@
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
 use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
-    intern::{InternedAbsolutePath, Interner},
+    intern::{Internable, InternedAbsolutePath, Interner, Uninternable},
     package_id::{InternedPackageId, PackageIdParseError},
 };
 
@@ -98,11 +98,22 @@ pub enum ResolvedPackageSource {
     },
 }
 
-impl PackageSource {
-    pub fn resolve(
+pub struct PackageSourceResolveArguments<'i> {
+    pub interner: &'i Interner,
+    pub root_path: &'i Utf8Path,
+}
+
+impl Internable<PackageSourceResolveArguments<'_>> for PackageSource {
+    type Interned = ResolvedPackageSource;
+
+    fn intern(
         self,
-        interner: &Interner,
-    ) -> Result<ResolvedPackageSource, PackageSourceResolveError> {
+        interner: &PackageSourceResolveArguments<'_>,
+    ) -> eyre::Result<ResolvedPackageSource> {
+        let PackageSourceResolveArguments {
+            interner,
+            root_path,
+        } = interner;
         match self {
             PackageSource::Registry { package } => {
                 let interned_package = InternedPackageId::try_parse(&package, interner)?;
@@ -114,16 +125,24 @@ impl PackageSource {
                 Ok(ResolvedPackageSource::Git { repo, checkout })
             }
             PackageSource::Http { url } => Ok(ResolvedPackageSource::Http { url }),
-            PackageSource::Path { path } => Ok(ResolvedPackageSource::Path {
-                path: InternedAbsolutePath::new(path.as_str(), interner)?
-                    .ok_or_else(|| PackageSourceResolveError::PathNotAbsolute(path.clone()))?,
-            }),
+            PackageSource::Path { path } => {
+                let target = root_path.join(path.as_str());
+
+                Ok(ResolvedPackageSource::Path {
+                    path: InternedAbsolutePath::new(target.as_str(), interner)?.ok_or_else(
+                        || PackageSourceResolveError::PathNotAbsolute(target.to_string()),
+                    )?,
+                })
+            }
         }
     }
 }
 
-impl ResolvedPackageSource {
-    pub fn to_raw(&self, interner: &Interner) -> Result<PackageSource, PackageSourceResolveError> {
+impl Uninternable for ResolvedPackageSource {
+    type Uninterned = PackageSource;
+
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
+        let interner = interner.as_ref();
         match self {
             ResolvedPackageSource::Registry { package } => Ok(PackageSource::Registry {
                 package: format!(

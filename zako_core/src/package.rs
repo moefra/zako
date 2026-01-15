@@ -1,6 +1,8 @@
 use ::std::collections::BTreeMap;
 use std::collections::HashMap;
 
+use crate::intern::Internable;
+use crate::package_source::PackageSourceResolveArguments;
 use crate::pattern::{InternedPattern, Pattern, PatternError, PatternGroup};
 use crate::{
     author::{Author, InternedAuthor},
@@ -38,14 +40,16 @@ pub enum PackageResolveError {
     IdParseError(String, &'static str, #[source] crate::id::IdParseError),
     #[error("failed to resolve configuration of the package: {0}")]
     ConfigResolveError(#[source] eyre::Report),
-    #[error("Author resolution error: {0}")]
+    #[error("author resolution error: {0}")]
     AuthorError(#[from] crate::author::AuthorError),
-    #[error("Pattern resolution error: {0}")]
+    #[error("pattern resolution error: {0}")]
     PatternError(#[from] crate::pattern::PatternError),
-    #[error("Config resolution error: {0}")]
+    #[error("configuration resolution error: {0}")]
     ConfigError(#[from] crate::config::ConfigError),
-    #[error("Interner error: {0}")]
+    #[error("interner error: {0}")]
     InternerError(#[from] ::zako_interner::InternerError),
+    #[error("other error: {0}")]
+    OtherError(#[from] eyre::Report),
 }
 
 #[derive(
@@ -85,7 +89,7 @@ pub struct Package {
 
 impl Package {
     #[must_use]
-    pub fn pre_resolve(&self) -> Result<(), PackageResolveError> {
+    pub fn validate(&self) -> Result<(), PackageResolveError> {
         if let Some(wrong_config_key) = self.config.as_ref().and_then(|cfg| {
             cfg.keys().find(|k| {
                 let parsed = crate::id::is_loose_ident(k);
@@ -94,6 +98,17 @@ impl Package {
         }) {
             return Err(PackageResolveError::InvalidConfigKey(
                 wrong_config_key.to_string(),
+            ));
+        }
+
+        if let Some(wrong_dependency_key) = self.dependencies.as_ref().and_then(|deps| {
+            deps.keys().find(|k| {
+                let parsed = crate::id::is_loose_ident(k);
+                parsed == false
+            })
+        }) {
+            return Err(PackageResolveError::InvalidDependencyKey(
+                wrong_dependency_key.to_string(),
             ));
         }
 
@@ -146,26 +161,10 @@ impl ResolvingPackage {
     pub fn resolve(self, context: &BuildContext) -> Result<ResolvedPackage, PackageResolveError> {
         let project_root = Utf8PathBuf::from(context.interner().resolve(context.project_root())?);
 
-        let authors = if let Some(authors) = self.original.authors {
-            let mut interned_authors: Vec<InternedAuthor> = Vec::with_capacity(authors.len());
-            for author in authors.into_iter() {
-                interned_authors.push(author.intern(context)?);
-            }
-            Some(interned_authors)
-        } else {
-            None
+        let package_source_args = PackageSourceResolveArguments {
+            interner: context.interner(),
+            root_path: project_root.as_path(),
         };
-
-        if let Some(wrong_dependency_key) = self.original.dependencies.as_ref().and_then(|deps| {
-            deps.keys().find(|k| {
-                let parsed = crate::id::is_loose_ident(k);
-                parsed == false
-            })
-        }) {
-            return Err(PackageResolveError::InvalidDependencyKey(
-                wrong_dependency_key.to_string(),
-            ));
-        }
 
         let trans = |pattern: Option<Pattern>,
                      additional: Vec<Pattern>|
@@ -193,7 +192,7 @@ impl ResolvingPackage {
                 })?,
             version: InternedVersion::try_parse(&self.original.version, context.interner())?,
             description: self.original.description,
-            authors,
+            authors: self.original.authors.intern(context.interner())?,
             license: self
                 .original
                 .license
@@ -210,7 +209,7 @@ impl ResolvingPackage {
                 .dependencies
                 .map(|deps| {
                     deps.into_iter()
-                        .map(|(k, v)| v.resolve(context.interner()).map(|resolved| (k, resolved)))
+                        .map(|(k, v)| v.intern(&package_source_args).map(|resolved| (k, resolved)))
                         .collect::<Result<BTreeMap<_, _>, _>>()
                 })
                 .transpose()?,

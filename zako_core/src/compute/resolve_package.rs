@@ -92,7 +92,7 @@ pub async fn resolve_package<'c>(
     // before intern it, calculate hash
     // only hash result `ResolvedPackage`
 
-    _ = parsed.project.pre_resolve()?;
+    _ = parsed.project.validate()?;
 
     let resolving = ResolvingPackage::new(
         parsed.project,

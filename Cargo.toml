@@ -27,7 +27,13 @@ expect_used = "deny"
 panic = "deny"
 
 [workspace.lints.rustdoc]
-missing_docs = "warn"
+missing_docs = "deny"
+broken_intra_doc_links = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_html_tags = "deny"
+invalid_rust_codeblocks = "deny"
+bare_urls = "deny"
+unescaped_backticks = "deny"
 
 [workspace.dependencies]
 zako-cli = { path = "./zako_cli" }
@@ -272,6 +278,10 @@ bincode = "1"
 
 ratatui = { version = "0.30", features = ["crossterm_0_29"] }
 crossterm = "0.29"
+
+base64 = "0.22"
+
+image = "0.25.9"
 
 [profile.dev]
 opt-level = 0

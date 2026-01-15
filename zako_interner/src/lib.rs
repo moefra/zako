@@ -187,3 +187,9 @@ impl ThreadedInterner {
             .map_err(|err| InternerError::LassoError(self.id, err))
     }
 }
+
+impl AsRef<ThreadedInterner> for ThreadedInterner {
+    fn as_ref(&self) -> &ThreadedInterner {
+        self
+    }
+}

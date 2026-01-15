@@ -54,8 +54,10 @@ const STYLES: styling::Styles = styling::Styles::styled()
 
 // TODO: Print image may be a good thing
 // Issue URL: https://github.com/moefra/zako/issues/13
-const ABOUT: &'static str =
-    "The \x1b[35mpost-modern\x1b[0m 🛠️building tool🛠️ that your mom warned you about🤯";
+const ABOUT: &'static str = concat!(
+    "The \x1b[35mpost-modern\x1b[0m 🛠️building tool🛠️ that your mom warned you about🤯\n",
+    "Use terminal that support \x1b[35mkitty graphics protocol\x1b[0m to print useful image to terminal."
+);
 const BEFORE_HELP: &'static str = concatcp!(
     "打碎💨旧世界⚰️创立🚀新世界❤️‍🔥\n\x1B]8;;",
     env!("CARGO_PKG_HOMEPAGE"),

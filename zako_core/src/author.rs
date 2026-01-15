@@ -8,7 +8,7 @@ use zako_digest::blake3_hash::Blake3Hash;
 
 use crate::{
     context::BuildContext,
-    intern::{InternedString, Interner},
+    intern::{Internable, InternedString, Interner, Uninternable},
 };
 
 /// The `Author` should be a string with format `Author Name <emabil@example.com>`
@@ -33,6 +33,22 @@ use crate::{
 pub struct Author {
     name: String,
     email: email_address::EmailAddress,
+}
+
+impl Internable for Author {
+    type Interned = InternedAuthor;
+
+    fn intern(self, interner: &Interner) -> eyre::Result<Self::Interned> {
+        let interner = interner.as_ref();
+        Ok(InternedAuthor {
+            name: interner
+                .get_or_intern(self.name.as_str())
+                .map_err(|err| AuthorError::InternerError(err, self.name.clone()))?,
+            email: interner
+                .get_or_intern(self.email.as_str())
+                .map_err(|err| AuthorError::InternerError(err, self.email.to_string()))?,
+        })
+    }
 }
 
 impl PartialOrd for Author {
@@ -116,31 +132,21 @@ impl Author {
     pub fn get_output_format(&self) -> String {
         format!("{} <{}>", self.name, self.email.as_str())
     }
-
-    pub fn intern(self, context: &BuildContext) -> Result<InternedAuthor, AuthorError> {
-        Ok(InternedAuthor {
-            name: context
-                .interner()
-                .get_or_intern(self.name.as_str())
-                .map_err(|err| AuthorError::InternerError(err, self.name.clone()))?,
-            email: context
-                .interner()
-                .get_or_intern(self.email.as_str())
-                .map_err(|err| AuthorError::InternerError(err, self.email.to_string()))?,
-        })
-    }
 }
 
-impl InternedAuthor {
-    pub fn resolve(interned: &InternedAuthor, interner: &Interner) -> Result<Author, AuthorError> {
+impl Uninternable for InternedAuthor {
+    type Uninterned = Author;
+
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Author> {
+        let interner = interner.as_ref();
         Ok(Author {
             name: interner
-                .resolve(&interned.name)
+                .resolve(&self.name)
                 .map_err(|err| AuthorError::InternerError(err, "resolving name".to_string()))?
                 .to_string(),
             email: EmailAddress::new_unchecked(
                 interner
-                    .resolve(&interned.email)
+                    .resolve(&self.email)
                     .map_err(|err| AuthorError::InternerError(err, "resolving email".to_string()))?
                     .to_string(),
             ),
