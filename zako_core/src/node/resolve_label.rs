@@ -1,9 +1,6 @@
 use ::std::hash::Hasher;
 
-use crate::{
-    configured_project::ConfiguredPackage, id::Label,
-    target::Target,
-};
+use crate::{configured_project::ConfiguredPackage, id::Label, target::Target};
 
 #[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolveLabel {

@@ -1,7 +1,7 @@
 use camino::Utf8Path;
 use eyre::eyre;
 use hone::{HoneResult, error::HoneError, status::HashPair};
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     computer::ZakoComputeContext,

@@ -4,10 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::string::String;
+use std::sync::LazyLock;
 use thiserror::Error;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
-use crate::intern::Interner;
+use crate::intern::{Internable, Interner};
 use crate::path::interned::InternedNeutralPath;
 
 pub mod interned;
@@ -90,6 +91,12 @@ impl AsRef<Path> for NeutralPath {
     }
 }
 
+impl AsRef<Utf8Path> for NeutralPath {
+    fn as_ref(&self) -> &Utf8Path {
+        Utf8Path::new(&self.0)
+    }
+}
+
 impl AsRef<NeutralPath> for NeutralPath {
     fn as_ref(&self) -> &NeutralPath {
         &self
@@ -140,6 +147,22 @@ impl std::fmt::Debug for NeutralPath {
 }
 
 impl NeutralPath {
+    /// A `.`(dot) directory.
+    pub fn dot() -> &'static Self {
+        static DOT: LazyLock<NeutralPath> =
+            std::sync::LazyLock::new(|| unsafe { NeutralPath::from_unchecked(".") });
+        DOT.as_ref()
+    }
+
+    pub(in crate::path) unsafe fn from_unchecked(s: &str) -> Self {
+        #[cfg(debug_assertions)]
+        {
+            let neutral = Self::from_path(s);
+            debug_assert!(neutral.is_ok());
+        }
+        Self(s.to_string())
+    }
+
     fn check_if_absolute(part: &str) -> Result<(), PathError> {
         // check if starts with / or \ or \\
         if part.starts_with('/') || part.starts_with("\\") {
@@ -281,10 +304,6 @@ impl NeutralPath {
         Self::checked_normalize(s.as_str())
     }
 
-    pub fn current_dir() -> Self {
-        NeutralPath::from_path(".").unwrap()
-    }
-
     pub fn join<P: AsRef<str>>(&self, part: P) -> Result<Self, PathError> {
         let part_str = part.as_ref();
         Self::check_if_absolute(part_str)?;
@@ -387,17 +406,18 @@ impl NeutralPath {
         }
         false
     }
-
-    pub fn intern(
-        &self,
-        interner: &Interner,
-    ) -> Result<interned::InternedNeutralPath, ::zako_interner::InternerError> {
-        Ok(unsafe { InternedNeutralPath::from_raw(interner.get_or_intern(self)?) })
-    }
 }
 
 impl Blake3Hash for NeutralPath {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
         hasher.update(self.0.as_bytes());
+    }
+}
+
+impl Internable for NeutralPath {
+    type Interned = InternedNeutralPath;
+
+    fn intern(self, interner: &Interner) -> eyre::Result<Self::Interned> {
+        Ok(unsafe { Self::Interned::from_raw(interner.get_or_intern(self)?) })
     }
 }

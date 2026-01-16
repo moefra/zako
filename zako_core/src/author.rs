@@ -4,7 +4,7 @@ use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     context::BuildContext,
@@ -83,16 +83,7 @@ impl Blake3Hash for Author {
 }
 
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-    rkyv::Archive,
+    Debug, Clone, PartialEq, Eq, Copy, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
 pub struct InternedAuthor {
     pub name: InternedString,

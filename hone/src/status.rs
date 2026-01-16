@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::{error::HoneError, node::NodeValue};
 
-pub type Hash = zako_digest::blake3_hash::Hash;
+pub type Hash = zako_digest::blake3::Hash;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Archive)]
 pub struct HashPair {

@@ -123,3 +123,5 @@ Object.defineProperty(String.prototype, "toLocaleUpperCase", {
     writable: false,
     configurable: false,
 });
+
+// ------------

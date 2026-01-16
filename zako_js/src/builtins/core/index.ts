@@ -25,11 +25,13 @@ type BuildVersion = `+${string}`;
  *
  * including version core, prerelease and build.
  */
-export type Version = `${VersionCore}${PreRelease | ""}${BuildVersion | ""}`;
+export type VersionString = `${VersionCore}${PreRelease | ""}${BuildVersion | ""}`;
+
+export type Version = semver.SemVer;
 
 export type GroupId = `${string}`;
 export type ArtifactId = `${GroupId}:${string}`;
-export type QualifiedArtifactId = `${ArtifactId}@${Version}`;
+export type QualifiedArtifactId = `${ArtifactId}@${VersionString}`;
 
 type Id<Str extends string> = `${QualifiedArtifactId}#${Str}::${string}`;
 
@@ -86,7 +88,7 @@ export type transitiveLevel = "public" | "private" | "interface";
 /**
  * git style author sign
  */
-type Author = `${string} <${string}@${string}>`;
+export type Author = `${string} <${string}@${string}>`;
 
 export interface OptionsDeclaration {
     option: string;
@@ -102,9 +104,6 @@ export interface ProjectMeta {
     group: GroupId;
     artifact: string;
     version: Version;
-    description?: string;
-    license?: string;
-    authors?: Author[];
 }
 
 /**

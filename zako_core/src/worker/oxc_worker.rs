@@ -13,7 +13,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::instrument;
 use zako_cancel::CancelToken;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 #[derive(Debug, Error)]
 pub enum TransformerError {

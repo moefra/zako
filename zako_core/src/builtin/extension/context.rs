@@ -9,7 +9,7 @@ pub enum ContextName {
 }
 
 /// The information of the context of the zako execution
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextInformation {
     pub name: ContextName,
 }

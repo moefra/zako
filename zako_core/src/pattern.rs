@@ -6,7 +6,7 @@ use ignore::WalkState;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event};
 use ts_rs::TS;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     context::BuildContext,
@@ -74,8 +74,6 @@ impl Blake3Hash for Pattern {
     Clone,
     PartialEq,
     Eq,
-    PartialOrd,
-    Ord,
     Hash,
     rkyv::Deserialize,
     rkyv::Serialize,
@@ -202,8 +200,6 @@ impl Blake3Hash for InternedPattern {
     Clone,
     PartialEq,
     Eq,
-    PartialOrd,
-    Ord,
     Hash,
     rkyv::Archive,
     rkyv::Serialize,

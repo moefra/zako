@@ -1,11 +1,31 @@
 
 import * as core from "zako:core";
+import * as rt from "zako:rt";
+import * as semver from "zako:semver";
+import * as contextSyscalls from "zako:context";
+
+/**
+ * @internal
+ */
+export interface ProjectSyscalls extends contextSyscalls.ContextSyscall{
+    syscall_package_group():string
+    syscall_package_artifact():string
+    syscall_package_version():string
+    syscall_package_config():string | boolean | number | undefined
+}
+
+/**
+ * @internal
+ */
+export const syscalls:ProjectSyscalls = contextSyscalls.syscalls as any as ProjectSyscalls;
 
 export interface Project extends core.ProjectMeta {
+    description?: string;
+    license?: string;
+    authors?: core.Author[];
     builds?: core.Pattern;
     rules?: core.Pattern;
-    toolchain?: core.Pattern;
-    options?: core.OptionsDeclaration[];
+    toolchains?: core.Pattern;
 }
 
 /** The created means that the project's options is finalized and cannot be changed.
@@ -32,7 +52,7 @@ export interface ProjectBuilder extends CreatedProject {
     addToolchain(toolchain: core.Pattern | string): void;
 }
 
-export function project(options: Project): ProjectBuilder{
+export function newProject(options: Project): ProjectBuilder{
     let proj:ProjectBuilder = {
         ...options,
         addBuild(workspace: core.Pattern | string): void {
@@ -60,3 +80,18 @@ export function project(options: Project): ProjectBuilder{
     });
     return proj;
 }
+
+let ver : semver.SemVer|null = semver.parse(syscalls.syscall_package_version(), false, false);
+
+if(ver == null){
+    throw new rt.ZakoInternalError(`The version "${ver}" is not valid semver.` +
+        `From project "${syscalls.syscall_package_group}:${syscalls.syscall_package_artifact}"`);
+}
+
+export const project:core.ProjectMeta = {
+    group: syscalls.syscall_package_group(),
+    artifact: syscalls.syscall_package_artifact(),
+    version: ver,
+};
+
+export default project;

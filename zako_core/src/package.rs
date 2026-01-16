@@ -1,8 +1,6 @@
-use ::std::collections::BTreeMap;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::intern::Internable;
-use crate::package_source::PackageSourceResolveArguments;
 use crate::pattern::{InternedPattern, Pattern, PatternError, PatternGroup};
 use crate::{
     author::{Author, InternedAuthor},
@@ -17,14 +15,14 @@ use crate::{
     package_id::InternedArtifactId,
 };
 use crate::{id::InternedAtom, package_id::InternedPackageId};
-use crate::{intern::Interner, package_source::ResolvedPackageSource};
+use crate::{intern::Interner, package_source::InternedPackageSource};
 use ::camino::Utf8PathBuf;
 use ::zako_interner::InternerError;
 use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 #[derive(thiserror::Error, Debug)]
 pub enum PackageResolveError {
@@ -57,10 +55,10 @@ pub enum PackageResolveError {
     Serialize,
     Deserialize,
     Debug,
-    Hash,
     Clone,
     PartialEq,
     Eq,
+    Hash,
     rkyv::Deserialize,
     rkyv::Serialize,
     rkyv::Archive,
@@ -135,7 +133,7 @@ impl Blake3Hash for Package {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolvingPackage {
     pub original: Package,
     pub resolved_config: ResolvedConfiguration,
@@ -158,14 +156,7 @@ impl ResolvingPackage {
     }
 
     #[must_use]
-    pub fn resolve(self, context: &BuildContext) -> Result<ResolvedPackage, PackageResolveError> {
-        let project_root = Utf8PathBuf::from(context.interner().resolve(context.project_root())?);
-
-        let package_source_args = PackageSourceResolveArguments {
-            interner: context.interner(),
-            root_path: project_root.as_path(),
-        };
-
+    pub fn resolve(self, interner: &Interner) -> Result<ResolvedPackage, PackageResolveError> {
         let trans = |pattern: Option<Pattern>,
                      additional: Vec<Pattern>|
          -> Result<PatternGroup, PatternError> {
@@ -177,27 +168,28 @@ impl ResolvingPackage {
 
             results.extend(additional);
 
-            Ok(PatternGroup::new(results, context.interner())?)
+            Ok(PatternGroup::new(results, interner)?)
         };
 
         Ok(ResolvedPackage {
-            group: InternedGroup::try_parse(&self.original.group, context.interner())?,
-            artifact: InternedAtom::try_parse(&self.original.artifact, context.interner())
-                .map_err(|err| {
+            group: InternedGroup::try_parse(&self.original.group, interner)?,
+            artifact: InternedAtom::try_parse(&self.original.artifact, interner).map_err(
+                |err| {
                     PackageResolveError::IdParseError(
                         self.original.artifact.to_string(),
                         "artifact",
                         err,
                     )
-                })?,
-            version: InternedVersion::try_parse(&self.original.version, context.interner())?,
+                },
+            )?,
+            version: InternedVersion::try_parse(&self.original.version, interner)?,
             description: self.original.description,
-            authors: self.original.authors.intern(context.interner())?,
+            authors: self.original.authors.intern(interner)?,
             license: self
                 .original
                 .license
                 .as_ref()
-                .map(|s| context.interner().get_or_intern(s))
+                .map(|s| interner.get_or_intern(s))
                 .transpose()?,
             builds: trans(self.original.builds, self.additional_builds)?,
             configure_script: self.original.configure_script,
@@ -209,7 +201,7 @@ impl ResolvingPackage {
                 .dependencies
                 .map(|deps| {
                     deps.into_iter()
-                        .map(|(k, v)| v.intern(&package_source_args).map(|resolved| (k, resolved)))
+                        .map(|(k, v)| v.intern(interner).map(|resolved| (k, resolved)))
                         .collect::<Result<BTreeMap<_, _>, _>>()
                 })
                 .transpose()?,
@@ -218,7 +210,7 @@ impl ResolvingPackage {
                 .mount_config
                 .as_ref()
                 .map(|s| {
-                    InternedAtom::try_parse(s, context.interner()).map_err(|err| {
+                    InternedAtom::try_parse(s, interner).map_err(|err| {
                         PackageResolveError::IdParseError(s.to_string(), "mount_config", err)
                     })
                 })
@@ -228,7 +220,7 @@ impl ResolvingPackage {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolvedPackage {
     pub group: InternedGroup,
     pub artifact: InternedAtom,
@@ -241,7 +233,7 @@ pub struct ResolvedPackage {
     pub rules: PatternGroup,
     pub toolchains: PatternGroup,
     pub peers: PatternGroup,
-    pub dependencies: Option<BTreeMap<SmolStr, ResolvedPackageSource>>,
+    pub dependencies: Option<BTreeMap<SmolStr, InternedPackageSource>>,
     pub mount_config: Option<InternedAtom>,
     pub config: ResolvedConfiguration,
 }

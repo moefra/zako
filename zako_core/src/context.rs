@@ -11,7 +11,7 @@ use crate::{
     configured_project::ConfiguredPackage,
     global_state::{CommonInternedStrings, GlobalState},
     intern::{Internable, InternedAbsolutePath, InternedString, Interner},
-    package_source::{PackageSource, PackageSourceResolveArguments, ResolvedPackageSource},
+    package_source::{InternedPackageSource, PackageSource},
     worker::{oxc_worker::OxcTranspilerWorker, v8worker::V8Worker, worker_pool::WorkerPool},
 };
 
@@ -32,9 +32,14 @@ pub enum BuildContextError {
 /// This is stateless, meaning it can built from information and it can copy easily.
 #[derive(Debug, Clone)]
 pub struct BuildContext {
+    /// The project root,it is absolute path,this means it was constructed runtime and will not write to file or remote.
     project_root: InternedAbsolutePath,
+    /// The entry point file name of the project,
+    ///
+    /// If it is None, use [crate::consts::PACKAGE_MANIFEST_FILE_NAME] as entry point
     project_entry_name: InternedString,
-    project_source: ResolvedPackageSource,
+    /// The interned package source of the project,
+    project_source: InternedPackageSource,
     env: Arc<GlobalState>,
 }
 
@@ -59,13 +64,8 @@ impl BuildContext {
     ) -> Result<Self, BuildContextError> {
         let interner = env.interner();
 
-        let args = PackageSourceResolveArguments {
-            interner,
-            root_path: project_root,
-        };
-
         let project_source = project_source
-            .intern(&args)
+            .intern(&interner)
             .map_err(|err| BuildContextError::FailedToResolvePackageSource(err.to_string()))?;
 
         let entry = project_entry_name
@@ -86,11 +86,12 @@ impl BuildContext {
     }
 
     pub fn new_from_configured_project(
+        root_path: &Utf8PathBuf,
         configured_project: &ConfiguredPackage,
         interner: &Interner,
         env: Arc<GlobalState>,
     ) -> Result<Self, BuildContextError> {
-        let project_root = configured_project.source_root;
+        let project_root = InternedAbsolutePath::new(root_path, interner)?;
         let project_source = configured_project.source.clone();
         let project_entry_name =
             interner.get_or_intern(crate::consts::PACKAGE_MANIFEST_FILE_NAME)?;
@@ -116,7 +117,7 @@ impl BuildContext {
 
     #[inline]
     #[must_use]
-    pub fn package_source(&self) -> &ResolvedPackageSource {
+    pub fn package_source(&self) -> &InternedPackageSource {
         &self.project_source
     }
 

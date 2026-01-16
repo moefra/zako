@@ -1,10 +1,6 @@
-use std::{
-    hash::Hasher,
-    pin::Pin,
-    sync::Arc,
-};
+use std::{hash::Hasher, pin::Pin, sync::Arc};
 use tokio::io::AsyncRead;
-use zako_digest::{Digest, blake3_hash::Blake3Hash};
+use zako_digest::{Digest, blake3::Blake3Hash};
 
 use crate::{blob_range::BlobRange, cas_store::CasStore};
 

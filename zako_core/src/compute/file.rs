@@ -94,9 +94,8 @@ pub async fn read_file_utf8<'c>(
 ) -> HoneResult<(Vec<u8>, FileResult)> {
     let interner = ctx.context().interner();
     let path = path.as_ref();
-    let path = InternedAbsolutePath::new(path.as_str(), interner)
-        .wrap_err_with(|| eyre::eyre!("failed to intern the path {:?}", path))?
-        .wrap_err_with(|| eyre::eyre!("failed to construct as absolute path {:?}", path))?;
+    let path = InternedAbsolutePath::new(path, interner)
+        .wrap_err_with(|| eyre::eyre!("failed to intern the path {:?}", path))?;
     let handle = ctx.request(File { path }.into()).await?;
     let handle = match &**handle {
         ZakoValue::FileResult(result) => result,

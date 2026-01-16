@@ -1,4 +1,4 @@
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::blob_handle::BlobHandle;
 

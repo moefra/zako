@@ -5,19 +5,22 @@ use ::deno_core::{
     v8::{self, Boolean, Local, PinScope, Value},
 };
 use ::rkyv::Archive;
+use smol_str::SmolStr;
 
 use crate::{
-    builtin::extension::syscall::SyscallError, config_value::ResolvedConfigValue,
-    global_state::GlobalState, id::Label, package::ResolvedPackage,
+    builtin::extension::syscall::SyscallError,
+    config_value::{ConfigDefault, ConfigType, ConfigValue, ResolvedConfigValue},
+    global_state::GlobalState,
+    id::Label,
+    package::{Package, ResolvedPackage},
 };
 
 #[derive(Debug, Clone)]
 pub struct PackageInformation {
-    pub package: ResolvedPackage,
-    pub env: Arc<GlobalState>,
+    pub package: Package,
 }
 
-type InformationRc = Rc<PackageInformation>;
+pub type InformationRc = Rc<PackageInformation>;
 
 deno_core::extension!(
     zako_package,
@@ -37,39 +40,24 @@ deno_core::extension!(
 #[to_v8]
 fn syscall_package_group(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
-    let interner = info.env.interner();
-    let group = info.package.group;
-    interner
-        .resolve(group)
-        .map_err(SyscallError::from)
-        .map(str::to_string)
-        .map(FastString::from)
+    let group = info.package.group.clone();
+    Ok(group.to_string().into())
 }
 
 #[op2]
 #[to_v8]
 fn syscall_package_artifact(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
-    let interner = info.env.interner();
-    let artifact = info.package.artifact;
-    interner
-        .resolve(artifact)
-        .map_err(SyscallError::from)
-        .map(str::to_string)
-        .map(FastString::from)
+    let artifact = info.package.artifact.clone();
+    Ok(artifact.to_string().into())
 }
 
 #[op2]
 #[to_v8]
 fn syscall_package_version(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
-    let interner = info.env.interner();
-    let version = info.package.version;
-    interner
-        .resolve(version)
-        .map_err(SyscallError::from)
-        .map(str::to_string)
-        .map(FastString::from)
+    let version = info.package.version.clone();
+    Ok(version.to_string().into())
 }
 
 #[op2()]
@@ -79,24 +67,24 @@ fn syscall_package_config<'s, 'i>(
     #[string] key: String,
 ) -> v8::Local<'s, v8::Value> {
     let info = state.borrow::<InformationRc>();
-    let interner = info.env.interner();
-    let value = info.package.config.config.iter().find_map(|label| {
-        if let Ok(name) = label.0.resolved(interner)
-            && name == key
-        {
-            Some(label.1.clone())
-        } else {
-            None
-        }
-    });
+
+    let config = match info.package.config.as_ref() {
+        None => return v8::undefined(scope).into(),
+        Some(v) => v,
+    };
+
+    let key = SmolStr::new(key);
+
+    let value = config.get(&key);
 
     match value {
-        Some(value) => match value {
-            ResolvedConfigValue::String(string) => v8::String::new(scope, string.as_str())
+        Some(value) => match &value.default {
+            ConfigDefault::String(string) => v8::String::new(scope, string.as_str())
                 .expect("failed to create v8 string")
                 .into(),
-            ResolvedConfigValue::Boolean(boolean) => v8::Boolean::new(scope, boolean).into(),
-            ResolvedConfigValue::Number(number) => v8::Number::new(scope, number as f64).into(),
+            ConfigDefault::Object(_) => unreachable!(),
+            ConfigDefault::Boolean(boolean) => v8::Boolean::new(scope, *boolean).into(),
+            ConfigDefault::Number(number) => v8::Number::new(scope, *number as f64).into(),
         },
         None => v8::undefined(scope).into(),
     }

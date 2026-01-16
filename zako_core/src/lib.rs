@@ -1,3 +1,4 @@
+#![feature(trivial_bounds)]
 #![doc(
     html_favicon_url = "https://raw.githubusercontent.com/moefra/assets/refs/heads/main/favicon/android-chrome-512x512.png",
     html_logo_url = "https://raw.githubusercontent.com/moefra/assets/refs/heads/main/favicon/favicon-32x32.png",
@@ -10,7 +11,7 @@
 //! For Chinese contributors:
 //! 最好在代码/文档中使用英文，因为这样可以让更多人受益。
 //!
-//! The are five types file in zako build system:
+//! The are some types file in zako build system:
 //!
 //! - library file(`*.ts`): those file can be shared between other files. They can only import other library files and core built-in module like `zako:core`;
 //! - script file(`*.script.ts`): those file can be used to write custom scripts. They can do anything and access `node:xxx`(or `Bun`,`Deno` object) modules,but they can not access zako's built-in module.
@@ -81,15 +82,18 @@ pub mod worker;
 /// The result of iteration of this map is not ordered.
 ///
 /// Please do not rely on any specific order.
-pub type FastMap<K, V> = ::dashmap::DashMap<K, V, ::ahash::RandomState>;
+pub type ConcurrentMap<K, V> = ::dashmap::DashMap<K, V, ::ahash::RandomState>;
+
+pub type Map<K, V> = ::std::collections::HashMap<K, V, ahash::RandomState>;
+pub type Set<K, V> = ::std::collections::HashMap<K, V, ahash::RandomState>;
 
 /// The result of iteration of this map is not ordered.
 ///
 /// Please do not rely on any specific order.
-pub type FastSet<K> = ::dashmap::DashSet<K, ::ahash::RandomState>;
+pub type ConcurrentSet<K> = ::dashmap::DashSet<K, ::ahash::RandomState>;
 
 /// A fast cache implementation.
-pub type FastCache<K, V> = ::moka::future::Cache<K, V, ::ahash::RandomState>;
+pub type ConcurrentCache<K, V> = ::moka::future::Cache<K, V, ::ahash::RandomState>;
 
 pub mod protobuf {
     pub mod fs {

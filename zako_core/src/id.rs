@@ -1,4 +1,10 @@
-use ::zako_digest::blake3_hash::Blake3Hash;
+use ::zako_digest::blake3::Blake3Hash;
+use serde::{Deserializer, de::value::U128Deserializer};
+use zako_digest::{
+    blake3::Hash,
+    xxhash3::{self, XXHash3Hash},
+};
+use zako_interner::InternerError;
 
 use crate::intern::{InternedString, Interner};
 
@@ -106,6 +112,7 @@ pub enum IdParseError {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
+#[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct InternedAtom(InternedString);
 
 impl InternedAtom {
@@ -139,6 +146,7 @@ impl Blake3Hash for InternedAtom {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
+#[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct InternedPath(InternedString);
 
 impl AsRef<InternedString> for InternedPath {
@@ -188,7 +196,10 @@ impl InternedPath {
 /// 规则: 必须是[InternedAtom]
 ///
 /// 例如: "main", "lib-utils", "test_suite"
-#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive, Copy,
+)]
+#[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct InternedTarget(InternedAtom);
 
 impl InternedTarget {
@@ -211,7 +222,10 @@ impl AsRef<InternedString> for InternedTarget {
 /// 贮存的字符不包含@符号
 ///
 /// 例如: "@zako","@curl","@openssl",""(当前包)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
+)]
+#[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct InternedPackageRef(InternedString);
 
 impl AsRef<InternedString> for InternedPackageRef {
@@ -249,23 +263,59 @@ impl InternedPackageRef {
 ///
 /// 分别由[InternedPackageRef]、[InternedPath]和[InternedTarget]组成
 #[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct Label {
     pub package_ref: InternedPackageRef,
     pub path: InternedPath,
     pub target: InternedTarget,
+    xxhash3: xxhash3::Hash,
+}
+
+impl PartialOrd for Label {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Label {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.xxhash3.cmp(&other.xxhash3)
+    }
+}
+
+impl PartialOrd for ArchivedLabel {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.xxhash3.cmp(&other.xxhash3))
+    }
+}
+
+impl Ord for ArchivedLabel {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.xxhash3.cmp(&other.xxhash3)
+    }
 }
 
 impl Label {
     pub fn new(
+        interner: &Interner,
         package_ref: InternedPackageRef,
         path: InternedPath,
         target: InternedTarget,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, InternerError> {
+        let xxhash3 = format!(
+            "{}//{}:{}",
+            interner.resolve(&package_ref.0)?,
+            interner.resolve(&path.0)?,
+            interner.resolve(&target.0.0)?
+        )
+        .get_xxhash3();
+
+        Ok(Self {
             package_ref,
             path,
             target,
-        }
+            xxhash3,
+        })
     }
 
     pub fn resolved(&self, interner: &Interner) -> Result<String, IdParseError> {
@@ -302,6 +352,7 @@ impl Label {
                 "ID must contain exactly one '//' separating package_ref and path".to_string(),
             )
         })?;
+
         let package_ref = InternedPackageRef::try_parse(package_ref, interner)?;
 
         let (path, target) = path.split_once(':').unwrap_or((path, ""));
@@ -322,10 +373,6 @@ impl Label {
             InternedTarget::try_parse(target, interner)?
         };
 
-        Ok(Self {
-            package_ref,
-            path,
-            target,
-        })
+        Ok(Self::new(interner, package_ref, path, target)?)
     }
 }

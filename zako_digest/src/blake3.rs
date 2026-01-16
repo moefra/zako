@@ -329,12 +329,15 @@ impl Blake3Hash for bool {
     Copy,
     PartialEq,
     Eq,
+    PartialOrd,
+    Ord,
     Archive,
     Serialize,
     Deserialize,
     serde::Serialize,
     serde::Deserialize,
 )]
+#[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct Hash {
     hash_bytes: [u8; 32],
 }

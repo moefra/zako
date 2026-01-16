@@ -4,7 +4,7 @@ use sysinfo::System;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::{
-    FastMap,
+    ConcurrentMap,
     cas_store::{CasStore, CasStoreOptions},
     intern::{InternedAbsolutePath, InternedString, Interner},
     local_cas::LocalCas,
@@ -42,7 +42,7 @@ pub struct GlobalState {
     interner: Arc<crate::intern::Interner>,
     resource_pool: Arc<ResourcePool>,
     /// The key is absolute path to the package root.
-    package_id_to_path: Arc<FastMap<InternedPackageId, InternedAbsolutePath>>,
+    package_id_to_path: Arc<ConcurrentMap<InternedPackageId, InternedAbsolutePath>>,
     tokio_runtime: Runtime,
     system: Arc<System>,
     cas_store: Arc<CasStore>,
@@ -71,7 +71,7 @@ impl GlobalState {
         let this = Self {
             interner,
             resource_pool: Arc::new(resource_pool),
-            package_id_to_path: Arc::new(FastMap::default()),
+            package_id_to_path: Arc::new(ConcurrentMap::default()),
             tokio_runtime: Builder::new_multi_thread()
                 .worker_threads(cpu_count)
                 .thread_name("zako-tokio-worker")
@@ -110,7 +110,7 @@ impl GlobalState {
 
     #[must_use]
     #[inline]
-    pub fn package_id_to_path(&self) -> &FastMap<InternedPackageId, InternedAbsolutePath> {
+    pub fn package_id_to_path(&self) -> &ConcurrentMap<InternedPackageId, InternedAbsolutePath> {
         &self.package_id_to_path
     }
 

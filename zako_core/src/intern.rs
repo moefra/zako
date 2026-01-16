@@ -1,3 +1,4 @@
+use camino::{Utf8Path, Utf8PathBuf};
 use eyre::Context;
 use smol_str::SmolStr;
 
@@ -55,17 +56,7 @@ impl Resolvable for InternedString {
 ///
 /// It must be absolute path.
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-    rkyv::Archive,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
 pub struct InternedAbsolutePath {
     interned: InternedString,
@@ -86,22 +77,29 @@ impl Resolvable for InternedAbsolutePath {
     }
 }
 
+impl Uninternable for InternedAbsolutePath {
+    type Uninterned = Utf8PathBuf;
+
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
+        interner
+            .resolve(&self.interned)
+            .map(|s| Utf8PathBuf::from(s))
+            .wrap_err("failed to unintern")
+    }
+}
+
 impl InternedAbsolutePath {
-    pub fn new(
-        path: &str,
-        interner: &Interner,
-    ) -> Result<Option<Self>, ::zako_interner::InternerError> {
+    pub fn new(path: &Utf8Path, interner: &Interner) -> eyre::Result<Self> {
         // check if the interned string is an absolute path
         {
-            let path = std::path::Path::new(path);
             if !path.is_absolute() {
-                return Ok(None);
+                return Err(eyre::eyre!("path {:?} is not absolute", path));
             }
         }
 
-        Ok(Some(Self {
+        Ok(Self {
             interned: interner.get_or_intern(path)?,
-        }))
+        })
     }
 
     pub fn from_interned(

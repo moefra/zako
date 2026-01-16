@@ -7247,6 +7247,7 @@ dependencies = [
  "thiserror",
  "tonic",
  "tonic-prost-build",
+ "xxhash-rust",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
-use ::zako_digest::blake3_hash::Blake3Hash;
+use ::zako_digest::blake3::Blake3Hash;
 use lasso::{Capacity, Key, ThreadedRodeo};
 use rkyv::{
     Archive, Archived, Deserialize, Place, Resolver, Serialize,
@@ -15,8 +15,6 @@ use rkyv::{
     Copy,
     PartialEq,
     Eq,
-    PartialOrd,
-    Ord,
     Hash,
     Archive,
     Serialize,
@@ -25,6 +23,7 @@ use rkyv::{
     serde::Deserialize,
 )]
 #[repr(transparent)]
+#[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct U32NonZeroKey(NonZeroU32);
 
 impl U32NonZeroKey {

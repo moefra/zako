@@ -1,11 +1,18 @@
-// @ts-nocheck
-
 // to instantiate rt module
 import * as _rt from "zako:rt";
 
-const syscalls = Deno.core.ops as any;
+/**
+ * @internal
+ */
+export interface Syscall{
+    syscall_core_version():string
+    syscall_core_log(level:string, msg:string):string
+}
 
-export default syscalls;
+/**
+ * @internal
+ */
+export const syscalls = (globalThis as any).Deno.core.ops as any as Syscall;
 
 export function log(
         level: "trace" | "debug" | "info" | "warn" | "error",

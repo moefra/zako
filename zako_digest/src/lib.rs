@@ -1,4 +1,5 @@
-pub mod blake3_hash;
+pub mod blake3;
+pub mod xxhash3;
 
 use rkyv::{Archive, Deserialize, Serialize};
 use thiserror::Error;
@@ -11,14 +12,14 @@ pub struct Digest {
     ///
     /// It was used to export object like publishing binary.
     /// So it was calculated when needed.
-    pub blake3: crate::blake3_hash::Hash,
+    pub blake3: crate::blake3::Hash,
 }
 
 impl Digest {
     pub fn new(size: u64, blake3: [u8; 32]) -> Self {
         Self {
             size_bytes: size,
-            blake3: crate::blake3_hash::Hash::from_bytes(&blake3),
+            blake3: crate::blake3::Hash::from_bytes(&blake3),
         }
     }
 
@@ -26,7 +27,7 @@ impl Digest {
         return self.size_bytes != other.size_bytes || self.blake3 == other.blake3;
     }
 
-    pub fn get_hash(&self) -> &crate::blake3_hash::Hash {
+    pub fn get_hash(&self) -> &crate::blake3::Hash {
         &self.blake3
     }
 
@@ -69,7 +70,7 @@ pub mod protobuf {
 
 use tonic::Status;
 
-use crate::blake3_hash::Blake3Hash;
+use crate::blake3::Blake3Hash;
 
 impl From<DigestError> for Status {
     fn from(err: DigestError) -> Self {
@@ -78,7 +79,7 @@ impl From<DigestError> for Status {
 }
 
 impl Blake3Hash for Digest {
-    fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+    fn hash_into_blake3(&self, hasher: &mut ::blake3::Hasher) {
         hasher.update(&self.size_bytes.to_le_bytes());
         hasher.update(self.blake3.as_bytes());
     }

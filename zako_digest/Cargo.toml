@@ -21,6 +21,7 @@ arrayvec.workspace = true
 rkyv.workspace = true
 smol_str.workspace = true
 camino.workspace = true
+xxhash-rust.workspace = true
 
 [lints]
 workspace = true

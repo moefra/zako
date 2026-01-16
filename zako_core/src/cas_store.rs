@@ -10,7 +10,7 @@ use tokio::io::AsyncRead;
 use tracing::instrument;
 use zako_digest::Digest;
 
-pub type CasCache = crate::FastCache<::zako_digest::blake3_hash::Hash, ::std::vec::Vec<u8>>;
+pub type CasCache = crate::ConcurrentCache<::zako_digest::blake3::Hash, ::std::vec::Vec<u8>>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CasStoreError {

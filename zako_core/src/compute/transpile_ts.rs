@@ -1,7 +1,7 @@
 use eyre::Context;
 use hone::{HoneResult, error::HoneError, status::HashPair};
 use oxc_span::SourceType;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     blob_handle::BlobHandle,

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use eyre::Context;
 use smol_str::SmolStr;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     config_value::{ConfigDefault, ConfigValue, ResolvedConfigValue},
@@ -12,19 +12,19 @@ use crate::{
 };
 
 /// Raw, immutable configuration.
-#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Configuration {
-    pub config: BTreeMap<SmolStr, ConfigValue>,
+    pub config: HashMap<SmolStr, ConfigValue>,
 }
 
 impl Configuration {
     pub fn new() -> Self {
         Self {
-            config: BTreeMap::new(),
+            config: HashMap::new(),
         }
     }
 
-    pub fn from(config: BTreeMap<SmolStr, ConfigValue>) -> Self {
+    pub fn from(config: HashMap<SmolStr, ConfigValue>) -> Self {
         Self { config }
     }
 
@@ -80,9 +80,9 @@ impl Blake3Hash for Configuration {
 /// Interned, immutable configuration.
 ///
 /// It is used to store the configuration in the build graph.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Serialize, rkyv::Deserialize, rkyv::Archive)]
 pub struct ResolvedConfiguration {
-    pub config: Vec<(Label, ResolvedConfigValue)>,
+    pub config: BTreeMap<Label, ResolvedConfigValue>,
     // TODO: Use index to get the value by key
     // Issue URL: https://github.com/moefra/zako/issues/18
     // pub index: HashMap<InternedString, usize> ?
@@ -100,11 +100,13 @@ pub enum ConfigError {
 
 impl ResolvedConfiguration {
     pub fn empty() -> Self {
-        Self { config: Vec::new() }
+        Self {
+            config: Default::default(),
+        }
     }
 
     pub fn resolve(&self, interner: &Interner) -> Result<Configuration, ConfigError> {
-        let mut config = BTreeMap::new();
+        let mut config = HashMap::new();
         for (key, value) in self.config.iter() {
             config.insert(
                 SmolStr::new(key.resolved(interner)?),

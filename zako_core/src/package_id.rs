@@ -1,6 +1,6 @@
 use crate::intern::Interner;
 
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::id::{InternedAtom, is_loose_ident};
 use crate::intern::InternedString;

@@ -1,17 +1,10 @@
-use crate::intern::InternedString;
+use crate::{
+    intern::{InternedString, Interner, Resolvable, Uninternable},
+    path::NeutralPath,
+};
 
 #[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    Copy,
-    rkyv::Deserialize,
-    rkyv::Serialize,
-    rkyv::Archive,
+    Debug, Clone, PartialEq, Eq, Hash, Copy, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive,
 )]
 pub struct InternedNeutralPath {
     interned: InternedString,
@@ -27,5 +20,19 @@ impl InternedNeutralPath {
 impl AsRef<InternedString> for InternedNeutralPath {
     fn as_ref(&self) -> &InternedString {
         &self.interned
+    }
+}
+
+impl Uninternable for InternedNeutralPath {
+    type Uninterned = NeutralPath;
+
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
+        Ok(unsafe { NeutralPath::from_unchecked(interner.resolve(self.interned)?) })
+    }
+}
+
+impl Resolvable for InternedNeutralPath {
+    fn resolve<'a>(&self, interner: &'a Interner) -> eyre::Result<&'a str> {
+        Ok(interner.resolve(self.interned)?)
     }
 }

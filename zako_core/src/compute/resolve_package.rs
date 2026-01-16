@@ -4,7 +4,7 @@ use ::rkyv::Archive;
 use camino::Utf8PathBuf;
 use eyre::{Context, OptionExt};
 use hone::{HoneResult, error::HoneError, status::HashPair};
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     blob_handle::BlobHandle,
@@ -86,6 +86,7 @@ pub async fn resolve_package<'c>(
         }
     }
     .clone();
+
     let raw_package_blake3 = parsed.project.get_blake3();
 
     // TODO: Resolve the configuration and dependencies
@@ -93,7 +94,10 @@ pub async fn resolve_package<'c>(
     // before intern it, calculate hash
     // only hash result `ResolvedPackage`
 
-    _ = parsed.project.validate()?;
+    _ = parsed
+        .project
+        .validate()
+        .wrap_err("failed to validate project manifest")?;
 
     let resolving = ResolvingPackage::new(
         parsed.project,
@@ -111,8 +115,8 @@ pub async fn resolve_package<'c>(
     })?;
 
     let configured = ConfiguredPackage {
-        raw_package_blake3: resolved.get_blake3(),
-        raw_source_blake3: raw_source_blake3,
+        raw_package_blake3: parsed.project.get_blake3().into(),
+        raw_source_blake3: raw_source_blake3.into(),
         source_root_blake3: interned_path.get_blake3(),
         source: new_ctx.package_source().clone(),
         package: resolved,

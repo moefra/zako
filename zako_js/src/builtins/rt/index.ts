@@ -1,7 +1,7 @@
 /**
- * This file is must for zmake.
+ * This file is must for zako.
  *
- * It contains things that back zmake(like ZMake specified error)
+ * It contains things that caused by zako internally.
  */
 
 export class ZakoInternalError extends Error {

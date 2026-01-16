@@ -4,6 +4,9 @@
         "internable",
         "blake3",
         "uninternable",
-        "uninterned"
+        "uninterned",
+        "unintern",
+        "rkyv",
+        "smol"
     ]
 }

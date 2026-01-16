@@ -2,11 +2,12 @@ use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
-use zako_digest::blake3_hash::Blake3Hash;
+use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     intern::{Internable, InternedAbsolutePath, Interner, Uninternable},
     package_id::{InternedPackageId, PackageIdParseError},
+    path::{NeutralPath, PathError, interned::InternedNeutralPath},
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -48,7 +49,7 @@ pub enum PackageSource {
     /// 来源于Git仓库
     Git {
         #[ts(as = "::std::string::String")]
-        /// Url of the repo
+        /// Url of the repo, must not be `/file/path/to/local/or/file/url/protocol`, use [PackageSource::Path] instead.
         repo: SmolStr,
         #[ts(as = "::std::option::Option<::std::string::String>")]
         checkout: Option<SmolStr>,
@@ -59,7 +60,27 @@ pub enum PackageSource {
         url: SmolStr,
     },
     /// 来源于本地路径
+    ///
+    /// The path must be relative and relative to the project root.
     Path { path: String },
+}
+
+impl PackageSource {
+    pub fn validate(&self) -> eyre::Result<()> {
+        match self {
+            PackageSource::Path { path } => {
+                let p = NeutralPath::from_path(path)?;
+                if p.is_in_dir(NeutralPath::dot()) {
+                    return Err(eyre::eyre!(
+                        "the path `{}` is not relative to the project root",
+                        path
+                    ));
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 impl Blake3Hash for PackageSource {
@@ -76,13 +97,11 @@ impl Blake3Hash for PackageSource {
     }
 }
 
-/// The resolved source of a package.
+/// The interned and **checked** [PackageSource].
 ///
-/// Its path should be absolute path, absolute to the project root.
-///
-/// Do not use it to calculate hash, use [PackageSource] instead.
+/// The `checked` means that the path is relative to the project root and will not access outside of the project root.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
-pub enum ResolvedPackageSource {
+pub enum InternedPackageSource {
     Registry {
         package: InternedPackageId,
     },
@@ -94,57 +113,45 @@ pub enum ResolvedPackageSource {
         url: SmolStr,
     },
     Path {
-        path: InternedAbsolutePath,
+        path: InternedNeutralPath,
     },
 }
 
-pub struct PackageSourceResolveArguments<'i> {
-    pub interner: &'i Interner,
-    pub root_path: &'i Utf8Path,
-}
+impl Internable for PackageSource {
+    type Interned = InternedPackageSource;
 
-impl Internable<PackageSourceResolveArguments<'_>> for PackageSource {
-    type Interned = ResolvedPackageSource;
+    fn intern(self, interner: &Interner) -> eyre::Result<InternedPackageSource> {
+        self.validate()?;
 
-    fn intern(
-        self,
-        interner: &PackageSourceResolveArguments<'_>,
-    ) -> eyre::Result<ResolvedPackageSource> {
-        let PackageSourceResolveArguments {
-            interner,
-            root_path,
-        } = interner;
         match self {
             PackageSource::Registry { package } => {
                 let interned_package = InternedPackageId::try_parse(&package, interner)?;
-                Ok(ResolvedPackageSource::Registry {
+                Ok(InternedPackageSource::Registry {
                     package: interned_package,
                 })
             }
             PackageSource::Git { repo, checkout } => {
-                Ok(ResolvedPackageSource::Git { repo, checkout })
+                Ok(InternedPackageSource::Git { repo, checkout })
             }
-            PackageSource::Http { url } => Ok(ResolvedPackageSource::Http { url }),
+            PackageSource::Http { url } => Ok(InternedPackageSource::Http { url }),
             PackageSource::Path { path } => {
-                let target = root_path.join(path.as_str());
+                let path = NeutralPath::from_path(path.as_str())?;
 
-                Ok(ResolvedPackageSource::Path {
-                    path: InternedAbsolutePath::new(target.as_str(), interner)?.ok_or_else(
-                        || PackageSourceResolveError::PathNotAbsolute(target.to_string()),
-                    )?,
+                Ok(InternedPackageSource::Path {
+                    path: path.intern(interner)?,
                 })
             }
         }
     }
 }
 
-impl Uninternable for ResolvedPackageSource {
+impl Uninternable for InternedPackageSource {
     type Uninterned = PackageSource;
 
     fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
         let interner = interner.as_ref();
         match self {
-            ResolvedPackageSource::Registry { package } => Ok(PackageSource::Registry {
+            InternedPackageSource::Registry { package } => Ok(PackageSource::Registry {
                 package: format!(
                     "{}:{}@{}",
                     interner.resolve(&package.name.group)?,
@@ -152,12 +159,12 @@ impl Uninternable for ResolvedPackageSource {
                     interner.resolve(&package.version)?
                 ),
             }),
-            ResolvedPackageSource::Git { repo, checkout } => Ok(PackageSource::Git {
+            InternedPackageSource::Git { repo, checkout } => Ok(PackageSource::Git {
                 repo: repo.clone(),
                 checkout: checkout.clone(),
             }),
-            ResolvedPackageSource::Http { url } => Ok(PackageSource::Http { url: url.clone() }),
-            ResolvedPackageSource::Path { path } => Ok(PackageSource::Path {
+            InternedPackageSource::Http { url } => Ok(PackageSource::Http { url: url.clone() }),
+            InternedPackageSource::Path { path } => Ok(PackageSource::Path {
                 path: interner.resolve(path)?.into(),
             }),
         }

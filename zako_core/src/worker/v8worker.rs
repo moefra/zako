@@ -2,6 +2,7 @@ use crate::{
     engine::{Engine, EngineError, EngineOptions},
     global_state::GlobalState,
     module_loader::{LoaderOptions, specifier::ModuleSpecifier},
+    package::Package,
     v8context::{V8ContextInput, V8ContextOutput},
     v8utils,
     worker::WorkerBehavior,
@@ -11,7 +12,7 @@ use ::std::collections::HashMap;
 use ::tracing::trace_span;
 use deno_core::serde_v8;
 use serde_json;
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, rc::Rc, sync::Arc};
 use tokio::runtime::Handle;
 use tracing::instrument;
 use zako_cancel::CancelToken;
@@ -90,7 +91,29 @@ impl WorkerBehavior for V8Worker {
         let mut engine = Engine::new(
             EngineOptions {
                 tokio_handle: state.handle.clone(),
-                extensions: vec![],
+                extensions: match input.context_type {
+                    V8ContextInput::Package { package } => {
+                        let context = crate::builtin::extension::context::ContextInformation {
+                            name: crate::builtin::extension::context::ContextName::Package,
+                        };
+
+                        let context = Rc::new(context);
+
+                        let context =
+                            crate::builtin::extension::context::zako_context::init(context);
+
+                        let project =
+                            crate::builtin::extension::package::PackageInformation{
+                                package: package,
+                                env
+                            }
+
+                        unreachable!()
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                },
             },
             LoaderOptions {
                 read_module: ahash::HashMap::default(),
@@ -102,13 +125,6 @@ impl WorkerBehavior for V8Worker {
         let mut runtime = runtime.borrow_mut();
         let context = runtime.main_context();
         let mut isolate = runtime.v8_isolate();
-        v8utils::with_try_catch(&mut isolate, &context, |scope, context| {
-            let global = context.global(scope);
-
-            global.get(scope, key, value)?;
-
-            Ok(())
-        });
 
         let specifier = url::Url::from_file_path(&input.specifier)
             .map_err(|_| eyre!("failed to parse the {:?} into file url", input.specifier))?;
