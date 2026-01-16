@@ -105,6 +105,7 @@ pub async fn resolve_package<'c>(
     );
 
     // TODO: call v8 js script to poll more information
+    // Issue URL: https://github.com/moefra/zako/issues/29
     // e.g. engine.execute_manifest_initialize_script(resolving)
 
     let resolved = resolving.resolve(&new_ctx).map_err(|err| {
