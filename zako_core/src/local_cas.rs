@@ -2,6 +2,7 @@ use crate::blob_range::BlobRange;
 use crate::cas::{Cas, CasError};
 use async_trait::async_trait;
 use camino::Utf8Path;
+use eyre::Context;
 use memmap2::MmapOptions;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -94,7 +95,10 @@ impl LocalCas {
             source_path,
             &Utf8Path::from_path(target_path.as_path()).ok_or(std::io::Error::new(
                 std::io::ErrorKind::InvalidFilename,
-                "target path is invalid: contains non-utf8 characters",
+                format!(
+                    "target path {:?} is invalid: contains non-utf8 characters",
+                    &source_path
+                ),
             ))?,
         )?;
 
@@ -109,41 +113,37 @@ impl Cas for LocalCas {
         digest: &Digest,
         mut data: Box<dyn AsyncRead + Send + Unpin + 'static>,
     ) -> Result<(), CasError> {
-        let hex = digest.blake3.to_hex();
-
-        let first_prefix = &hex[0..2];
-        let second_prefix = &hex[2..4];
-        let suffix = &hex[4..];
-
-        let first_dir = self.root.join(first_prefix);
-        let second_dir = first_dir.join(second_prefix);
-        let target_path = second_dir.join(suffix);
+        let target_path = self.get_path_for_digest(digest);
 
         if target_path.exists() {
             return Ok(());
         }
 
-        tokio::fs::create_dir_all(&target_path)
-            .await
-            .map_err(|err| CasError::Io(err.into()))?;
+        if let Some(parent) = target_path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|err| CasError::Io(err.into(), Some(parent.to_path_buf())))?;
+        }
 
         let temp_name = format!("tmp_{}", uuid::Uuid::new_v4());
         let temp_path = target_path.join(temp_name);
 
         let mut file = tokio::fs::File::create(&temp_path)
             .await
-            .map_err(|err| CasError::Io(err.into()))?;
+            .map_err(|err| CasError::Io(err.into(), Some(temp_path.clone())))?;
 
-        tokio::io::copy(&mut data, &mut file).await?;
+        tokio::io::copy(&mut data, &mut file)
+            .await
+            .map_err(|err| CasError::Io(err, Some(temp_path.clone())))?;
 
         file.sync_all()
             .await
-            .map_err(|err| CasError::Io(err.into()))?;
+            .map_err(|err| CasError::Io(err.into(), Some(temp_path.clone())))?;
 
         // rename应该是原子的。
         tokio::fs::rename(&temp_path, &target_path)
             .await
-            .map_err(|err| CasError::Io(err.into()))?;
+            .map_err(|err| CasError::Io(err.into(), Some(target_path.clone())))?;
 
         Ok(())
     }
@@ -167,17 +167,21 @@ impl Cas for LocalCas {
     ) -> Result<Pin<Box<dyn AsyncRead + Send>>, CasError> {
         let hex = digest.blake3.to_hex();
 
-        let path = self.root.join(&hex[0..2]).join(&hex[2..4]).join(&hex[4..]);
+        let path = self.get_path_for_digest(digest);
 
-        let mut file = tokio::fs::File::open(path).await.map_err(|e| {
+        let mut file = tokio::fs::File::open(path.clone()).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                CasError::NotFound(digest.clone())
+                CasError::NotFound(digest.clone(), path.clone())
             } else {
-                CasError::Io(e)
+                CasError::Io(e, Some(path.clone()))
             }
         })?;
 
-        let file_size = file.metadata().await.map_err(CasError::Io)?.len();
+        let file_size = file
+            .metadata()
+            .await
+            .map_err(|e| CasError::Io(e, Some(path.clone())))?
+            .len();
 
         if range.is_out_of_span_length(file_size) {
             return Err(CasError::RequestedIndexOutOfRange {
@@ -195,7 +199,7 @@ impl Cas for LocalCas {
 
         file.seek(std::io::SeekFrom::Start(range.start()))
             .await
-            .map_err(CasError::Io)?;
+            .map_err(|err| CasError::Io(err, Some(path.clone())))?;
 
         Ok(Box::pin(file.take(length)))
     }

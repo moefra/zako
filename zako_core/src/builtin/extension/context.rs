@@ -21,6 +21,7 @@ deno_core::extension!(
     deps = [zako_core],
     ops = [syscall_context_name],
     esm_entry_point = "zako:context",
+    esm = ["zako:context" = "../dist/builtins/context.js"],
     options = {
         info: InformationRc,
     },

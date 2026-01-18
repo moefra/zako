@@ -1,2 +1,4 @@
 /// <reference path="./global.d.ts" />
-export {};
+export interface ConfigRegistry {
+}
+export declare function get_config<K extends keyof ConfigRegistry>(key: K): ConfigRegistry[K];

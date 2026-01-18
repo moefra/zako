@@ -1,10 +1,12 @@
 /// <reference path="./global.d.ts" />
 import * as core from "zako:core";
 export interface Project extends core.ProjectMeta {
+    description?: string;
+    license?: string;
+    authors?: core.Author[];
     builds?: core.Pattern;
     rules?: core.Pattern;
-    toolchain?: core.Pattern;
-    options?: core.OptionsDeclaration[];
+    toolchains?: core.Pattern;
 }
 /** The created means that the project's options is finalized and cannot be changed.
  * This is prevent some nt user writing code look like:
@@ -28,4 +30,6 @@ export interface ProjectBuilder extends CreatedProject {
     addRule(rule: core.Pattern | string): void;
     addToolchain(toolchain: core.Pattern | string): void;
 }
-export declare function project(options: Project): ProjectBuilder;
+export declare function newProject(options: Project): ProjectBuilder;
+export declare const project: core.ProjectMeta;
+export default project;

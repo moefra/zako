@@ -8,6 +8,7 @@ use clap::{CommandFactory, Parser, Subcommand, ValueEnum, arg, command};
 use clap_complete::{generate, shells};
 use color_eyre::owo_colors::OwoColorize;
 use const_format::concatcp;
+use eyre::OptionExt;
 use opentelemetry::trace::TracerProvider;
 use shadow_rs::{Format, shadow};
 use std::env::temp_dir;
@@ -310,10 +311,13 @@ impl ExportBuiltinArgs {
 }
 
 #[derive(clap::Args, Debug)]
-#[command(name = "make", about = "Build the project")]
+#[command(name = "make", about = "Build the package")]
 struct MakeArgs {
     #[arg(long,default_value = ".", value_hint = clap::ValueHint::DirPath)]
     package_root: String,
+
+    #[arg(long,default_value = ".", value_hint = clap::ValueHint::DirPath)]
+    package_relative_path: String,
 
     #[arg(long)]
     package_id: String,
@@ -336,7 +340,15 @@ impl MakeArgs {
 
         info!("use concurrency {}", concurrency);
 
-        let db = PathBuf::from(self.database_file);
+        let mut db = PathBuf::from(self.database_file);
+
+        if let Some(parent) = db.parent() {
+            fs::create_dir_all(parent)?;
+            db = parent.canonicalize()?.join(
+                db.file_name()
+                    .ok_or_eyre("missing file name for `--database-file`")?,
+            )
+        }
 
         let database = Arc::new(redb::Database::create(db)?);
 
@@ -369,7 +381,7 @@ impl MakeArgs {
         let hone = zako_core::HoneEngine::new(Arc::new(HoneComputer::new()), database)?;
 
         let package_source = PackageSource::Path {
-            path: package_root.to_string(),
+            path: self.package_relative_path,
         };
 
         let context = BuildContext::new(
@@ -592,17 +604,27 @@ fn inner_main() -> eyre::Result<()> {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let mut args = env::args_os();
+    let args = env::args_os();
+    let args: Vec<OsString> = args.into_iter().collect();
 
     // check if shabang
     // pass to bun
-    if let Some(first) = &args.nth(1) {
-        if first.to_string_lossy().starts_with("#!") {
-            let args: Vec<String> = args
-                .into_iter()
-                .map(|s| s.to_string_lossy().to_string())
-                .collect();
-            return run_bun(args.into_iter().skip(1).collect());
+    if let Some(first) = args.iter().nth(1) {
+        if first.to_string_lossy().to_string().starts_with("#!") {
+            match handle.lock() {
+                Ok(mut guard) => {
+                    guard.silent();
+                }
+                Err(e) => {
+                    return Err(eyre::eyre!("failed to lock buffered writer: {}", e));
+                }
+            }
+            return run_bun(
+                args.into_iter()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .skip(1)
+                    .collect(),
+            );
         }
     }
 
@@ -616,7 +638,8 @@ fn inner_main() -> eyre::Result<()> {
     let parse_args_span: tracing::span::EnteredSpan =
         trace_span!("prase arguments", args = format!("{:?}", args)).entered();
 
-    let args = argfile::expand_args_from(args, argfile::parse_fromfile, argfile::PREFIX)?;
+    let args =
+        argfile::expand_args_from(args.into_iter(), argfile::parse_fromfile, argfile::PREFIX)?;
 
     trace!("argfile parsed {args:?}");
 

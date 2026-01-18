@@ -9,6 +9,8 @@ if(Bun.argv.length >= 3){
     cliOpt = Bun.argv.slice(2);
 }
 
+console.log(`use arguments:${cliOpt}`);
+
 const proc = Bun.spawn([
     "cargo","+nightly", "run", "-p", "zako-cli","-Z","unstable-options",
     ...options,

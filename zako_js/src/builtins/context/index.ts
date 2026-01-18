@@ -10,6 +10,6 @@ export interface ContextSyscall extends core_syscalls.Syscall{
 /**
  * @internal
  */
-export const syscalls = core_syscalls as any as ContextSyscall;
+export const syscalls = core_syscalls.getSyscall<ContextSyscall>();
 
 export const name: "package" = syscalls.syscall_context_name() as any;

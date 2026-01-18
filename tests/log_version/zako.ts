@@ -1,12 +1,7 @@
 import * as core from "zako:core";
-import * as project from "zako:project";
+import {project} from "zako:package";
 
-core.trace(`Benchmark version is ${project.config.version}`);
-
-core.requireZakoVersion(">=1.0.0 && <3.0.0");
-
-if(project.config.log){
-    project.builds.push("./logging");
-}
-
-export default project;
+core.info("Hello World!");
+core.info(`Project group is ${project.group}`);
+core.info(`Project artifact is ${project.artifact}`);
+core.info(`Project version is ${project.version}`);

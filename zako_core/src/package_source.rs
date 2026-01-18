@@ -70,7 +70,7 @@ impl PackageSource {
         match self {
             PackageSource::Path { path } => {
                 let p = NeutralPath::from_path(path)?;
-                if p.is_in_dir(NeutralPath::dot()) {
+                if !p.is_in_dir(NeutralPath::dot()) {
                     return Err(eyre::eyre!(
                         "the path `{}` is not relative to the project root",
                         path

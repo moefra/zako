@@ -49,8 +49,12 @@ impl crate::protobuf::transport::transport_server::Transport for TransportServer
             )
             .await
             .map_err(|err| match err {
-                CasError::NotFound(digest) => Status::not_found(digest.hex_blake3().to_string()),
-                CasError::Io(err) => Status::internal(err.to_string()),
+                CasError::NotFound(digest, path) => {
+                    Status::not_found(format!("path {:?},digst {:?} not found", path, digest))
+                }
+                CasError::Io(err, path) => {
+                    Status::internal(format!("path {:?} io error: {:?}", path, err))
+                }
                 CasError::Internal(err) => Status::internal(err),
                 CasError::RequestedIndexOutOfRange { .. } => {
                     Status::invalid_argument(format!("requested index out of range: {:?}", err))
@@ -125,7 +129,9 @@ impl crate::protobuf::transport::transport_server::Transport for TransportServer
             .store(&digest, Box::new(stream))
             .await
             .map_err(|err| match err {
-                CasError::Io(err) => Status::internal(err.to_string()),
+                CasError::Io(err, path) => {
+                    Status::internal(format!("path {:?} io error: {:?}", path, err))
+                }
                 CasError::Internal(err) => Status::internal(err),
                 _ => Status::internal("Unexpected error during store initialization"),
             })?;

@@ -6,15 +6,19 @@ mod resolve_manifest_script;
 mod resolve_package;
 mod transpile_ts;
 
+use std::pin;
+
 use ::camino::Utf8PathBuf;
 
 use ::eyre::Context;
 pub use file::file;
+use futures::FutureExt;
 pub use glob::glob;
 pub use parse_manifest::prase_manifest;
 pub use resolve_label::resolve_label;
 pub use resolve_manifest_script::resolve_manifest_script;
 pub use resolve_package::resolve_package;
+use tokio::select;
 pub use transpile_ts::transpile_ts;
 
 use crate::{
@@ -37,7 +41,7 @@ pub async fn execute_script<'c>(
 
     let (tx, rx): (flume::Sender<crate::worker::protocol::V8ImportRequest>, _) = flume::unbounded();
 
-    let worker = ctx.context().v8_workers_pool().submit(
+    let mut worker_fut = ctx.context().v8_workers_pool().submit(
         V8WorkerInput {
             specifier: path.to_string(),
             request_channel: tx,
@@ -47,25 +51,40 @@ pub async fn execute_script<'c>(
         ctx.cancel_token(),
     );
 
-    while let Ok(request) = rx.recv_async().await {
-        let request_script_path = path.join(request.specifier);
+    tokio::pin!(worker_fut);
 
-        let (_, handle) = file::read_text(ctx, request_script_path.as_str()).await?;
-
-        let script =
-            transpile_ts_string(ctx, request_script_path.to_string(), handle.content).await?;
-
-        match request.resp.send(Ok(script.code)) {
-            Err(_) => {
-                break;
+    loop {
+        tokio::select! {
+            worker_res = &mut worker_fut => {
+                let output = worker_res
+                    .wrap_err("failed to submit v8 task")?
+                    .wrap_err("failed to execute javascript code")?;
+                return Ok(output.return_value);
             }
-            Ok(_) => (),
+
+            request_msg = rx.recv_async() => {
+                let request = match request_msg {
+                    Ok(req) => req,
+                    Err(_) => {
+                        break;
+                    }
+                };
+
+                let request_script_path = path.join(&request.specifier);
+
+                let (_, handle) = file::read_text(ctx, request_script_path.as_str()).await?;
+                let script = transpile_ts_string(ctx, request_script_path.to_string(), handle.content).await?;
+
+                if let Err(_) = request.resp.send(Ok(script.code)) {
+                    break;
+                }
+            }
         }
     }
 
     drop(rx);
 
-    Ok(worker
+    Ok(worker_fut
         .await
         .wrap_err("failed to submit v8 task")?
         .wrap_err("failed to execute javascript code")?

@@ -173,9 +173,12 @@ impl DenoModuleLoader for ModuleLoader {
             )
             .entered();
 
-            let path = module_specifier
-                .to_file_path()
-                .map_err(|_| JsErrorBox::generic("Only file:// URLs are supported."))?;
+            let path = module_specifier.to_file_path().map_err(|_| {
+                JsErrorBox::generic(format!(
+                    "only file:// URLs are supported, request url {:?}",
+                    module_specifier
+                ))
+            })?;
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 

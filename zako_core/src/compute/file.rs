@@ -31,11 +31,11 @@ pub async fn file<'c>(
     let path_str = interner.resolve(path).wrap_err("failed to resolve path")?;
     let physical_path = Utf8Path::new(abs_root).join(path_str);
 
-    if std::fs::exists(physical_path.as_path())
+    if !std::fs::exists(physical_path.as_path())
         .map_err(|e| HoneError::IOError(e, physical_path.to_string()))?
     {
         return Err(HoneError::IOError(
-            std::io::Error::new(std::io::ErrorKind::NotFound, "file not found"),
+            std::io::Error::new(std::io::ErrorKind::NotFound, "request file not found"),
             physical_path.to_string(),
         ));
     }

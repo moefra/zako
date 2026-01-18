@@ -94,17 +94,20 @@ impl CasStore {
             )));
         }
 
-        if let Ok(local) = self.local.fetch(digest, range).await {
+        let local = self.local.fetch(digest, range).await;
+
+        if let Ok(local) = local {
             return Ok(local);
         }
 
         if let Some(remote) = self.remote.as_ref() {
-            if let Ok(remote) = remote.fetch(digest, range).await {
-                return Ok(remote);
-            }
+            return remote
+                .fetch(digest, range)
+                .await
+                .map_err(|err| CasStoreError::CasError(err));
+        } else {
+            return local.map_err(|err| CasStoreError::CasError(err));
         }
-
-        return Err(CasStoreError::CasError(CasError::NotFound(digest.clone())));
     }
 
     pub async fn read(&self, digest: &Digest, range: &BlobRange) -> Result<Vec<u8>, CasStoreError> {
@@ -112,7 +115,7 @@ impl CasStore {
         let mut bytes = Vec::with_capacity(range.length().unwrap_or(1024 * 64) as usize);
         tokio::io::copy(&mut data, &mut bytes)
             .await
-            .map_err(|err| CasStoreError::CasError(CasError::Io(err.into())))?;
+            .map_err(|err| CasStoreError::CasError(CasError::Io(err.into(), None)))?;
         Ok(bytes)
     }
 

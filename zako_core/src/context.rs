@@ -19,8 +19,8 @@ use crate::{
 pub enum BuildContextError {
     #[error("the project root path `{0}` is not an absolute path")]
     ProjectRootNotAbsolute(Utf8PathBuf),
-    #[error("failed to intern package source: {0}")]
-    FailedToResolvePackageSource(String),
+    #[error("failed to intern package source: {0:?}")]
+    FailedToResolvePackageSource(eyre::Report),
     #[error("Interner error: {0}")]
     InternerError(#[from] ::zako_interner::InternerError),
     #[error("other error: {0}")]
@@ -66,7 +66,7 @@ impl BuildContext {
 
         let project_source = package_source
             .intern(&interner)
-            .map_err(|err| BuildContextError::FailedToResolvePackageSource(err.to_string()))?;
+            .map_err(|err| BuildContextError::FailedToResolvePackageSource(err))?;
 
         let entry = package_entry_name
             .as_ref()
@@ -143,6 +143,10 @@ impl BuildContext {
     #[must_use]
     pub fn handle(&self) -> &Handle {
         self.env.handle()
+    }
+
+    pub fn arc_handle(&self) -> Arc<Handle> {
+        Arc::new(self.env.handle().clone())
     }
 
     #[inline]

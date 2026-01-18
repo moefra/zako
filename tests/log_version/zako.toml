@@ -1,3 +1,3 @@
 group = "moe.fra"
-name = "zako"
-version = "0.1.0"
+artifact = "zako"
+version = "1.0.0"

@@ -9,10 +9,6 @@ export interface Syscall{
     syscall_core_log(level:string, msg:string):string
 }
 
-/**
- * @internal
- */
-export const syscalls = (globalThis as any).Deno.core.ops as any as Syscall;
 
 export function log(
         level: "trace" | "debug" | "info" | "warn" | "error",
@@ -20,5 +16,17 @@ export function log(
     ): void{
     syscalls.syscall_core_log(level, message);
 }
+
+/**
+ * @internal
+ */
+export function getSyscall<T extends Syscall>():T{
+    return (globalThis as any).Deno.core.ops as T;
+}
+
+/**
+ * @internal
+ */
+const syscalls = getSyscall<Syscall>();
 
 export const version: string = syscalls.syscall_core_version() as string;

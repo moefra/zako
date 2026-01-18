@@ -67,7 +67,6 @@ pub mod package_source;
 pub mod path;
 pub mod pattern;
 pub mod persistent;
-pub mod project_resolver;
 pub mod resource;
 pub mod sandbox;
 pub mod socket_address;

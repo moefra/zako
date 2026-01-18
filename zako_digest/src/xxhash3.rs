@@ -1,6 +1,7 @@
 use std::{
     array::TryFromSliceError,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    fmt::Debug,
     marker::PhantomData,
     rc::Rc,
     sync::Arc,
@@ -324,7 +325,6 @@ impl XXHash3Hash for bool {
 
 #[derive(
     Clone,
-    Debug,
     Hash,
     Copy,
     PartialEq,
@@ -340,6 +340,15 @@ impl XXHash3Hash for bool {
 #[rkyv(derive(Hash, Eq, PartialEq, PartialOrd, Ord))]
 pub struct Hash {
     xxhash3: u128,
+}
+
+impl Debug for Hash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let hex = self.to_hex();
+        f.debug_struct("Hash")
+            .field("xxhash3", &hex.as_str())
+            .finish()
+    }
 }
 
 impl Hash {

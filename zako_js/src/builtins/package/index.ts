@@ -2,6 +2,7 @@
 import * as core from "zako:core";
 import * as rt from "zako:rt";
 import * as semver from "zako:semver";
+import { getSyscall } from "zako:syscall";
 import * as contextSyscalls from "zako:context";
 
 /**
@@ -17,7 +18,7 @@ export interface ProjectSyscalls extends contextSyscalls.ContextSyscall{
 /**
  * @internal
  */
-export const syscalls:ProjectSyscalls = contextSyscalls.syscalls as any as ProjectSyscalls;
+export const syscalls:ProjectSyscalls = getSyscall<ProjectSyscalls>();
 
 export interface Project extends core.ProjectMeta {
     description?: string;

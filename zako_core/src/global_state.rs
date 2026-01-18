@@ -1,7 +1,8 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use sysinfo::System;
 use tokio::runtime::{Builder, Runtime};
+use tracing::info;
 
 use crate::{
     ConcurrentMap,
@@ -37,7 +38,6 @@ pub struct CommonInternedStrings {
     pub config_mount: InternedString,
 }
 
-#[derive(Debug)]
 pub struct GlobalState {
     interner: Arc<crate::intern::Interner>,
     resource_pool: Arc<ResourcePool>,
@@ -49,6 +49,18 @@ pub struct GlobalState {
     oxc_workers_pool: Arc<WorkerPool<OxcTranspilerWorker>>,
     v8_workers_pool: Arc<WorkerPool<V8Worker>>,
     common_interneds: CommonInternedStrings,
+}
+
+impl Debug for GlobalState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GlobalState")
+            .field("resource_pool", &self.resource_pool)
+            .field("package_id_to_path", &self.package_id_to_path)
+            .field("cas_store", &self.cas_store)
+            .field("oxc_workers_pool", &self.oxc_workers_pool)
+            .field("v8_workers_pool", &self.v8_workers_pool)
+            .finish()
+    }
 }
 
 impl GlobalState {
@@ -88,6 +100,11 @@ impl GlobalState {
             v8_workers_pool: Arc::new(WorkerPool::new(v8_workers_config)),
             common_interneds,
         };
+
+        info!(
+            "use local cas path {:?}",
+            this.cas_store.get_local_cas().get_root()
+        );
 
         let this = Arc::new(this);
 

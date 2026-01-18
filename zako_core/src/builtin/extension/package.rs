@@ -41,6 +41,7 @@ pub type InformationRc = Rc<PackageInformation>;
 deno_core::extension!(
     zako_package,
     deps = [zako_context],
+    ops = [syscall_package_group, syscall_package_artifact, syscall_package_version, syscall_package_config],
     esm_entry_point = "zako:package",
     esm = ["zako:package" = "../dist/builtins/package.js"],
     options = {

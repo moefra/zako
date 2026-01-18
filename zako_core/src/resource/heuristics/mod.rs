@@ -29,7 +29,7 @@ pub fn determine_oxc_workers_count(_system: &System) -> usize {
 }
 
 pub fn determine_v8_workers_count(system: &System) -> usize {
-    usize::try_from(system.cpus().len() / 2).unwrap_or(1)
+    usize::try_from(system.cpus().len() / 2).unwrap_or(1).min(1)
 }
 
 pub fn determine_oxc_workers_config(system: &System) -> PoolConfig {

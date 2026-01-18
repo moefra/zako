@@ -324,7 +324,6 @@ impl Blake3Hash for bool {
 
 #[derive(
     Clone,
-    Debug,
     Hash,
     Copy,
     PartialEq,
@@ -340,6 +339,15 @@ impl Blake3Hash for bool {
 #[rkyv(derive(Hash, Eq, PartialEq))]
 pub struct Hash {
     hash_bytes: [u8; 32],
+}
+
+impl std::fmt::Debug for Hash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let hex = self.to_hex();
+        f.debug_struct("Hash")
+            .field("blake3", &hex.as_str())
+            .finish()
+    }
 }
 
 impl Hash {

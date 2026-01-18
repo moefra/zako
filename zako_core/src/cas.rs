@@ -45,11 +45,11 @@ pub trait Cas: Send + Sync + 'static + std::fmt::Debug {
 
 #[derive(Error, Debug)]
 pub enum CasError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Blob `{0:?}` not found")]
-    NotFound(Digest),
-    #[error("Internal storage error: {0}")]
+    #[error("path {1:?} io error: {0:?}")]
+    Io(#[source] std::io::Error, Option<PathBuf>),
+    #[error("blob `{0:?}` not found, request path {1:?}")]
+    NotFound(Digest, PathBuf),
+    #[error("internal storage error: {0}")]
     Internal(String),
     #[error(
         "Requested index is out of range: blob digest: {blob_digest:?}, blob length: {blob_length}, requested range: {requested_range:?}"

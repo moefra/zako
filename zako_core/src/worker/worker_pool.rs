@@ -31,7 +31,6 @@ pub struct PoolConfig {
     pub idle_timeout: Duration,
 }
 
-#[derive(Debug)]
 pub struct WorkerPool<B: WorkerBehavior> {
     sender: flume::Sender<Command<B>>,
     receiver: flume::Receiver<Command<B>>,
@@ -39,6 +38,15 @@ pub struct WorkerPool<B: WorkerBehavior> {
     context: OnceLock<Arc<B::Context>>,
     config: PoolConfig,
     active_count: Arc<AtomicUsize>,
+}
+
+impl<B: WorkerBehavior> std::fmt::Debug for WorkerPool<B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WorkerPool")
+            .field("config", &self.config)
+            .field("active_count", &self.active_count)
+            .finish()
+    }
 }
 
 // 内部包装结构：携带了返回用的 oneshot
@@ -69,8 +77,6 @@ impl<B: WorkerBehavior> WorkerPool<B> {
         let active_count = self.active_count.clone();
 
         thread::spawn(move || {
-            let _ = active_count.fetch_add(1, Ordering::Relaxed);
-
             let mut state = B::init(&ctx);
 
             // refresh this when process a job
@@ -81,6 +87,7 @@ impl<B: WorkerBehavior> WorkerPool<B> {
                 if gc_rx.try_recv().is_ok() {
                     B::gc(&mut state);
                 }
+
                 let timeout = rx.recv_timeout(Duration::from_secs_f64(0.5));
 
                 if Instant::now().duration_since(last_active_time) > alive_time {
@@ -125,7 +132,7 @@ impl<B: WorkerBehavior> WorkerPool<B> {
         // 1. 当前线程数没达到上限
         // 2. 队列里有积压 (len > 0) 或者 当前没有线程 (current == 0)
         //    (注意：async_channel 的 len() 是近似值，但足够了)
-        if current < self.config.max_workers && (!self.sender.is_empty() || current == 0) {
+        if current < self.config.max_workers && (current == 0 || !self.sender.is_empty()) {
             // 用乐观锁增加计数，防止多个超过线程上限
             if self
                 .active_count
@@ -168,8 +175,7 @@ impl<B: WorkerBehavior> WorkerPool<B> {
         };
 
         self.sender
-            .send_async(Command::Process(job))
-            .await
+            .send(Command::Process(job))
             .map_err(|_| WorkerPoolError::NotStarted)?;
 
         self.maybe_spawn_worker();

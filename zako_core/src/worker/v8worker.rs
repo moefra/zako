@@ -54,8 +54,14 @@ pub enum V8WorkerError {
 }
 
 /// A worker that executes JavaScript using V8 (via deno_core)
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct V8Worker;
+
+impl std::fmt::Debug for V8Worker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("V8Worker").finish()
+    }
+}
 
 /// State for V8 Worker, holding the JsRuntime and a Tokio Runtime for async execution
 pub struct V8State {
@@ -143,15 +149,10 @@ impl WorkerBehavior for V8Worker {
             },
         )?;
 
-        let runtime = engine.get_runtime();
-        let mut runtime = runtime.borrow_mut();
-        let context = runtime.main_context();
-        let mut isolate = runtime.v8_isolate();
-
         let specifier = url::Url::from_file_path(&input.specifier)
             .map_err(|_| eyre!("failed to parse the {:?} into file url", input.specifier))?;
 
-        let result = engine.execute_module(
+        _ = engine.execute_module(
             &ModuleSpecifier {
                 url: specifier,
                 module_type: crate::module_loader::specifier::ModuleType::File,

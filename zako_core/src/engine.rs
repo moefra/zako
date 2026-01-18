@@ -5,6 +5,7 @@ use crate::{
     module_loader::{LoaderOptions, ModuleLoader, specifier::ModuleSpecifier},
     v8platform,
 };
+use core::panic;
 use deno_core::error::CoreError;
 use deno_core::serde_v8;
 use deno_core::{Extension, JsRuntime, RuntimeOptions, v8};
@@ -50,8 +51,7 @@ impl Engine {
 
         let loader = Rc::new(ModuleLoader::new(loader));
 
-        let mut extensions = options.extensions;
-        extensions.extend(vec![
+        let mut extensions = vec![
             // common extensions
             builtin::extension::rt::zako_rt::init(),
             builtin::extension::syscall::zako_syscall::init(),
@@ -59,7 +59,8 @@ impl Engine {
             builtin::extension::semver::zako_semver::init(),
             builtin::extension::core::zako_core::init(),
             builtin::extension::console::zako_console::init(),
-        ]);
+        ];
+        extensions.extend(options.extensions);
 
         let runtime = JsRuntime::try_new(RuntimeOptions {
             module_loader: Some(loader.clone()),
