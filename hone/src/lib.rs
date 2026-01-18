@@ -9,6 +9,8 @@ pub mod error;
 pub mod node;
 pub mod status;
 
+pub use redb;
+
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct KeyId(u64);
 

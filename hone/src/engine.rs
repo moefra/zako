@@ -47,7 +47,7 @@ impl Default for ResolveOptions {
     fn default() -> Self {
         Self {
             buffered_count: 10,
-            keep_going: true,
+            keep_going: false,
         }
     }
 }

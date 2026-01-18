@@ -9,15 +9,31 @@ use smol_str::SmolStr;
 
 use crate::{
     builtin::extension::syscall::SyscallError,
+    config::{ConfigError, Configuration},
     config_value::{ConfigDefault, ConfigType, ConfigValue, ResolvedConfigValue},
     global_state::GlobalState,
     id::Label,
-    package::{Package, ResolvedPackage},
+    intern::Interner,
+    package::{Package, ResolvedPackage, ResolvingPackage},
 };
 
 #[derive(Debug, Clone)]
 pub struct PackageInformation {
-    pub package: Package,
+    package: ResolvingPackage,
+    config: Configuration,
+}
+
+impl PackageInformation {
+    pub fn new(package: ResolvingPackage, interner: &Interner) -> Result<Self, ConfigError> {
+        Ok(Self {
+            config: package.resolved_config.resolve(interner)?,
+            package,
+        })
+    }
+
+    pub fn get_package(self) -> ResolvingPackage {
+        self.package
+    }
 }
 
 pub type InformationRc = Rc<PackageInformation>;
@@ -40,7 +56,7 @@ deno_core::extension!(
 #[to_v8]
 fn syscall_package_group(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
-    let group = info.package.group.clone();
+    let group = info.package.original.group.clone();
     Ok(group.to_string().into())
 }
 
@@ -48,7 +64,7 @@ fn syscall_package_group(state: &mut OpState) -> Result<FastString, SyscallError
 #[to_v8]
 fn syscall_package_artifact(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
-    let artifact = info.package.artifact.clone();
+    let artifact = info.package.original.artifact.clone();
     Ok(artifact.to_string().into())
 }
 
@@ -56,7 +72,7 @@ fn syscall_package_artifact(state: &mut OpState) -> Result<FastString, SyscallEr
 #[to_v8]
 fn syscall_package_version(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
-    let version = info.package.version.clone();
+    let version = info.package.original.version.clone();
     Ok(version.to_string().into())
 }
 
@@ -68,14 +84,11 @@ fn syscall_package_config<'s, 'i>(
 ) -> v8::Local<'s, v8::Value> {
     let info = state.borrow::<InformationRc>();
 
-    let config = match info.package.config.as_ref() {
-        None => return v8::undefined(scope).into(),
-        Some(v) => v,
-    };
+    let config = &info.config;
 
     let key = SmolStr::new(key);
 
-    let value = config.get(&key);
+    let value = config.config.get(&key);
 
     match value {
         Some(value) => match &value.default {

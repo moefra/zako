@@ -14,13 +14,14 @@ use crate::{
         node_value::ZakoValue,
         resolve_label::{ResolveLabel, ResolveLabelResult},
     },
-    worker::v8worker::V8WorkerInput,
 };
 
 pub async fn resolve_label<'c>(
     ctx: &'c ZakoComputeContext<'c>,
     key: &ResolveLabel,
 ) -> HoneResult<(HashPair, ResolveLabelResult)> {
+    todo!()
+    /*
     let context: &crate::context::BuildContext = ctx.context();
 
     let interner = context.interner();
@@ -111,4 +112,5 @@ pub async fn resolve_label<'c>(
             target: crate::target::Target::Target(data),
         },
     ))
+     */
 }

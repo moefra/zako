@@ -54,13 +54,14 @@ pub struct GlobalState {
 impl GlobalState {
     #[must_use]
     pub fn new(
+        system: System,
         resource_pool: ResourcePool,
         cas_store_options: CasStoreOptions,
         oxc_workers_config: PoolConfig,
         v8_workers_config: PoolConfig,
     ) -> Result<Arc<Self>, GlobalStateError> {
         let cpu_count = resource_pool.get_cpu_count() as usize;
-        let system = Arc::new(System::new_all());
+        let system = Arc::new(system);
         let interner = Arc::new(Interner::new()?);
 
         let common_interneds = CommonInternedStrings {

@@ -1,12 +1,13 @@
 use ::zako_digest::blake3::Blake3Hash;
 use serde::{Deserializer, de::value::U128Deserializer};
+use smol_str::SmolStr;
 use zako_digest::{
     blake3::Hash,
     xxhash3::{self, XXHash3Hash},
 };
 use zako_interner::InternerError;
 
-use crate::intern::{InternedString, Interner};
+use crate::intern::{InternedString, Interner, Uninternable};
 
 /// Check a string match [Unicode Standard Annex #31](https://www.unicode.org/reports/tr31/), and it allows `_`.
 ///
@@ -127,6 +128,14 @@ impl InternedAtom {
 impl AsRef<InternedString> for InternedAtom {
     fn as_ref(&self) -> &InternedString {
         &self.0
+    }
+}
+
+impl Uninternable for InternedAtom {
+    type Uninterned = SmolStr;
+
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
+        Ok(SmolStr::new(interner.resolve(&self.0)?))
     }
 }
 

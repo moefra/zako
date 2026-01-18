@@ -14,18 +14,14 @@ use crate::{
 /// Raw, immutable configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Configuration {
-    pub config: HashMap<SmolStr, ConfigValue>,
+    pub config: BTreeMap<SmolStr, ConfigValue>,
 }
 
 impl Configuration {
     pub fn new() -> Self {
         Self {
-            config: HashMap::new(),
+            config: Default::default(),
         }
-    }
-
-    pub fn from(config: HashMap<SmolStr, ConfigValue>) -> Self {
-        Self { config }
     }
 
     pub fn generate_template_code(self) -> String {
@@ -106,7 +102,7 @@ impl ResolvedConfiguration {
     }
 
     pub fn resolve(&self, interner: &Interner) -> Result<Configuration, ConfigError> {
-        let mut config = HashMap::new();
+        let mut config: BTreeMap<SmolStr, ConfigValue> = Default::default();
         for (key, value) in self.config.iter() {
             config.insert(
                 SmolStr::new(key.resolved(interner)?),

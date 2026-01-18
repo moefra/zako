@@ -18,5 +18,5 @@ pub struct Glob {
 
 #[derive(Debug, Clone, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct GlobResult {
-    pub paths: Vec<InternedAbsolutePath>,
+    pub paths: Vec<InternedNeutralPath>,
 }

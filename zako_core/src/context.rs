@@ -57,28 +57,28 @@ impl BuildContext {
     ///
     /// `env`: The global state
     pub fn new(
-        project_root: &Utf8PathBuf,
-        project_source: PackageSource,
-        project_entry_name: Option<String>,
+        package_root: &Utf8PathBuf,
+        package_source: PackageSource,
+        package_entry_name: Option<String>,
         env: Arc<GlobalState>,
     ) -> Result<Self, BuildContextError> {
         let interner = env.interner();
 
-        let project_source = project_source
+        let project_source = package_source
             .intern(&interner)
             .map_err(|err| BuildContextError::FailedToResolvePackageSource(err.to_string()))?;
 
-        let entry = project_entry_name
+        let entry = package_entry_name
             .as_ref()
             .map(|s| s.as_str())
             .unwrap_or(crate::consts::PACKAGE_MANIFEST_FILE_NAME);
 
         Ok(Self {
             project_root: InternedAbsolutePath::from_interned(
-                interner.get_or_intern(project_root.as_str())?,
+                interner.get_or_intern(package_root.as_str())?,
                 interner,
             )?
-            .ok_or_else(|| BuildContextError::ProjectRootNotAbsolute(project_root.clone()))?,
+            .ok_or_else(|| BuildContextError::ProjectRootNotAbsolute(package_root.clone()))?,
             project_entry_name: interner.get_or_intern(entry)?,
             project_source,
             env,

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::intern::Internable;
+use crate::intern::{Internable, Uninternable};
 use crate::pattern::{InternedPattern, Pattern, PatternError, PatternGroup};
 use crate::{
     author::{Author, InternedAuthor},
@@ -22,7 +22,7 @@ use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 use ts_rs::TS;
-use zako_digest::blake3::Blake3Hash;
+use zako_digest::blake3::{Blake3Hash, Hash};
 
 #[derive(thiserror::Error, Debug)]
 pub enum PackageResolveError {
@@ -133,7 +133,7 @@ impl Blake3Hash for Package {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, rkyv::Deserialize, rkyv::Serialize, rkyv::Archive)]
 pub struct ResolvingPackage {
     pub original: Package,
     pub resolved_config: ResolvedConfiguration,
@@ -153,6 +153,21 @@ impl ResolvingPackage {
             additional_rules: Default::default(),
             additional_toolchains: Default::default(),
         }
+    }
+
+    pub fn get_blake3(&self, interner: &Interner) -> eyre::Result<Hash> {
+        let mut hasher = blake3::Hasher::new();
+
+        self.original.hash_into_blake3(&mut hasher);
+        self.resolved_config
+            .resolve(interner)?
+            .hash_into_blake3(&mut hasher);
+        self.additional_peers.hash_into_blake3(&mut hasher);
+        self.additional_builds.hash_into_blake3(&mut hasher);
+        self.additional_rules.hash_into_blake3(&mut hasher);
+        self.additional_toolchains.hash_into_blake3(&mut hasher);
+
+        Ok(hasher.finalize().into())
     }
 
     #[must_use]
@@ -248,5 +263,91 @@ impl ResolvedPackage {
 
     pub fn get_id(&self) -> InternedPackageId {
         InternedPackageId::new(self.get_artifact_id(), self.version)
+    }
+
+    pub fn get_blake3_hash(&self, interner: &Interner) -> eyre::Result<Hash> {
+        let mut hasher = blake3::Hasher::new();
+
+        hasher.update(self.group.unintern(interner)?.as_bytes());
+        hasher.update(self.artifact.unintern(interner)?.as_bytes());
+        hasher.update(self.version.unintern(interner)?.as_bytes());
+        hasher.update(
+            self.configure_script
+                .as_ref()
+                .map(|s| s.as_bytes())
+                .unwrap_or_default(),
+        );
+        hasher.update(
+            self.description
+                .as_ref()
+                .map(|s| s.as_bytes())
+                .unwrap_or_default(),
+        );
+        self.authors
+            .as_ref()
+            .map(|a: &Vec<InternedAuthor>| a.iter().map(|a| a.unintern(interner)).collect())
+            .transpose()?
+            .map(|mut a: Vec<Author>| {
+                a.sort();
+
+                a.iter().for_each(|a| {
+                    a.hash_into_blake3(&mut hasher);
+                })
+            })
+            .unwrap_or_else(|| ().hash_into_blake3(&mut hasher));
+
+        if let Some(license) = self
+            .license
+            .as_ref()
+            .map(|l| l.unintern(interner))
+            .transpose()?
+        {
+            hasher.update(license.as_bytes());
+        } else {
+            ().hash_into_blake3(&mut hasher);
+        }
+
+        let mut compute_hash = |pattern_group: &PatternGroup| -> eyre::Result<()> {
+            for pattern in pattern_group.patterns.iter() {
+                let pattern = pattern.unintern(interner)?;
+
+                pattern.hash_into_blake3(&mut hasher);
+            }
+            Ok(())
+        };
+        compute_hash(&self.builds)?;
+        compute_hash(&self.rules)?;
+        compute_hash(&self.toolchains)?;
+        compute_hash(&self.peers)?;
+
+        if let Some(dependencies) = &self.dependencies {
+            hasher.update(&dependencies.len().to_le_bytes());
+            for (key, value) in dependencies {
+                hasher.update(key.as_bytes());
+                value.unintern(interner)?.hash_into_blake3(&mut hasher);
+            }
+        } else {
+            ().hash_into_blake3(&mut hasher);
+        }
+
+        if let Some(mount_config) = self
+            .mount_config
+            .as_ref()
+            .map(|s| s.unintern(interner))
+            .transpose()?
+        {
+            hasher.update(mount_config.as_bytes());
+        } else {
+            ().hash_into_blake3(&mut hasher);
+        }
+
+        let config: BTreeMap<_, _> = self.config.resolve(interner)?.config;
+
+        for (key, value) in config {
+            hasher.update(key.as_bytes());
+            value.hash_into_blake3(&mut hasher);
+        }
+
+        Ok(hasher.finalize().into())
     }
 }

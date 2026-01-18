@@ -57,6 +57,12 @@ pub enum ConfigDefault {
 
 impl Blake3Hash for ConfigDefault {
     fn hash_into_blake3(&self, hasher: &mut blake3::Hasher) {
+        hasher.update(match self {
+            ConfigDefault::String(_) => b"string",
+            ConfigDefault::Boolean(_) => b"boolean",
+            ConfigDefault::Number(_) => b"number",
+            ConfigDefault::Object(_) => b"object",
+        });
         match self {
             ConfigDefault::String(s) => s.hash_into_blake3(hasher),
             ConfigDefault::Boolean(b) => b.hash_into_blake3(hasher),

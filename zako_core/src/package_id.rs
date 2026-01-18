@@ -1,5 +1,6 @@
-use crate::intern::Interner;
+use crate::intern::{Interner, Uninternable};
 
+use smol_str::SmolStr;
 use zako_digest::blake3::Blake3Hash;
 
 use crate::id::{InternedAtom, is_loose_ident};
@@ -39,6 +40,14 @@ impl AsRef<InternedString> for InternedVersion {
     }
 }
 
+impl Uninternable for InternedVersion {
+    type Uninterned = SmolStr;
+
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
+        Ok(SmolStr::new(interner.resolve(&self.0)?))
+    }
+}
+
 impl InternedVersion {
     pub fn try_parse(s: &str, interner: &Interner) -> Result<Self, PackageIdParseError> {
         _ = ::semver::Version::parse(s)
@@ -66,6 +75,14 @@ impl Blake3Hash for InternedGroup {
 impl AsRef<InternedString> for InternedGroup {
     fn as_ref(&self) -> &InternedString {
         &self.0
+    }
+}
+
+impl Uninternable for InternedGroup {
+    type Uninterned = SmolStr;
+
+    fn unintern(&self, interner: &Interner) -> eyre::Result<Self::Uninterned> {
+        Ok(SmolStr::new(interner.resolve(&self.0)?))
     }
 }
 

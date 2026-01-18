@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use camino::Utf8Path;
 use eyre::eyre;
 use hone::{HoneResult, error::HoneError, status::HashPair};
+use rkyv::collections;
 use zako_digest::blake3::Blake3Hash;
 
 use crate::{
     computer::ZakoComputeContext,
-    node::glob::{Glob, GlobResult},
+    intern::{Internable, Uninternable},
+    node::glob::{Glob, GlobRequest, GlobResult},
     path::NeutralPath,
     resource::ResourceRequest,
 };
@@ -16,7 +20,7 @@ pub async fn glob<'c>(
     glob: &Glob,
 ) -> HoneResult<(HashPair, GlobResult)> {
     let base_path = &glob.base_path;
-    let pattern = &glob.pattern;
+    let request = &glob.request;
 
     let _old_data = ctx.old_data();
     let ctx = ctx.context();
@@ -28,29 +32,42 @@ pub async fn glob<'c>(
     let base_path = Utf8Path::new(base_path_str);
     let interner = ctx.interner();
 
-    let resolved_pattern = pattern
-        .resolve(interner)
-        .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
-
-    let input_hash = {
-        let mut input_hasher = blake3::Hasher::new();
-        base_path.hash_into_blake3(&mut input_hasher);
-        resolved_pattern.hash_into_blake3(&mut input_hasher);
-        input_hasher.finalize()
+    let patterns = match request {
+        GlobRequest::Single(single) => Arc::new([single.clone()]),
+        GlobRequest::Multiple(multi) => multi.patterns.clone(),
     };
 
-    let mut result = pattern
-        .walk(interner, &base_path.as_std_path(), 1)
-        .map_err(|err| {
-            eyre::Report::new(err).wrap_err(format!(
-                "failed to walk directory `{:?}` with pattern `{:?}`",
-                base_path,
-                pattern
-                    .resolve(&interner)
-                    .map(|p| format!("{:?}", p))
-                    .unwrap_or_else(|_| "error resolving pattern".to_string()) // To provide debug information
-            ))
-        })?;
+    let mut result = Vec::with_capacity(patterns.len());
+    let mut resolved_patterns = Vec::with_capacity(patterns.len());
+
+    for pattern in patterns.iter() {
+        let resolved_pattern = pattern
+            .unintern(interner)
+            .map_err(|err| HoneError::UnexpectedError(format!("interner error: {}", err)))?;
+
+        resolved_patterns.push(resolved_pattern.clone());
+
+        pattern
+            .walk(interner, &base_path.as_std_path(), 1)
+            .map_err(|err| {
+                eyre::Report::new(err).wrap_err(format!(
+                    "failed to walk directory `{:?}` with pattern `{:?}`",
+                    base_path, resolved_pattern
+                ))
+            })?
+            .into_iter()
+            .for_each(|p| {
+                result.push(p);
+            });
+    }
+    // IMPORTANT: sort the result to ensure the same order
+    resolved_patterns.sort();
+    let input_hash = {
+        let mut hasher = blake3::Hasher::new();
+        base_path.hash_into_blake3(&mut hasher);
+        resolved_patterns.hash_into_blake3(&mut hasher);
+        hasher.finalize()
+    };
     // IMPORTANT: sort the result to ensure the same order
     result.sort();
 
@@ -81,7 +98,7 @@ pub async fn glob<'c>(
         neutral_path.hash_into_blake3(&mut hasher);
         let neutral_path = neutral_path
             .intern(ctx.interner())
-            .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
+            .map_err(|err| HoneError::UnexpectedError(format!("interner error: {}", err)))?;
         interned_neutral_result.push(neutral_path);
     }
 

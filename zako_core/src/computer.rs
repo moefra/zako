@@ -16,6 +16,12 @@ use crate::{
 #[derive(Debug)]
 pub struct Computer {}
 
+impl Computer {
+    pub fn new() -> Self {
+        Computer {}
+    }
+}
+
 pub type ZakoComputer = dyn hone::context::Computer<BuildContext, ZakoKey, ZakoValue>;
 pub type ZakoComputeContext<'c> = Context<'c, BuildContext, ZakoKey, ZakoValue>;
 pub type ZakoResult = HoneResult<NodeData<BuildContext, ZakoValue>>;

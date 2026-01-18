@@ -18,6 +18,7 @@ use crate::{
         node_key::ZakoKey,
         node_value::ZakoValue,
         parse_manifest::ParseManifest,
+        resolve_manifest_script::ResolveManifestScript,
         resolve_package::{ResolvePackage, ResolvePackageResult},
     },
     package::ResolvingPackage,
@@ -37,7 +38,6 @@ pub async fn resolve_package<'c>(
         .resolved(interner)
         .map_err(|err| HoneError::UnexpectedError(format!("Interner error: {}", err)))?;
 
-    let raw_source_blake3 = key.source.clone().get_blake3();
     let input_hash: blake3::Hash = (package_id.as_str(), key.source.clone()).get_blake3();
 
     let interned_path = if let Some(root) = key.root {
@@ -59,7 +59,7 @@ pub async fn resolve_package<'c>(
     let path = Utf8PathBuf::from(path_str);
     let manifest = path.join(consts::PACKAGE_MANIFEST_FILE_NAME);
 
-    // TODO: DO not read the file into memory, just read the file into a blob handle
+    // TODO: Do not read the file into memory, just read the file into a blob handle
     // Issue URL: https://github.com/moefra/zako/issues/28
     let (_, result) = file::read_text(raw_ctx, manifest).await?;
 
@@ -81,13 +81,10 @@ pub async fn resolve_package<'c>(
     let parsed = match manifest.value().as_ref() {
         ZakoValue::ParseManifest(resolved) => resolved,
         _ => {
-            Err(eyre::eyre!("expected parse manifest result"))?;
-            unreachable!()
+            return Err(eyre::eyre!("expected parse manifest result").into());
         }
     }
     .clone();
-
-    let raw_package_blake3 = parsed.project.get_blake3();
 
     // TODO: Resolve the configuration and dependencies
 
@@ -99,37 +96,58 @@ pub async fn resolve_package<'c>(
         .validate()
         .wrap_err("failed to validate project manifest")?;
 
-    let resolving = ResolvingPackage::new(
-        parsed.project,
-        Configuration::from(parsed.project.config.unwrap_or_default()).resolve(interner)?,
-    );
+    let configuration = Configuration {
+        config: parsed
+            .project
+            .config
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .collect(),
+    };
+
+    let resolving = ResolvingPackage::new(parsed.project, configuration.resolve(interner)?);
 
     // TODO: call v8 js script to poll more information
     // Issue URL: https://github.com/moefra/zako/issues/29
     // e.g. engine.execute_manifest_initialize_script(resolving)
 
-    let resolved = resolving.resolve(&new_ctx).map_err(|err| {
+    let result = raw_ctx
+        .request_with_context(
+            ZakoKey::ResolveManifestScript(ResolveManifestScript {
+                configure_script: resolving.original.configure_script.clone(),
+                package: resolving,
+            }),
+            &new_ctx,
+        )
+        .await
+        .wrap_err("failed to request resolve manifest script")?;
+
+    let resolving = match &*result.into_value() {
+        ZakoValue::ResolveManifestScript(resolved) => resolved.package.clone(),
+        _ => {
+            return Err(eyre::eyre!("expected resolve manifest script result").into());
+        }
+    };
+
+    let resolved = resolving.resolve(interner).map_err(|err| {
         eyre::eyre!(err).wrap_err(format!(
-            "while resolving project {:?}, path {:?}",
+            "error while resolving project {:?}, path {:?}",
             &key.package, &path
         ))
     })?;
 
+    let output_hash = resolved.get_blake3_hash(interner)?;
+
     let configured = ConfiguredPackage {
-        raw_package_blake3: parsed.project.get_blake3().into(),
-        raw_source_blake3: raw_source_blake3.into(),
-        source_root_blake3: interned_path.get_blake3(),
         source: new_ctx.package_source().clone(),
         package: resolved,
-        source_root: interned_path,
     };
-
-    let output = resolved.get_blake3();
 
     return Ok((
         HashPair {
             input_hash: input_hash.into(),
-            output_hash: output_hash.into(),
+            output_hash: output_hash,
         },
         ResolvePackageResult {
             package: configured,

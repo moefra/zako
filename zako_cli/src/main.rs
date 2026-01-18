@@ -14,7 +14,8 @@ use std::env::temp_dir;
 use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::{env, io};
 use tokio::runtime::Builder;
 use tracing::{Span, trace};
@@ -22,9 +23,24 @@ use tracing::{debug, info, trace_span};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_tree::HierarchicalLayer;
-use zako_core::engine::{Engine, EngineMode, EngineOptions};
+use zako_core::camino::Utf8PathBuf;
+use zako_core::cas_store::CasStoreOptions;
+use zako_core::context::BuildContext;
+use zako_core::hone::redb;
+use zako_core::intern::InternedAbsolutePath;
+use zako_core::node::node_key::ZakoKey;
+use zako_core::node::resolve_package::ResolvePackage;
+use zako_core::package_id::InternedPackageId;
+use zako_core::package_source::PackageSource;
 use zako_core::path::NeutralPath;
-use zako_core::project_resolver::ProjectResolver;
+use zako_core::resource::ResourcePool;
+use zako_core::resource::heuristics::{
+    determine_memory_tti_for_cas, determine_memory_ttl_for_cas, determine_oxc_workers_config,
+    determine_v8_workers_config,
+};
+use zako_core::worker::worker_pool::PoolConfig;
+use zako_core::zako_cancel::{CancelSource, CancelToken};
+use zako_core::{HoneComputer, sysinfo};
 
 use ::mimalloc::MiMalloc;
 #[global_allocator]
@@ -55,7 +71,7 @@ const STYLES: styling::Styles = styling::Styles::styled()
 // TODO: Print image may be a good thing
 // Issue URL: https://github.com/moefra/zako/issues/13
 const ABOUT: &'static str = concat!(
-    "The \x1b[35mpost-modern\x1b[0m 🛠️building tool🛠️ that your mom warned you about🤯\n",
+    "The \x1b[35mblazingly-fast && post-modern\x1b[0m 🛠️building tool🛠️ that your mom warned you about🤯\n",
     "Use terminal that support \x1b[35mkitty graphics protocol\x1b[0m to print useful image to terminal."
 );
 const BEFORE_HELP: &'static str = concatcp!(
@@ -64,7 +80,8 @@ const BEFORE_HELP: &'static str = concatcp!(
     "\x1B\\\x1b[34;47;4;1m[More Information]\x1B]8;;\x1B\\\x1b[0m"
 );
 const AFTER_HELP: &'static str = concatcp!(
-    "Support argfile(namely @response_file), use @ARG_FILE to load arguments from file📄\n\n",
+    "Support argfile(namely @response_file), use @ARG_FILE to load arguments from file📄\n",
+    "Support shabang,zako will relay all arguments to bun\n\n",
     "早已森严壁垒🧱更加众志成城💪\n\x1B]8;;",
     env!("CARGO_PKG_HOMEPAGE"),
     "\x1B\\\x1b[34;47;4;1m[Bug Report]\x1B]8;;\x1B\\\x1b[0m"
@@ -278,7 +295,8 @@ struct ExportBuiltinArgs {
 
 impl ExportBuiltinArgs {
     pub fn invoke(self) -> eyre::Result<()> {
-        let builtins = zako_core::builtin::id::construct_builtins_typescript_export();
+        //let builtins = zako_core::builtin::id::construct_builtins_typescript_export();
+        let builtins = "";
 
         if let Some(output_file) = self.output_file {
             let mut output_file = File::create(output_file)?;
@@ -294,15 +312,14 @@ impl ExportBuiltinArgs {
 #[derive(clap::Args, Debug)]
 #[command(name = "make", about = "Build the project")]
 struct MakeArgs {
-    /// The file path must be valid NeutralPath.
-    ///
-    /// It will join into the sandbox path to construct the full path.
-    #[arg(long,default_value = ::zako_core::PROJECT_SCRIPT_FILE_NAME, value_hint = clap::ValueHint::FilePath)]
-    project_file: String,
-
-    /// The path to construct the sandbox
     #[arg(long,default_value = ".", value_hint = clap::ValueHint::DirPath)]
-    sandbox_dir: String,
+    package_root: String,
+
+    #[arg(long)]
+    package_id: String,
+
+    #[arg(long,default_value = "./.zako/cache.db", value_hint = clap::ValueHint::FilePath)]
+    database_file: String,
 
     #[arg(long, help = "Set the cpu counts to use")]
     concurrency: Option<usize>,
@@ -310,22 +327,82 @@ struct MakeArgs {
 
 impl MakeArgs {
     pub fn invoke(self) -> eyre::Result<()> {
-        let concurrency = self.concurrency.unwrap_or(num_cpus::get());
+        let system = sysinfo::System::new_all();
 
-        let runtime = Builder::new_multi_thread().build()?;
+        let concurrency = self.concurrency.unwrap_or(num_cpus::get()) as u64;
 
-        let project_file = NeutralPath::new(self.project_file)?;
+        let package_root = Utf8PathBuf::from(self.package_root);
+        let package_root = package_root.canonicalize_utf8()?;
 
         info!("use concurrency {}", concurrency);
 
-        let engine = Engine::new(EngineOptions {
-            tokio_handle: runtime.handle().clone(),
-            mode: EngineMode::Project,
-        })?;
+        let db = PathBuf::from(self.database_file);
 
-        let mut resolver = ProjectResolver::new(engine);
+        let database = Arc::new(redb::Database::create(db)?);
 
-        resolver.resolve_project(&project_file)?;
+        let resource_pool = ResourcePool::new(
+            concurrency,
+            concurrency,
+            concurrency,
+            concurrency,
+            concurrency,
+            Default::default(),
+        );
+
+        let cas_store_options = CasStoreOptions {
+            max_cache_capacity: 4 * 1024,
+            max_cache_ttl: determine_memory_ttl_for_cas(&system),
+            max_cache_tti: determine_memory_tti_for_cas(&system),
+        };
+
+        let oxc_config = determine_oxc_workers_config(&system);
+        let v8_config = determine_v8_workers_config(&system);
+
+        let global_state = zako_core::global_state::GlobalState::new(
+            system,
+            resource_pool,
+            cas_store_options,
+            oxc_config,
+            v8_config,
+        )?;
+
+        let hone = zako_core::HoneEngine::new(Arc::new(HoneComputer::new()), database)?;
+
+        let package_source = PackageSource::Path {
+            path: package_root.to_string(),
+        };
+
+        let context = BuildContext::new(
+            &package_root,
+            package_source.clone(),
+            None,
+            global_state.clone(),
+        )?;
+
+        let cancel_source = CancelSource::new();
+
+        let package_id = InternedPackageId::try_parse(&self.package_id, &context.interner())?;
+        let package_path = InternedAbsolutePath::new(&package_root, global_state.interner())?;
+
+        global_state
+            .package_id_to_path()
+            .insert(package_id, package_path);
+
+        let handle = global_state.handle();
+
+        handle.block_on((async || {
+            hone.resolve(
+                ZakoKey::ResolvePackage(ResolvePackage {
+                    package: package_id,
+                    source: package_source,
+                    root: None,
+                }),
+                cancel_source.token(),
+                Default::default(),
+                &context,
+            )
+            .await
+        })())?;
 
         Ok(())
     }
@@ -515,7 +592,19 @@ fn inner_main() -> eyre::Result<()> {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let args = env::args_os();
+    let mut args = env::args_os();
+
+    // check if shabang
+    // pass to bun
+    if let Some(first) = &args.nth(1) {
+        if first.to_string_lossy().starts_with("#!") {
+            let args: Vec<String> = args
+                .into_iter()
+                .map(|s| s.to_string_lossy().to_string())
+                .collect();
+            return run_bun(args.into_iter().skip(1).collect());
+        }
+    }
 
     let _span = trace_span!(
         "program start",

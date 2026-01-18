@@ -1,5 +1,7 @@
 use crate::{
-    config::ResolvedConfiguration, configured_project::ConfiguredPackage, package::Package,
+    config::ResolvedConfiguration,
+    configured_project::ConfiguredPackage,
+    package::{Package, ResolvingPackage},
 };
 
 /// The type of V8 context used in Zako build system.
@@ -14,7 +16,7 @@ pub enum V8ContextInput {
     /// Enable `zako:package` for
     ///
     /// [crate::consts::PACKAGE_SCRIPT_FILE_NAME]
-    Package { package: Package },
+    Package { package: ResolvingPackage },
     /// Enable `zako:build` for
     ///
     /// [crate::consts::BUILD_FILE_NAME]
@@ -36,12 +38,12 @@ pub enum V8ContextInput {
     },
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub enum V8ContextOutput {
     /// Enable `zako:package` for
     ///
     /// [crate::consts::PACKAGE_SCRIPT_FILE_NAME]
-    Package { package: Package },
+    Package { package: ResolvingPackage },
     /// Enable `zako:build` for
     ///
     /// [crate::consts::BUILD_FILE_NAME]

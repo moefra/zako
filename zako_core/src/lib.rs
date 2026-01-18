@@ -27,6 +27,11 @@
 //! For zako,it should not rely on file suffix to determine file type. And no file can escape check regardless their name.
 //!
 //! An faster way is that, if a file is under `scripts` directory,it is treated as script file(In `tsconfig.json`).
+
+use crate::{
+    context::BuildContext,
+    node::{node_key::ZakoKey, node_value::ZakoValue},
+};
 pub mod access_control;
 pub mod author;
 pub mod blob_handle;
@@ -87,6 +92,9 @@ pub type ConcurrentMap<K, V> = ::dashmap::DashMap<K, V, ::ahash::RandomState>;
 pub type Map<K, V> = ::std::collections::HashMap<K, V, ahash::RandomState>;
 pub type Set<K, V> = ::std::collections::HashMap<K, V, ahash::RandomState>;
 
+pub type HoneEngine = hone::engine::Engine<BuildContext, ZakoKey, ZakoValue>;
+pub type HoneComputer = crate::computer::Computer;
+
 /// The result of iteration of this map is not ordered.
 ///
 /// Please do not rely on any specific order.
@@ -116,3 +124,10 @@ pub mod protobuf {
         tonic::include_proto!("zako.v1.range");
     }
 }
+
+pub use camino;
+pub use hone;
+pub use sysinfo;
+pub use zako_cancel;
+pub use zako_digest;
+pub use zako_interner;

@@ -2,6 +2,7 @@ use ::eyre::{Context, OptionExt};
 use ::hone::{HoneResult, error::HoneError, status::HashPair};
 use ::smol_str::SmolStr;
 use ::zako_digest::blake3::Blake3Hash;
+use camino::{Utf8Path, Utf8PathBuf};
 
 use crate::{
     blob_range::BlobRange,
@@ -30,13 +31,16 @@ pub async fn resolve_manifest_script<'c>(
         .resolve(context.project_root())
         .wrap_err("failed to resolve project root")?;
 
-    let path = format!("{}/{}", current, consts::PACKAGE_SCRIPT_FILE_NAME);
+    let path = match &key.configure_script {
+        Some(script) => format!("{}/{}", current, script),
+        None => format!("{}/{}", current, consts::PACKAGE_SCRIPT_FILE_NAME),
+    };
 
-    let input_hash = package.get_blake3();
+    let input_hash = package.get_blake3(interner)?;
 
     let output = super::execute_script(ctx, &path, V8ContextInput::Package { package }).await?;
 
-    let output = match output {
+    let package = match output {
         V8ContextOutput::Package { package } => package,
         _ => {
             return Err(HoneError::UnexpectedError(
@@ -45,11 +49,13 @@ pub async fn resolve_manifest_script<'c>(
         }
     };
 
+    let output_hash = package.get_blake3(interner)?;
+
     Ok((
         HashPair {
-            input_hash: input_hash.into(),
-            output_hash: output.get_blake3().into(),
+            input_hash,
+            output_hash,
         },
-        ResolveManifestScriptResult { target: output },
+        ResolveManifestScriptResult { package },
     ))
 }
