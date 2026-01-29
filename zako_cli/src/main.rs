@@ -24,6 +24,7 @@ use tracing::{debug, info, trace_span};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_tree::HierarchicalLayer;
+use zako_core::builtin::extension::syscall::ENABLE_PRINT;
 use zako_core::camino::Utf8PathBuf;
 use zako_core::cas_store::CasStoreOptions;
 use zako_core::context::BuildContext;
@@ -39,6 +40,7 @@ use zako_core::resource::heuristics::{
     determine_memory_tti_for_cas, determine_memory_ttl_for_cas, determine_oxc_workers_config,
     determine_v8_workers_config,
 };
+use zako_core::worker::v8worker::V8Worker;
 use zako_core::worker::worker_pool::PoolConfig;
 use zako_core::zako_cancel::{CancelSource, CancelToken};
 use zako_core::{HoneComputer, sysinfo};
@@ -123,6 +125,9 @@ struct Args {
     )]
     silent: bool,
 
+    #[arg(global = true, long, short = 'v', help = "enable all output")]
+    verbose: bool,
+
     #[command(flatten)]
     color: colorchoice_clap::Color,
 
@@ -145,6 +150,7 @@ enum SubCommands {
     Make(MakeArgs),
     Bun(BunArgs),
     BunX(BunArgs),
+    V8Snapshot(V8SnapshotArgs),
 }
 
 fn run_program<F>(name: &str, get_binary: F, args: Vec<String>) -> Result<(), eyre::Error>
@@ -235,6 +241,52 @@ where
     }
 
     Ok(())
+}
+
+#[derive(clap::Args, Debug)]
+#[command(
+    name = "v8snapshot",
+    about = "Create v8 snapshot",
+    disable_help_flag = false,
+    disable_version_flag = false
+)]
+struct V8SnapshotArgs {
+    /// The directory to output the snapshots.
+    #[arg(long, value_hint = clap::ValueHint::DirPath, default_value = zako_core::v8snapshot::SNAPSHOT_OUT_DIR)]
+    output_dir: String,
+
+    /// The package snapshot output file name.
+    #[arg(long, value_hint = clap::ValueHint::FilePath, default_value = zako_core::v8snapshot::PACKAGE_SNAPSHOT_FILE_NAME)]
+    package_snapshot: Option<String>,
+}
+
+impl V8SnapshotArgs {
+    #[cfg(not(feature = "v8snapshot"))]
+    pub fn invoke(self) -> eyre::Result<()> {
+        let base_dir = PathBuf::from(self.output_dir);
+
+        fs::create_dir_all(&base_dir)?;
+
+        match self.package_snapshot {
+            Some(out) => {
+                let target = base_dir.join(out);
+
+                let snapshot = V8Worker::package_snapshot()?;
+
+                fs::write(target, snapshot)?;
+            }
+            None => {}
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "v8snapshot")]
+    pub fn invoke(self) -> eyre::Result<()> {
+        Err(eyre::eyre!(
+            "v8snapshot feature is not enabled for zako-core,so the v8snapshot command is not available"
+        ))
+    }
 }
 
 #[derive(clap::Args, Debug)]
@@ -647,6 +699,18 @@ fn inner_main() -> eyre::Result<()> {
 
     parse_args_span.exit();
 
+    if args.verbose && args.silent {
+        return Err(eyre::eyre!(
+            "cannot use --verbose and --silent/--quiet at the same time"
+        ));
+    }
+
+    if args.silent || args.verbose {
+        _ = ENABLE_PRINT.set(false);
+    } else {
+        _ = ENABLE_PRINT.set(true);
+    }
+
     // 尘埃落定
     // 不是输出help/version，并且不是静默模式，倾泻而出
     //
@@ -667,7 +731,7 @@ fn inner_main() -> eyre::Result<()> {
     // 莫道宏图多壮志，
     // 看此势，
     // 是拉翔。
-    if !args.silent {
+    if args.verbose {
         match handle.lock() {
             Ok(mut guard) => {
                 guard.release()?;
@@ -721,15 +785,14 @@ fn inner_main() -> eyre::Result<()> {
             v.extend(args.args);
             v
         }),
+        SubCommands::V8Snapshot(args) => args.invoke(),
     };
 }
 
 fn make_user_report_bug() {
     eprintln!(
         "{}",
-        "Uncaught PANIC from zako. It is a bug, report it. Get in touch by `zako --help`"
-            .red()
-            .on_white()
+        "\x1b[0;38;5;1;48;5;15mUncaught PANIC\x1b[0m from zako. It is a bug, report it. Get in touch by \x1b[0;38;5;2;48;5;15mzako --help\x1b[0m"
     );
     eprintln!("  {}", "EXIT".red().bold());
 }

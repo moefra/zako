@@ -35,7 +35,7 @@ console.log("bundle...");
                 await Bun.build({
                     entrypoints: [entry],
                     minify: true,
-                    sourcemap: "inline",
+                    sourcemap: "none",
                     target: 'browser',
                     format: 'esm',
                     external: ["zako:*"],

@@ -59,6 +59,7 @@ mimalloc.workspace = true
 
 [features]
 default = []
+v8snapshot = ["zako-core/v8snapshot"]
 
 [build-dependencies]
 shadow-rs.workspace = true

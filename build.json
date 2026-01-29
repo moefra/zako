@@ -1,8 +1,6 @@
 {
     "options":[
         "--color",
-        "always",
-        "-Z",
-        "build-std=core,alloc,std,proc_macro,test"
+        "always"
     ]
 }

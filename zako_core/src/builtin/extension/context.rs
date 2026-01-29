@@ -32,7 +32,6 @@ deno_core::extension!(
 );
 
 #[op2]
-#[to_v8]
 fn syscall_context_name(state: &mut OpState) -> FastString {
     let info = state.borrow::<InformationRc>();
     match info.name {

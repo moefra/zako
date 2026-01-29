@@ -7,8 +7,8 @@ use crate::{
 };
 use core::panic;
 use deno_core::error::CoreError;
-use deno_core::serde_v8;
 use deno_core::{Extension, JsRuntime, RuntimeOptions, v8};
+use deno_core::{JsRuntimeForSnapshot, serde_v8};
 use serde_json;
 use std::cell::RefCell;
 use std::fmt::Debug;
@@ -20,6 +20,7 @@ use v8::{Local, PinScope};
 pub struct EngineOptions {
     pub tokio_handle: tokio::runtime::Handle,
     pub extensions: Vec<Extension>,
+    pub snapshot: Option<&'static [u8]>,
 }
 
 #[derive(Error, Debug)]
@@ -46,8 +47,39 @@ impl Debug for Engine {
 }
 
 impl Engine {
+    #[cfg(not(feature = "v8snapshot"))]
+    pub fn snapshot(
+        options: EngineOptions,
+        loader: LoaderOptions,
+    ) -> eyre::Result<JsRuntimeForSnapshot> {
+        JsRuntime::init_platform(Some(get_set_platform_or_default()));
+
+        let loader = Rc::new(ModuleLoader::new(loader));
+
+        let mut extensions = vec![
+            // common extensions
+            builtin::extension::rt::zako_rt::init(),
+            builtin::extension::syscall::zako_syscall::init(),
+            builtin::extension::global::zako_global::init(),
+            builtin::extension::semver::zako_semver::init(),
+            builtin::extension::core::zako_core::init(),
+            builtin::extension::console::zako_console::init(),
+        ];
+        extensions.extend(options.extensions);
+
+        let runtime = JsRuntimeForSnapshot::try_new(RuntimeOptions {
+            module_loader: Some(loader.clone()),
+            v8_platform: Some(v8platform::get_set_platform_or_default()),
+            extensions,
+            startup_snapshot: options.snapshot,
+            ..Default::default()
+        })?;
+
+        Ok(runtime)
+    }
+
     pub fn new(options: EngineOptions, loader: LoaderOptions) -> Result<Self, EngineError> {
-        JsRuntime::init_platform(Some(get_set_platform_or_default()), false);
+        JsRuntime::init_platform(Some(get_set_platform_or_default()));
 
         let loader = Rc::new(ModuleLoader::new(loader));
 
@@ -66,6 +98,7 @@ impl Engine {
             module_loader: Some(loader.clone()),
             v8_platform: Some(v8platform::get_set_platform_or_default()),
             extensions,
+            startup_snapshot: options.snapshot,
             ..Default::default()
         })?;
 

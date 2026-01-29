@@ -79,6 +79,7 @@ pub mod transport_server;
 pub mod v8context;
 pub mod v8error;
 pub mod v8platform;
+pub mod v8snapshot;
 pub mod v8utils;
 pub mod version_extractor;
 pub mod worker;

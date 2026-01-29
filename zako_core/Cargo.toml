@@ -136,5 +136,8 @@ derive_more.workspace = true
 
 boxed_error.workspace = true
 
+[features]
+v8snapshot = []
+
 [build-dependencies]
 tonic-prost-build.workspace = true

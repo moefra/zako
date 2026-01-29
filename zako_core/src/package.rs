@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::default;
 
 use crate::intern::{Internable, Uninternable};
 use crate::pattern::{InternedPattern, Pattern, PatternError, PatternGroup};
@@ -85,6 +86,28 @@ pub struct Package {
     pub config: Option<BTreeMap<SmolStr, ConfigValue>>,
 }
 
+#[cfg(not(feature = "v8snapshot"))]
+impl Default for Package {
+    fn default() -> Self {
+        Self {
+            group: "com.example".into(),
+            artifact: "example".into(),
+            version: "1.0.0".into(),
+            configure_script: Default::default(),
+            description: Some("An package to generate snapshot".into()),
+            authors: Default::default(),
+            license: Default::default(),
+            builds: Default::default(),
+            rules: Default::default(),
+            toolchains: Default::default(),
+            peers: Default::default(),
+            dependencies: Default::default(),
+            mount_config: Default::default(),
+            config: Default::default(),
+        }
+    }
+}
+
 impl Package {
     #[must_use]
     pub fn validate(&self) -> Result<(), PackageResolveError> {
@@ -141,6 +164,22 @@ pub struct ResolvingPackage {
     pub additional_builds: Vec<Pattern>,
     pub additional_rules: Vec<Pattern>,
     pub additional_toolchains: Vec<Pattern>,
+}
+
+#[cfg(not(feature = "v8snapshot"))]
+impl Default for ResolvingPackage {
+    fn default() -> Self {
+        Self {
+            original: Default::default(),
+            resolved_config: ResolvedConfiguration {
+                config: Default::default(),
+            },
+            additional_peers: Default::default(),
+            additional_builds: Default::default(),
+            additional_rules: Default::default(),
+            additional_toolchains: Default::default(),
+        }
+    }
 }
 
 impl ResolvingPackage {

@@ -23,12 +23,19 @@ pub struct PackageInformation {
     config: Configuration,
 }
 
+#[cfg(not(feature = "v8snapshot"))]
+impl Default for PackageInformation {
+    fn default() -> Self {
+        Self {
+            config: Default::default(),
+            package: Default::default(),
+        }
+    }
+}
+
 impl PackageInformation {
-    pub fn new(package: ResolvingPackage, interner: &Interner) -> Result<Self, ConfigError> {
-        Ok(Self {
-            config: package.resolved_config.resolve(interner)?,
-            package,
-        })
+    pub fn new(package: ResolvingPackage, config: Configuration) -> Result<Self, ConfigError> {
+        Ok(Self { config, package })
     }
 
     pub fn get_package(self) -> ResolvingPackage {
@@ -54,7 +61,6 @@ deno_core::extension!(
 );
 
 #[op2]
-#[to_v8]
 fn syscall_package_group(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
     let group = info.package.original.group.clone();
@@ -62,7 +68,6 @@ fn syscall_package_group(state: &mut OpState) -> Result<FastString, SyscallError
 }
 
 #[op2]
-#[to_v8]
 fn syscall_package_artifact(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
     let artifact = info.package.original.artifact.clone();
@@ -70,7 +75,6 @@ fn syscall_package_artifact(state: &mut OpState) -> Result<FastString, SyscallEr
 }
 
 #[op2]
-#[to_v8]
 fn syscall_package_version(state: &mut OpState) -> Result<FastString, SyscallError> {
     let info = state.borrow::<InformationRc>();
     let version = info.package.original.version.clone();

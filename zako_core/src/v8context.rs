@@ -16,6 +16,8 @@ pub enum V8ContextInput {
     /// Enable `zako:package` for
     ///
     /// [crate::consts::PACKAGE_SCRIPT_FILE_NAME]
+    ///
+    /// Will use [crate::v8snapshot::PACKAGE_SNAPSHOT]
     Package { package: ResolvingPackage },
     /// Enable `zako:build` for
     ///
