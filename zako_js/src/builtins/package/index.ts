@@ -82,17 +82,19 @@ export function newProject(options: Project): ProjectBuilder{
     return proj;
 }
 
-let ver : semver.SemVer|null = semver.parse(syscalls.syscall_package_version(), false, false);
+export function project(): core.ProjectMeta{
+    let ver : semver.SemVer|null = semver.parse(syscalls.syscall_package_version(), false, false);
 
-if(ver == null){
-    throw new rt.ZakoInternalError(`The version "${ver}" is not valid semver.` +
-        `From project "${syscalls.syscall_package_group}:${syscalls.syscall_package_artifact}"`);
+    if(ver == null){
+        throw new rt.ZakoInternalError(`The version "${ver}" is not valid semver.` +
+            `From project "${syscalls.syscall_package_group}:${syscalls.syscall_package_artifact}"`);
+    }
+
+    const project:core.ProjectMeta = {
+        group: syscalls.syscall_package_group(),
+        artifact: syscalls.syscall_package_artifact(),
+        version: ver,
+    };
+
+    return project;
 }
-
-export const project:core.ProjectMeta = {
-    group: syscalls.syscall_package_group(),
-    artifact: syscalls.syscall_package_artifact(),
-    version: ver,
-};
-
-export default project;
