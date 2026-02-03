@@ -63,3 +63,37 @@ pub fn determine_local_cas_path(_: &System) -> PathBuf {
         "cas"
     ))
 }
+
+/// Determines the CPU capacity for the resource pool.
+/// Returns the number of logical CPU cores.
+pub fn determine_cpu_capacity(system: &System) -> u64 {
+    system.cpus().len() as u64
+}
+
+/// Determines the memory capacity for the resource pool.
+/// Returns total system memory in bytes.
+pub fn determine_memory_capacity(system: &System) -> u64 {
+    system.total_memory()
+}
+
+/// Determines the disk IO capacity for the resource pool.
+/// Returns a heuristic value based on available parallelism.
+pub fn determine_disk_io_capacity(system: &System) -> u64 {
+    // Use 2x CPU count as a reasonable default for concurrent IO operations
+    (system.cpus().len() * 2).max(4) as u64
+}
+
+/// Determines the network capacity for the resource pool.
+/// Returns a heuristic value for concurrent network connections.
+pub fn determine_network_capacity(system: &System) -> u64 {
+    // Use 4x CPU count as a reasonable default for concurrent network operations
+    (system.cpus().len() * 4).max(8) as u64
+}
+
+/// Determines the GPU capacity for the resource pool.
+/// Returns 0 if no GPU detection is available, otherwise a reasonable default.
+pub fn determine_gpu_capacity(_system: &System) -> u64 {
+    // sysinfo doesn't provide GPU info directly; return 0 as default
+    // Users can override this with explicit values
+    0
+}

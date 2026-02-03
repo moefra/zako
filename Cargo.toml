@@ -17,6 +17,9 @@ members = [
     "zako_interner",
     "hone",
     "zako_kgp",
+    "zako_resource",
+    "zako_shared",
+    "zako_id",
 ]
 default-members = ["zako_core", "zako_cli"]
 resolver = "3"
@@ -40,9 +43,12 @@ zako-cli = { path = "./zako_cli" }
 zako-core = { path = "./zako_core" }
 zako-cancel = { path = "./zako_cancel" }
 zako-kgp = { path = "./zako_kgp" }
+zako-resource = { path = "./zako_resource" }
 hone = { path = "./hone" }
 zako-digest = { path = "./zako_digest" }
 zako-interner = { path = "./zako_interner" }
+zako-shared = { path = "./zako_shared" }
+zako-id = { path = "./zako_id" }
 email_address = { path = "./zako_email_address" }
 camino = { path = "./zako_camino" }
 # kagami = { path = "./kagami" }

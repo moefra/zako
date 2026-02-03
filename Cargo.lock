@@ -7425,6 +7425,7 @@ dependencies = [
  "zako-cancel",
  "zako-digest",
  "zako-interner",
+ "zako-shared",
 ]
 
 [[package]]
@@ -7444,6 +7445,16 @@ dependencies = [
  "tonic",
  "tonic-prost-build",
  "xxhash-rust",
+]
+
+[[package]]
+name = "zako-id"
+version = "0.1.0"
+dependencies = [
+ "semver",
+ "smol_str",
+ "thiserror 2.0.17",
+ "unicode-ident",
 ]
 
 [[package]]
@@ -7475,6 +7486,22 @@ dependencies = [
  "base64",
  "eyre",
  "image",
+]
+
+[[package]]
+name = "zako-resource"
+version = "0.1.0"
+dependencies = [
+ "smol_str",
+]
+
+[[package]]
+name = "zako-shared"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "dashmap",
+ "moka",
 ]
 
 [[package]]

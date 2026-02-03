@@ -84,24 +84,8 @@ pub mod v8utils;
 pub mod version_extractor;
 pub mod worker;
 
-/// The result of iteration of this map is not ordered.
-///
-/// Please do not rely on any specific order.
-pub type ConcurrentMap<K, V> = ::dashmap::DashMap<K, V, ::ahash::RandomState>;
-
-pub type Map<K, V> = ::std::collections::HashMap<K, V, ahash::RandomState>;
-pub type Set<K, V> = ::std::collections::HashMap<K, V, ahash::RandomState>;
-
 pub type HoneEngine = hone::engine::Engine<BuildContext, ZakoKey, ZakoValue>;
 pub type HoneComputer = crate::computer::Computer;
-
-/// The result of iteration of this map is not ordered.
-///
-/// Please do not rely on any specific order.
-pub type ConcurrentSet<K> = ::dashmap::DashSet<K, ::ahash::RandomState>;
-
-/// A fast cache implementation.
-pub type ConcurrentCache<K, V> = ::moka::future::Cache<K, V, ::ahash::RandomState>;
 
 pub mod protobuf {
     pub mod fs {

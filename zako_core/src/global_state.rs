@@ -4,8 +4,9 @@ use sysinfo::System;
 use tokio::runtime::{Builder, Runtime};
 use tracing::info;
 
+use zako_shared::ConcurrentMap;
+
 use crate::{
-    ConcurrentMap,
     cas_store::{CasStore, CasStoreOptions},
     intern::{InternedAbsolutePath, InternedString, Interner},
     local_cas::LocalCas,
