@@ -433,6 +433,8 @@ impl ResourcePool {
 }
 
 /// TODO: Make this to ResourceGuard<U = ResourceUnit, 'a> to support request resource range.
+//Issue URL: https://github.com/moefra/zako/issues/31
+/// Issue URL: https://github.com/moefra/zako/issues/30
 pub struct ResourceGuard<'a> {
     occupied: ResourceRequest,
     from_pool: &'a ResourcePool,
