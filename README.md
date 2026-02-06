@@ -4,7 +4,7 @@
 
 ## Brief And Features
 
-ZMake is a building tool that may be the most modern one.
+Zako is a building tool that may be the most modern one.
 
 Highlights:
  - Support remote building,support building colony
