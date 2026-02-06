@@ -1,0 +1,118 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+name: CI
+
+concurrency:
+  # Cancel in-progress jobs for pull requests but not for main branch runs.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Lint (clippy)
+        run: cargo clippy --workspace --all-features --all-targets
+      - name: Lint (clippy in camino-examples)
+        run: |
+          cd camino-examples && cargo clippy --all-features --all-targets
+      - name: Lint (rustfmt)
+        run: cargo xfmt --check
+      - name: Lint (rustfmt in camino-examples)
+        run: |
+          cd camino-examples && cargo xfmt --check
+      - name: Check for differences
+        run: git diff --exit-code
+
+  build:
+    name: Build and test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # macos-14 for M1 runners
+        os: [ ubuntu-latest, macos-14, windows-latest ]
+        # 1.61 is the MSRV, and the other versions add new features through build.rs.
+        # The nightly versions are used to ensure that build.rs's version detection is compatible
+        # with them:
+        # nightly-2022-06-17 is the last toolchain before `try_reserve_2` was stabilized.
+        # nightly-2022-12-14 is the last toolchain before `path_buf_deref_mut` was stabilized.
+        rust-version:
+          - 1.61
+          - nightly-2022-06-17
+          - 1.63
+          - nightly-2022-12-14
+          - 1.68
+          - 1.74
+          - 1.79
+          - 1.89
+          - 1.91
+          - stable
+      fail-fast: false
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust-version }}
+      - name: Disable sparse registries on nightly-2022-12-14
+        # Sparse registries are experimental on this nightly, but are enabled by
+        # dtolnay/rust-toolchain.
+        if: matrix.rust-version == 'nightly-2022-12-14'
+        shell: bash
+        run: |
+          echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git >> $GITHUB_ENV
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+      - name: Use pinned Cargo.lock for Rust 1.61-1.63
+        if: ${{ matrix.rust-version == 1.61 || matrix.rust-version == 'nightly-2022-06-17' ||  matrix.rust-version == 1.63 }}
+        run: cp Cargo.lock.rust161 Cargo.lock
+      - name: Build the library
+        run: cargo build
+      - name: Test
+        run: cargo test
+      - name: Build all targets with all features
+        # Some optional features are not compatible with earlier versions
+        if: ${{ matrix.rust-version == 'stable' }}
+        run: cargo hack --feature-powerset build --workspace --all-targets
+      - name: Test all targets with all features
+        # Some optional features are not compatible with earlier versions
+        if: ${{ matrix.rust-version == 'stable' }}
+        run: cargo hack --feature-powerset test --workspace --all-targets
+      - name: Build camino-examples
+        if: ${{ matrix.rust-version == 'stable' }}
+        run: |
+          cd camino-examples && cargo build
+      - name: Test camino-examples
+        if: ${{ matrix.rust-version == 'stable' }}
+        run: |
+          cd camino-examples && cargo test
+
+  miri:
+    name: Check unsafe code against miri
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: rust-src, miri
+      - name: Test the library
+        run: cargo miri test
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
