@@ -1,0 +1,39 @@
+[package]
+name = "camino"
+description = "UTF-8 paths"
+version = "1.2.2"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+rust-version = "1.61.0"
+keywords = ["paths", "utf8", "unicode", "filesystem"]
+categories = ["development-tools", "filesystem", "os"]
+repository = "https://github.com/camino-rs/camino"
+documentation = "https://docs.rs/camino"
+authors = [
+    "Without Boats <saoirse@without.boats>",
+    "Ashley Williams <ashley666ashley@gmail.com>",
+    "Steve Klabnik <steve@steveklabnik.com>",
+    "Rain <rain@sunshowers.io>",
+]
+edition = "2021"
+exclude = [".cargo/**/*", ".github/**/*"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg=doc_cfg"]
+
+[dependencies]
+proptest.workspace = true
+serde_core.workspace = true
+rkyv.workspace = true
+ts-rs.workspace = true
+
+[dev-dependencies]
+bincode = "1"
+serde_bytes = "0.11.8"
+serde = { version = "1.0.223", features = ["derive"] }
+
+[features]
+default = ["serde1", "proptest1"]
+serde1 = []
+proptest1 = []
