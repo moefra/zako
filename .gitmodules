@@ -4,9 +4,3 @@
 [submodule "zako_js/DefinitelyTyped"]
 	path = zako_js/DefinitelyTyped
 	url = https://github.com/moefra/DefinitelyTyped
-[submodule "zako_camino"]
-	path = zako_camino
-	url = https://github.com/moefra/camino
-[submodule "zako_email_address"]
-	path = zako_email_address
-	url = https://github.com/moefra/rust-email_address
