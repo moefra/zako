@@ -25,7 +25,7 @@ pub fn check_part(part: &str) -> bool {
 /// Groups is combined by at least one `name`.
 ///
 /// It looks like `com.example`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Group {
     pub parts: Vec<SmolStr>,
 }
@@ -33,13 +33,13 @@ pub struct Group {
 /// `name` is combined by group and a name.
 ///
 /// It looks like `com.example:name`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Name {
     pub group: Group,
     pub name: SmolStr,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     /// `arch:`
     ///
@@ -98,7 +98,7 @@ pub struct UniqueIdReq {
 /// `UniqueId` is combined by group and a name and a version.
 ///
 /// It looks like `com.example:name@1.0.0`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UniqueId {
     pub ty: Type,
     pub name: Name,

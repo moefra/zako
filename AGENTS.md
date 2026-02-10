@@ -42,7 +42,7 @@ Zako是一个“后现代”的构建工具：核心引擎与 CLI 用 Rust 实�
 - Workspace lints（根 `Cargo.toml`）：
   - clippy：`unwrap_used/expect_used/panic` 默认 `deny`（`clippy.toml` 允许 tests 中 unwrap）。
   - rustdoc：缺文档/坏链接等为 `deny`（倾向“写代码就要写文档”）。
-- 风格：`.editorconfig` 规定 4 空格缩进；代码/注释/文档倾向英文（`zako_core` crate docs 与 `.github/copilot-instructions.md`）。
+- 风格：`.editorconfig` 规定 4 空格缩进；代码/注释/文档倾向英文（`zako_core` crate docs 与 `.github/copilot-instructions.md`）.
 
 ## CLI（`zako`）速览
 

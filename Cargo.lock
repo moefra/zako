@@ -7492,7 +7492,13 @@ dependencies = [
 name = "zako-resource"
 version = "0.1.0"
 dependencies = [
+ "parking_lot",
  "smol_str",
+ "sysinfo",
+ "thiserror 2.0.17",
+ "tokio",
+ "zako-id",
+ "zako-shared",
 ]
 
 [[package]]

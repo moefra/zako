@@ -10,7 +10,13 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+parking_lot.workspace = true
 smol_str.workspace = true
+thiserror.workspace = true
+zako-id.workspace = true
+sysinfo.workspace = true
+zako-shared.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

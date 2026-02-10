@@ -1,45 +1,32 @@
-pub type ResourceUnit = u64;
+use thiserror::Error;
 
-pub type FloatResourceUnit = f64;
+pub type ResourceUnit = u64;
 
 pub static RESOURCE_UNIT_MULTIPLIER: ResourceUnit = 1_000_000;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct ResourceOverflowError(());
-
-impl Default for ResourceOverflowError {
-    fn default() -> Self {
-        Self(())
-    }
+#[derive(Debug, Clone, Error)]
+pub enum ResourceUnitComputionError {
+    #[error("out of range resource unit operation attempted")]
+    OverflowError(),
+    #[error("the div operation on resource unit or shares has reminder")]
+    HasReminder(),
 }
-
-impl std::fmt::Display for ResourceOverflowError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        "out of range integral type operation attempted".fmt(f)
-    }
-}
-
-impl std::error::Error for ResourceOverflowError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResourceUnitShares(ResourceUnit);
 
 impl TryFrom<ResourceUnit> for ResourceUnitShares {
-    type Error = ResourceOverflowError;
+    type Error = ResourceUnitComputionError;
 
     fn try_from(value: ResourceUnit) -> Result<Self, Self::Error> {
         value
             .checked_mul(RESOURCE_UNIT_MULTIPLIER)
-            .map(|v| Self(v))
-            .ok_or(Default::default())
+            .map(Self)
+            .ok_or(ResourceUnitComputionError::OverflowError())
     }
 }
 
 impl ResourceUnitShares {
-    pub fn from_unit(value: ResourceUnit) -> Self {
-        Self(value * RESOURCE_UNIT_MULTIPLIER)
-    }
-
     pub fn from_shares(value: ResourceUnit) -> Self {
         Self(value)
     }
@@ -48,7 +35,23 @@ impl ResourceUnitShares {
         self.0
     }
 
-    pub fn as_unit(&self) -> FloatResourceUnit {
-        (self.0 as FloatResourceUnit) / (RESOURCE_UNIT_MULTIPLIER as FloatResourceUnit)
+    pub fn try_as_unit(&self) -> Result<ResourceUnit, ResourceUnitComputionError> {
+        self.0
+            .div_exact(RESOURCE_UNIT_MULTIPLIER)
+            .ok_or(ResourceUnitComputionError::HasReminder())
+    }
+
+    pub fn checked_add(&self, rhs: ResourceUnitShares) -> Option<ResourceUnitShares> {
+        let lhs = *self;
+        Some(ResourceUnitShares::from_shares(
+            lhs.as_shares().checked_add(rhs.as_shares())?,
+        ))
+    }
+
+    pub fn checked_sub(&self, rhs: ResourceUnitShares) -> Option<ResourceUnitShares> {
+        let lhs = *self;
+        Some(ResourceUnitShares::from_shares(
+            lhs.as_shares().checked_sub(rhs.as_shares())?,
+        ))
     }
 }
