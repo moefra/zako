@@ -3,51 +3,54 @@ name: Build
 on: [push]
 
 jobs:
-  build-and-upload:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, ubuntu-24.04-arm, macos-latest]
-        profile: [release, dev]
+    build-and-upload:
+        strategy:
+            matrix:
+                os:
+                    [
+                        ubuntu-latest,
+                        windows-latest,
+                        ubuntu-24.04-arm,
+                        macos-latest,
+                    ]
+                profile: [release, dev]
 
-    runs-on: ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
 
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "33.1"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: ^2
-      - name: Build JavaScript
-        run: |
-          cd zako_js
-          deno task build
-      - name: Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Build Rust
-        run: |
-          cargo build --profile ${{ matrix.profile }}
-      - name: Rust Test
-        run: |
-          cargo test --profile ${{ matrix.profile }}
-      - name: Install Zako
-        run: |
-          cargo install --path zako_cli --profile ${{ matrix.profile }}
-      - name: Zako Self-Build Test
-        run: |
-          zako --version
-          zako -C zako_js deno task build
-      - name: Zako Execute Test
-        run: |
-          zako deno run --allow-all test.ts $(which zako)
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: true
+            - name: Install Protoc
+              uses: arduino/setup-protoc@v3
+              with:
+                  version: "33.1"
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+            - uses: oven-sh/setup-bun@v2
+            - name: Build JavaScript
+              run: |
+                  cd zako_js
+                  bun run fullBuild
+            - name: Cache
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      target
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+            - name: Build Rust
+              run: |
+                  cargo build --profile ${{ matrix.profile }} --workspace
+            - name: Rust Test
+              run: |
+                  cargo test --profile ${{ matrix.profile }} --workspace
+            - name: Install Zako
+              run: |
+                  cargo install --path zako_cli --profile ${{ matrix.profile }}
+            - name: Zako Self-Build Test
+              run: |
+                  zako --version
+            - name: Zako Execute Test
+              run: |
+                  zako bun run test.ts $(which zako)

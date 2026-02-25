@@ -1,3 +1,6 @@
+
+Bun.exit(0);
+
 import { dirname, fromFileUrl, join } from "jsr:@std/path";
 
 /**

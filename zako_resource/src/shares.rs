@@ -12,7 +12,7 @@ pub enum ResourceUnitComputionError {
     HasReminder(),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ResourceUnitShares(ResourceUnit);
 
 impl TryFrom<ResourceUnit> for ResourceUnitShares {

@@ -7492,11 +7492,14 @@ dependencies = [
 name = "zako-resource"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "eyre",
  "parking_lot",
  "smol_str",
  "sysinfo",
  "thiserror 2.0.17",
  "tokio",
+ "tracing",
  "zako-id",
  "zako-shared",
 ]

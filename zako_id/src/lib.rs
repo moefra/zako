@@ -1,6 +1,6 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
-use semver::{Comparator, Op, VersionReq};
+use semver::{Comparator, Error, Op, VersionReq};
 use smol_str::SmolStr;
 use unicode_ident::is_xid_start;
 
@@ -69,7 +69,7 @@ pub enum Type {
     ///
     /// Any resource, text or binary
     ///
-    /// e.g. `icudata` or `src`
+    /// e.g. `icudata` or `source_code/*.rs`
     Resource,
     /// `cfg:`
     ///
@@ -95,6 +95,26 @@ pub struct UniqueIdReq {
     pub version: semver::VersionReq,
 }
 
+impl From<UniqueId> for UniqueIdReq {
+    fn from(value: UniqueId) -> Self {
+        let cmp = Comparator {
+            op: Op::Exact,
+            major: value.version.major,
+            minor: Some(value.version.minor),
+            patch: Some(value.version.patch),
+            pre: value.version.pre,
+        };
+
+        UniqueIdReq {
+            ty: value.ty,
+            name: value.name,
+            version: VersionReq {
+                comparators: vec![cmp],
+            },
+        }
+    }
+}
+
 /// `UniqueId` is combined by group and a name and a version.
 ///
 /// It looks like `com.example:name@1.0.0`.
@@ -111,6 +131,20 @@ pub enum AnyId {
     Range(UniqueIdReq),
     Unique(UniqueId),
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MismatchIdTypeError();
+
+impl Display for MismatchIdTypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "expect an AnyId::Unique but get an AnyId::Range when try_into() called"
+        )
+    }
+}
+
+impl ::std::error::Error for MismatchIdTypeError {}
 
 impl AnyId {
     pub fn get_type(&self) -> Type {
@@ -146,6 +180,38 @@ impl AnyId {
         match self {
             AnyId::Range(_) => None,
             AnyId::Unique(id) => Some(id.version.clone()),
+        }
+    }
+}
+
+impl From<UniqueId> for AnyId {
+    fn from(id: UniqueId) -> Self {
+        AnyId::Unique(id)
+    }
+}
+
+impl From<UniqueIdReq> for AnyId {
+    fn from(id: UniqueIdReq) -> Self {
+        AnyId::Range(id)
+    }
+}
+
+impl TryFrom<AnyId> for UniqueId {
+    type Error = MismatchIdTypeError;
+
+    fn try_from(value: AnyId) -> Result<Self, Self::Error> {
+        match value {
+            AnyId::Unique(id) => Ok(id),
+            AnyId::Range(_) => Err(MismatchIdTypeError()),
+        }
+    }
+}
+
+impl From<AnyId> for UniqueIdReq {
+    fn from(value: AnyId) -> Self {
+        match value {
+            AnyId::Range(range) => range,
+            AnyId::Unique(id) => id.into(),
         }
     }
 }
