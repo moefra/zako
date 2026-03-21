@@ -89,11 +89,3 @@ pub fn determine_network_capacity(system: &System) -> u64 {
     // Use 4x CPU count as a reasonable default for concurrent network operations
     (system.cpus().len() * 4).max(8) as u64
 }
-
-/// Determines the GPU capacity for the resource pool.
-/// Returns 0 if no GPU detection is available, otherwise a reasonable default.
-pub fn determine_gpu_capacity(_system: &System) -> u64 {
-    // sysinfo doesn't provide GPU info directly; return 0 as default
-    // Users can override this with explicit values
-    0
-}

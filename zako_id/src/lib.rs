@@ -69,7 +69,7 @@ pub enum Type {
     ///
     /// Any resource, text or binary
     ///
-    /// e.g. `icudata` or `source_code/*.rs`
+    /// e.g. `icudata`, `source_code/rust`
     Resource,
     /// `cfg:`
     ///

@@ -1,22 +1,28 @@
+//! Resource-pool implementation for validated, aligned, and queued allocations.
+
 use std::sync::Arc;
 
 use parking_lot::Mutex;
+use sysinfo::System;
 use tokio::sync::oneshot;
 use zako_shared::FastMap;
 
 use crate::{
     RequestPriority, ResourceDescriptor, ResourcePolicy, ResourcePoolError,
     allocation::{ResourceGrant, ResourceRequest},
+    heuristics,
     resource_key::ResourceKey,
     shares::ResourceUnitShares,
 };
 
+/// Internal allocation payload sent to holder creation.
 #[derive(Debug, Clone)]
 struct GrantedAllocation {
     allocation_id: u64,
     grant: ResourceGrant,
 }
 
+/// Pending allocation request in the wait queue.
 #[derive(Debug)]
 struct PendingRequest {
     request: ResourceRequest,
@@ -25,6 +31,7 @@ struct PendingRequest {
     sender: oneshot::Sender<Result<GrantedAllocation, ResourcePoolError>>,
 }
 
+/// Concrete holder implementation for this pool.
 #[derive(Debug)]
 pub struct ResourceHolder {
     allocation_id: u64,
@@ -34,6 +41,7 @@ pub struct ResourceHolder {
 }
 
 impl ResourceHolder {
+    /// Creates a boxed trait object from a granted allocation.
     fn new(
         span: tracing::Span,
         allocation: GrantedAllocation,
@@ -49,19 +57,24 @@ impl ResourceHolder {
 }
 
 impl crate::ResourceHolder for ResourceHolder {
+    /// Returns the owning allocation id.
     fn allocation_id(&self) -> u64 {
         self.allocation_id
     }
 
+    /// Returns the granted resource amounts.
     fn grant(&self) -> &ResourceGrant {
         &self.grant
     }
+
+    /// Returns the tracing span captured at acquisition time.
     fn span(&self) -> &tracing::Span {
         &self.span
     }
 }
 
 impl Drop for ResourceHolder {
+    /// Releases this allocation when the holder goes out of scope.
     fn drop(&mut self) {
         if let Err(error) = ResourcePool::release_allocation(&self.pool, self.allocation_id) {
             tracing::error!(
@@ -73,6 +86,7 @@ impl Drop for ResourceHolder {
     }
 }
 
+/// Mutable pool state protected by a mutex.
 #[derive(Debug)]
 struct ResourcePoolInner {
     descriptors: FastMap<ResourceKey, ResourceDescriptor>,
@@ -98,13 +112,13 @@ impl ResourcePool {
         let mut used = FastMap::default();
 
         for descriptor in descriptors {
+            Self::validate_descriptor(&descriptor)?;
+
             let key = descriptor.key.clone();
-            if descriptor.granularity.as_shares() == 0 {
-                return Err(ResourcePoolError::InvalidGranularity { key });
-            }
             if descriptor_map.insert(key.clone(), descriptor).is_some() {
                 return Err(ResourcePoolError::DuplicateDescriptor(key));
             }
+
             used.insert(key, Self::zero_shares());
         }
 
@@ -120,15 +134,100 @@ impl ResourcePool {
         })
     }
 
+    /// Builds a pool from simple host heuristics.
+    pub fn new_heuristic(system: &System) -> Result<Self, ResourcePoolError> {
+        Self::new(vec![
+            ResourceDescriptor::new(
+                ResourceKey::ThreadCount,
+                Some(heuristics::cpu_thread_count(system)),
+                ResourceUnitShares::from_shares(1),
+                ResourcePolicy::Hard,
+            ),
+            ResourceDescriptor::new(
+                ResourceKey::MemoryCapacity,
+                Some(heuristics::memory_capacity_in_byte(system)),
+                ResourceUnitShares::from_shares(1),
+                ResourcePolicy::Hard,
+            ),
+        ])
+    }
+
+    /// Returns zero in share units.
     fn zero_shares() -> ResourceUnitShares {
         ResourceUnitShares::from_shares(0)
     }
 
+    /// Validates one descriptor for internal consistency.
+    fn validate_descriptor(descriptor: &ResourceDescriptor) -> Result<(), ResourcePoolError> {
+        let key = descriptor.key.clone();
+        let granularity = descriptor.granularity;
+
+        if granularity.as_shares() == 0 {
+            return Err(ResourcePoolError::InvalidGranularity { key });
+        }
+
+        if let Some(total) = descriptor.total
+            && !Self::is_divisible_by_granularity(total, granularity)
+        {
+            return Err(ResourcePoolError::DescriptorTotalNotAligned {
+                key: descriptor.key.clone(),
+                total,
+                granularity,
+            });
+        }
+
+        match descriptor.policy {
+            ResourcePolicy::Hard => {}
+            ResourcePolicy::Soft { max_overcommit } => {
+                if descriptor.total.is_none() {
+                    return Err(ResourcePoolError::InvalidDescriptorPolicy {
+                        key: descriptor.key.clone(),
+                        reason: "soft policy requires finite total capacity",
+                    });
+                }
+
+                if !Self::is_divisible_by_granularity(max_overcommit, granularity) {
+                    return Err(ResourcePoolError::DescriptorOvercommitNotAligned {
+                        key: descriptor.key.clone(),
+                        overcommit: max_overcommit,
+                        granularity,
+                    });
+                }
+
+                // This proactively checks finite soft-limit arithmetic at construction time.
+                let total = descriptor.total.ok_or(ResourcePoolError::InvalidDescriptorPolicy {
+                    key: descriptor.key.clone(),
+                    reason: "soft policy requires finite total capacity",
+                })?;
+                let _ = total
+                    .checked_add(max_overcommit)
+                    .ok_or(ResourcePoolError::ArithmeticOverflow)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Returns whether `value` is divisible by `granularity`.
+    fn is_divisible_by_granularity(
+        value: ResourceUnitShares,
+        granularity: ResourceUnitShares,
+    ) -> bool {
+        value.as_shares() % granularity.as_shares() == 0
+    }
+
+    /// Computes the effective finite limit, if any.
     fn effective_limit(
         descriptor: &ResourceDescriptor,
     ) -> Result<Option<ResourceUnitShares>, ResourcePoolError> {
         match descriptor.total {
-            None => Ok(None),
+            None => match descriptor.policy {
+                ResourcePolicy::Hard => Ok(None),
+                ResourcePolicy::Soft { .. } => Err(ResourcePoolError::InvalidDescriptorPolicy {
+                    key: descriptor.key.clone(),
+                    reason: "soft policy requires finite total capacity",
+                }),
+            },
             Some(total) => match descriptor.policy {
                 ResourcePolicy::Hard => Ok(Some(total)),
                 ResourcePolicy::Soft { max_overcommit } => total
@@ -139,6 +238,7 @@ impl ResourcePool {
         }
     }
 
+    /// Validates one requested amount against granularity constraints.
     fn validate_requested_amount(
         key: &ResourceKey,
         requested: ResourceUnitShares,
@@ -151,7 +251,7 @@ impl ResourcePool {
                 granularity,
             });
         }
-        if requested.as_shares() % granularity.as_shares() != 0 {
+        if !Self::is_divisible_by_granularity(requested, granularity) {
             return Err(ResourcePoolError::NotDivisibleByGranularity {
                 key: key.clone(),
                 requested,
@@ -161,6 +261,7 @@ impl ResourcePool {
         Ok(())
     }
 
+    /// Validates a request against descriptor metadata and policy limits.
     fn validate_request(
         inner: &ResourcePoolInner,
         request: &ResourceRequest,
@@ -171,44 +272,73 @@ impl ResourcePool {
                 .get(key)
                 .ok_or_else(|| ResourcePoolError::UnknownResourceKey(key.clone()))?;
 
-            if range.min > range.max {
-                return Err(ResourcePoolError::InvalidRange {
+            Self::validate_requested_amount(key, range.min, descriptor.granularity)?;
+
+            if let Some(max) = range.max {
+                if range.min > max {
+                    return Err(ResourcePoolError::InvalidRange {
+                        key: key.clone(),
+                        min: range.min,
+                        max: Some(max),
+                    });
+                }
+                Self::validate_requested_amount(key, max, descriptor.granularity)?;
+            } else if descriptor.total.is_none() {
+                return Err(ResourcePoolError::UnboundedRequestOnUnboundedResource {
                     key: key.clone(),
-                    min: range.min,
-                    max: range.max,
                 });
             }
 
-            Self::validate_requested_amount(key, range.min, descriptor.granularity)?;
-            Self::validate_requested_amount(key, range.max, descriptor.granularity)?;
-
-            if let Some(limit) = Self::effective_limit(descriptor)? {
-                if range.min > limit {
-                    return match descriptor.policy {
-                        ResourcePolicy::Hard => Err(ResourcePoolError::ExceedsHardLimit {
-                            key: key.clone(),
-                            requested: range.min,
-                            limit,
-                        }),
-                        ResourcePolicy::Soft { .. } => {
-                            Err(ResourcePoolError::ExceedsSoftLimit {
-                                key: key.clone(),
-                                requested: range.min,
-                                limit,
-                            })
-                        }
-                    };
-                }
+            if let Some(limit) = Self::effective_limit(descriptor)?
+                && range.min > limit
+            {
+                return match descriptor.policy {
+                    ResourcePolicy::Hard => Err(ResourcePoolError::ExceedsHardLimit {
+                        key: key.clone(),
+                        requested: range.min,
+                        limit,
+                    }),
+                    ResourcePolicy::Soft { .. } => Err(ResourcePoolError::ExceedsSoftLimit {
+                        key: key.clone(),
+                        requested: range.min,
+                        limit,
+                    }),
+                };
             }
         }
         Ok(())
     }
 
+    /// Aligns a candidate grant downward to descriptor granularity.
+    fn align_down_to_granularity(
+        candidate: ResourceUnitShares,
+        granularity: ResourceUnitShares,
+    ) -> Result<ResourceUnitShares, ResourcePoolError> {
+        let step = granularity.as_shares();
+        if step == 0 {
+            return Err(ResourcePoolError::InconsistentState(
+                "descriptor granularity unexpectedly became zero",
+            ));
+        }
+
+        // Floor the candidate to the nearest lower granularity step.
+        let aligned_raw = candidate
+            .as_shares()
+            .checked_div(step)
+            .ok_or(ResourcePoolError::ArithmeticOverflow)?
+            .checked_mul(step)
+            .ok_or(ResourcePoolError::ArithmeticOverflow)?;
+
+        Ok(ResourceUnitShares::from_shares(aligned_raw))
+    }
+
+    /// Computes a concrete grant for a validated request.
     fn compute_grant(
         inner: &ResourcePoolInner,
         request: &ResourceRequest,
     ) -> Result<Option<ResourceGrant>, ResourcePoolError> {
         let mut items = FastMap::default();
+
         for (key, range) in &request.items {
             let descriptor = inner
                 .descriptors
@@ -220,31 +350,57 @@ impl ResourcePool {
                 .copied()
                 .unwrap_or_else(Self::zero_shares);
 
-            let granted = match Self::effective_limit(descriptor)? {
-                None => range.max,
+            let candidate = match Self::effective_limit(descriptor)? {
                 Some(limit) => {
-                    let available = limit.checked_sub(used).ok_or(ResourcePoolError::InconsistentState(
-                        "used resource exceeds descriptor effective limit",
-                    ))?;
+                    let available = limit.checked_sub(used).ok_or(
+                        ResourcePoolError::InconsistentState(
+                            "used resource exceeds descriptor effective limit",
+                        ),
+                    )?;
+
                     if available < range.min {
                         return Ok(None);
                     }
-                    if available < range.max {
-                        available
-                    } else {
-                        range.max
+
+                    match range.max {
+                        Some(max) => {
+                            if available < max {
+                                available
+                            } else {
+                                max
+                            }
+                        }
+                        None => available,
                     }
                 }
+                None => match range.max {
+                    Some(max) => max,
+                    None => {
+                        return Err(ResourcePoolError::UnboundedRequestOnUnboundedResource {
+                            key: key.clone(),
+                        });
+                    }
+                },
             };
 
-            items.insert(key.clone(), granted);
+            let aligned = Self::align_down_to_granularity(candidate, descriptor.granularity)?;
+
+            // Alignment may lower a candidate below the hard minimum, which means
+            // resources are currently insufficient from the request's perspective.
+            if aligned < range.min {
+                return Ok(None);
+            }
+
+            items.insert(key.clone(), aligned);
         }
+
         Ok(Some(ResourceGrant {
             items,
             priority: request.priority,
         }))
     }
 
+    /// Reserves a concrete grant in the mutable pool state.
     fn reserve_grant(
         inner: &mut ResourcePoolInner,
         grant: &ResourceGrant,
@@ -260,6 +416,13 @@ impl ResourcePool {
                 .descriptors
                 .get(key)
                 .ok_or_else(|| ResourcePoolError::UnknownResourceKey(key.clone()))?;
+
+            if !Self::is_divisible_by_granularity(*amount, descriptor.granularity) {
+                return Err(ResourcePoolError::InconsistentState(
+                    "grant amount is not aligned to descriptor granularity",
+                ));
+            }
+
             let used = inner
                 .used
                 .get(key)
@@ -269,12 +432,12 @@ impl ResourcePool {
                 .checked_add(*amount)
                 .ok_or(ResourcePoolError::ArithmeticOverflow)?;
 
-            if let Some(limit) = Self::effective_limit(descriptor)? {
-                if new_used > limit {
-                    return Err(ResourcePoolError::InconsistentState(
-                        "granted allocation exceeds descriptor limit",
-                    ));
-                }
+            if let Some(limit) = Self::effective_limit(descriptor)?
+                && new_used > limit
+            {
+                return Err(ResourcePoolError::InconsistentState(
+                    "granted allocation exceeds descriptor limit",
+                ));
             }
 
             updates.push((key.clone(), new_used));
@@ -283,19 +446,24 @@ impl ResourcePool {
         for (key, new_used) in updates {
             inner.used.insert(key, new_used);
         }
+
         inner.next_allocation_id = next_allocation_id;
         inner.active_allocations.insert(allocation_id, grant.clone());
+
         Ok(allocation_id)
     }
 
+    /// Attempts immediate allocation without queueing.
     fn allocate_immediately(
         inner: &mut ResourcePoolInner,
         request: &ResourceRequest,
     ) -> Result<Option<GrantedAllocation>, ResourcePoolError> {
         Self::validate_request(inner, request)?;
+
         let Some(grant) = Self::compute_grant(inner, request)? else {
             return Ok(None);
         };
+
         let allocation_id = Self::reserve_grant(inner, &grant)?;
         Ok(Some(GrantedAllocation {
             allocation_id,
@@ -303,6 +471,7 @@ impl ResourcePool {
         }))
     }
 
+    /// Adds a request to the waiting queue.
     fn enqueue_waiter(
         inner: &mut ResourcePoolInner,
         request: &ResourceRequest,
@@ -320,9 +489,11 @@ impl ResourcePool {
             sequence,
             sender,
         });
+
         Ok(receiver)
     }
 
+    /// Releases one allocation and optionally triggers waiter scheduling.
     fn release_allocation_locked(
         inner: &mut ResourcePoolInner,
         allocation_id: u64,
@@ -338,9 +509,11 @@ impl ResourcePool {
                 .get(&key)
                 .copied()
                 .unwrap_or_else(Self::zero_shares);
+
             let new_used = used.checked_sub(amount).ok_or(ResourcePoolError::InconsistentState(
                 "released amount exceeds currently used amount",
             ))?;
+
             inner.used.insert(key, new_used);
         }
 
@@ -351,11 +524,14 @@ impl ResourcePool {
         Ok(true)
     }
 
+    /// Schedules pending waiters by `(priority, sequence)` order.
     fn schedule_waiters(inner: &mut ResourcePoolInner) -> Result<(), ResourcePoolError> {
         loop {
+            // Drop canceled waiters up front to avoid unnecessary work.
             inner.waiters.retain(|waiter| !waiter.sender.is_closed());
 
             let mut selected: Option<(usize, RequestPriority, u64, ResourceGrant)> = None;
+
             for (index, waiter) in inner.waiters.iter().enumerate() {
                 let Some(grant) = Self::compute_grant(inner, &waiter.request)? else {
                     continue;
@@ -385,12 +561,15 @@ impl ResourcePool {
             };
 
             if waiter.sender.send(Ok(granted)).is_err() {
+                // Receiver was dropped after selection; rollback reservation.
                 let _ = Self::release_allocation_locked(inner, allocation_id, false)?;
             }
         }
+
         Ok(())
     }
 
+    /// Releases an allocation by id from an externally-held pool pointer.
     fn release_allocation(
         inner: &Arc<Mutex<ResourcePoolInner>>,
         allocation_id: u64,
@@ -403,11 +582,13 @@ impl ResourcePool {
 
 #[async_trait::async_trait]
 impl crate::ResourcePool for ResourcePool {
+    /// Allocates resources and waits when immediate acquisition is impossible.
     async fn allocate(
         &self,
         request: &ResourceRequest,
     ) -> Result<Box<dyn crate::ResourceHolder>, ResourcePoolError> {
         let span = tracing::Span::current();
+
         let wait_receiver = {
             let mut inner = self.inner.lock();
             if let Some(allocation) = Self::allocate_immediately(&mut inner, request)? {
@@ -423,18 +604,20 @@ impl crate::ResourcePool for ResourcePool {
         }
     }
 
+    /// Attempts immediate allocation and never waits.
     fn try_allocate(
         &self,
         request: &ResourceRequest,
     ) -> Result<Option<Box<dyn crate::ResourceHolder>>, ResourcePoolError> {
         let span = tracing::Span::current();
         let mut inner = self.inner.lock();
+
         let maybe_allocation = Self::allocate_immediately(&mut inner, request)?;
-        Ok(maybe_allocation.map(|allocation| {
-            ResourceHolder::new(span.clone(), allocation, Arc::clone(&self.inner))
-        }))
+        Ok(maybe_allocation
+            .map(|allocation| ResourceHolder::new(span.clone(), allocation, Arc::clone(&self.inner))))
     }
 
+    /// Releases resources associated with a holder.
     fn deallocate(&self, holder: &dyn crate::ResourceHolder) {
         let allocation_id = holder.allocation_id();
         if let Err(error) = Self::release_allocation(&self.inner, allocation_id) {
@@ -455,7 +638,7 @@ mod tests {
     use tokio::time::timeout;
 
     use super::*;
-    use crate::{ResourceRange, ResourcePool as ResourcePoolTrait};
+    use crate::{ResourcePool as ResourcePoolTrait, ResourceRange};
 
     fn shares(value: u64) -> ResourceUnitShares {
         ResourceUnitShares::from_shares(value)
@@ -468,6 +651,10 @@ mod tests {
             shares(granularity),
             ResourcePolicy::Hard,
         )
+    }
+
+    fn unbounded_descriptor(key: ResourceKey, granularity: u64) -> ResourceDescriptor {
+        ResourceDescriptor::new(key, None, shares(granularity), ResourcePolicy::Hard)
     }
 
     fn soft_descriptor(
@@ -488,13 +675,7 @@ mod tests {
 
     fn exact_request(key: ResourceKey, amount: u64, priority: RequestPriority) -> ResourceRequest {
         let mut items = FastMap::default();
-        items.insert(
-            key,
-            ResourceRange {
-                min: shares(amount),
-                max: shares(amount),
-            },
-        );
+        items.insert(key, ResourceRange::exact(shares(amount)));
         ResourceRequest { items, priority }
     }
 
@@ -507,11 +688,14 @@ mod tests {
         let mut items = FastMap::default();
         items.insert(
             key,
-            ResourceRange {
-                min: shares(min),
-                max: shares(max),
-            },
+            ResourceRange::range(shares(min), shares(max)).expect("min <= max in helper"),
         );
+        ResourceRequest { items, priority }
+    }
+
+    fn at_least_request(key: ResourceKey, min: u64, priority: RequestPriority) -> ResourceRequest {
+        let mut items = FastMap::default();
+        items.insert(key, ResourceRange::at_least(shares(min)));
         ResourceRequest { items, priority }
     }
 
@@ -526,6 +710,21 @@ mod tests {
         })
         .await;
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn resource_range_helpers_follow_option_semantics() {
+        let exact = ResourceRange::exact(shares(3));
+        assert_eq!(exact.max, Some(shares(3)));
+        assert!(!exact.is_elastic());
+
+        let ranged = ResourceRange::range(shares(2), shares(5)).unwrap();
+        assert_eq!(ranged.max, Some(shares(5)));
+        assert!(ranged.is_elastic());
+
+        let at_least = ResourceRange::at_least(shares(2));
+        assert_eq!(at_least.max, None);
+        assert!(at_least.is_elastic());
     }
 
     #[test]
@@ -559,9 +758,63 @@ mod tests {
     }
 
     #[test]
+    fn new_rejects_non_aligned_total() {
+        let result = ResourcePool::new([ResourceDescriptor::new(
+            ResourceKey::ThreadCount,
+            Some(shares(10)),
+            shares(4),
+            ResourcePolicy::Hard,
+        )]);
+        assert!(matches!(
+            result,
+            Err(ResourcePoolError::DescriptorTotalNotAligned {
+                key: ResourceKey::ThreadCount,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn new_rejects_non_aligned_overcommit() {
+        let result = ResourcePool::new([ResourceDescriptor::new(
+            ResourceKey::ThreadCount,
+            Some(shares(16)),
+            shares(4),
+            ResourcePolicy::Soft {
+                max_overcommit: shares(2),
+            },
+        )]);
+        assert!(matches!(
+            result,
+            Err(ResourcePoolError::DescriptorOvercommitNotAligned {
+                key: ResourceKey::ThreadCount,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn new_rejects_unbounded_soft_descriptor() {
+        let result = ResourcePool::new([ResourceDescriptor::new(
+            ResourceKey::ThreadCount,
+            None,
+            shares(1),
+            ResourcePolicy::Soft {
+                max_overcommit: shares(1),
+            },
+        )]);
+        assert!(matches!(
+            result,
+            Err(ResourcePoolError::InvalidDescriptorPolicy {
+                key: ResourceKey::ThreadCount,
+                ..
+            })
+        ));
+    }
+
+    #[test]
     fn request_unknown_key_returns_error() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 8, 1)])
-            .unwrap();
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 8, 1)]).unwrap();
         let request = exact_request(ResourceKey::MemoryCapacity, 1, RequestPriority::NORMAL);
         let result = ResourcePoolTrait::try_allocate(&pool, &request);
         assert!(matches!(
@@ -574,14 +827,13 @@ mod tests {
 
     #[test]
     fn invalid_range_returns_error() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 8, 1)])
-            .unwrap();
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 8, 1)]).unwrap();
         let mut items = FastMap::default();
         items.insert(
             ResourceKey::ThreadCount,
             ResourceRange {
                 min: shares(4),
-                max: shares(2),
+                max: Some(shares(2)),
             },
         );
         let request = ResourceRequest {
@@ -600,8 +852,7 @@ mod tests {
 
     #[test]
     fn below_granularity_returns_error() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 16, 4)])
-            .unwrap();
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 16, 4)]).unwrap();
         let request = exact_request(ResourceKey::ThreadCount, 2, RequestPriority::NORMAL);
         let result = ResourcePoolTrait::try_allocate(&pool, &request);
         assert!(matches!(
@@ -615,9 +866,8 @@ mod tests {
 
     #[test]
     fn not_divisible_by_granularity_returns_error() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 16, 4)])
-            .unwrap();
-        let request = exact_request(ResourceKey::ThreadCount, 6, RequestPriority::NORMAL);
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 16, 4)]).unwrap();
+        let request = range_request(ResourceKey::ThreadCount, 4, 6, RequestPriority::NORMAL);
         let result = ResourcePoolTrait::try_allocate(&pool, &request);
         assert!(matches!(
             result,
@@ -629,42 +879,48 @@ mod tests {
     }
 
     #[test]
+    fn unbounded_descriptor_plus_unbounded_request_returns_error() {
+        let pool = ResourcePool::new([unbounded_descriptor(ResourceKey::ThreadCount, 1)]).unwrap();
+        let request = at_least_request(ResourceKey::ThreadCount, 1, RequestPriority::NORMAL);
+        let result = ResourcePoolTrait::try_allocate(&pool, &request);
+        assert!(matches!(
+            result,
+            Err(ResourcePoolError::UnboundedRequestOnUnboundedResource {
+                key: ResourceKey::ThreadCount
+            })
+        ));
+    }
+
+    #[test]
     fn try_allocate_success_and_drop_restores_capacity() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 8, 1)])
-            .unwrap();
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 8, 1)]).unwrap();
         let request = exact_request(ResourceKey::ThreadCount, 5, RequestPriority::NORMAL);
 
         let holder = ResourcePoolTrait::try_allocate(&pool, &request)
             .unwrap()
             .unwrap();
-        assert_eq!(
-            pool.inner.lock().used[&ResourceKey::ThreadCount],
-            shares(5)
-        );
+        assert_eq!(pool.inner.lock().used[&ResourceKey::ThreadCount], shares(5));
 
         drop(holder);
-        assert_eq!(
-            pool.inner.lock().used[&ResourceKey::ThreadCount],
-            shares(0)
-        );
+        assert_eq!(pool.inner.lock().used[&ResourceKey::ThreadCount], shares(0));
     }
 
     #[test]
     fn try_allocate_returns_none_when_insufficient() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 4, 1)])
-            .unwrap();
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 4, 1)]).unwrap();
         let full = exact_request(ResourceKey::ThreadCount, 4, RequestPriority::NORMAL);
         let one = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::NORMAL);
 
-        let _holder = ResourcePoolTrait::try_allocate(&pool, &full).unwrap().unwrap();
+        let _holder = ResourcePoolTrait::try_allocate(&pool, &full)
+            .unwrap()
+            .unwrap();
         let result = ResourcePoolTrait::try_allocate(&pool, &one).unwrap();
         assert!(result.is_none());
     }
 
     #[test]
     fn hard_limit_blocks_impossible_request() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 10, 1)])
-            .unwrap();
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 10, 1)]).unwrap();
         let request = exact_request(ResourceKey::ThreadCount, 11, RequestPriority::NORMAL);
         let result = ResourcePoolTrait::try_allocate(&pool, &request);
         assert!(matches!(
@@ -678,8 +934,7 @@ mod tests {
 
     #[test]
     fn soft_limit_allows_overcommit_and_blocks_beyond_limit() {
-        let pool = ResourcePool::new([soft_descriptor(ResourceKey::ThreadCount, 10, 1, 5)])
-            .unwrap();
+        let pool = ResourcePool::new([soft_descriptor(ResourceKey::ThreadCount, 10, 1, 5)]).unwrap();
 
         let twelve = exact_request(ResourceKey::ThreadCount, 12, RequestPriority::NORMAL);
         let four = exact_request(ResourceKey::ThreadCount, 4, RequestPriority::NORMAL);
@@ -688,10 +943,7 @@ mod tests {
         let first = ResourcePoolTrait::try_allocate(&pool, &twelve)
             .unwrap()
             .unwrap();
-        assert_eq!(
-            first.grant().items[&ResourceKey::ThreadCount],
-            shares(12)
-        );
+        assert_eq!(first.grant().items[&ResourceKey::ThreadCount], shares(12));
 
         assert!(ResourcePoolTrait::try_allocate(&pool, &four).unwrap().is_none());
 
@@ -707,42 +959,82 @@ mod tests {
 
     #[test]
     fn range_request_uses_greedy_max_when_available() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 10, 1)])
-            .unwrap();
-        let request = range_request(ResourceKey::ThreadCount, 2, 8, RequestPriority::NORMAL);
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 12, 4)]).unwrap();
+        let request = range_request(ResourceKey::ThreadCount, 4, 8, RequestPriority::NORMAL);
         let holder = ResourcePoolTrait::try_allocate(&pool, &request)
             .unwrap()
             .unwrap();
-        assert_eq!(
-            holder.grant().items[&ResourceKey::ThreadCount],
-            shares(8)
-        );
+        assert_eq!(holder.grant().items[&ResourceKey::ThreadCount], shares(8));
     }
 
     #[test]
     fn range_request_clamps_when_max_is_not_available() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 10, 1)])
-            .unwrap();
-        let preempt = exact_request(ResourceKey::ThreadCount, 6, RequestPriority::NORMAL);
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 12, 4)]).unwrap();
+        let preempt = exact_request(ResourceKey::ThreadCount, 8, RequestPriority::NORMAL);
         let _preempt_holder = ResourcePoolTrait::try_allocate(&pool, &preempt)
             .unwrap()
             .unwrap();
 
-        let request = range_request(ResourceKey::ThreadCount, 2, 8, RequestPriority::NORMAL);
+        let request = range_request(ResourceKey::ThreadCount, 4, 12, RequestPriority::NORMAL);
         let holder = ResourcePoolTrait::try_allocate(&pool, &request)
             .unwrap()
             .unwrap();
-        assert_eq!(
-            holder.grant().items[&ResourceKey::ThreadCount],
-            shares(4)
-        );
+        assert_eq!(holder.grant().items[&ResourceKey::ThreadCount], shares(4));
+    }
+
+    #[test]
+    fn at_least_request_grants_all_remaining_for_finite_resource() {
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 12, 4)]).unwrap();
+
+        let occupying = exact_request(ResourceKey::ThreadCount, 4, RequestPriority::NORMAL);
+        let _held = ResourcePoolTrait::try_allocate(&pool, &occupying)
+            .unwrap()
+            .unwrap();
+
+        let request = at_least_request(ResourceKey::ThreadCount, 4, RequestPriority::NORMAL);
+        let holder = ResourcePoolTrait::try_allocate(&pool, &request)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(holder.grant().items[&ResourceKey::ThreadCount], shares(8));
+    }
+
+    #[test]
+    fn at_least_request_candidate_is_aligned_down() {
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 12, 4)]).unwrap();
+
+        // Simulate a legacy/non-aligned `used` state and verify alignment recovery.
+        pool.inner
+            .lock()
+            .used
+            .insert(ResourceKey::ThreadCount, shares(2));
+
+        let request = at_least_request(ResourceKey::ThreadCount, 4, RequestPriority::NORMAL);
+        let holder = ResourcePoolTrait::try_allocate(&pool, &request)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(holder.grant().items[&ResourceKey::ThreadCount], shares(8));
+    }
+
+    #[test]
+    fn at_least_request_becomes_unallocatable_when_alignment_drops_below_min() {
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 12, 4)]).unwrap();
+
+        pool.inner
+            .lock()
+            .used
+            .insert(ResourceKey::ThreadCount, shares(11));
+
+        let request = at_least_request(ResourceKey::ThreadCount, 4, RequestPriority::NORMAL);
+        let result = ResourcePoolTrait::try_allocate(&pool, &request).unwrap();
+        assert!(result.is_none());
     }
 
     #[tokio::test]
     async fn allocate_waits_until_resources_are_released() {
-        let pool = Arc::new(
-            ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)]).unwrap(),
-        );
+        let pool =
+            Arc::new(ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)]).unwrap());
         let request = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::NORMAL);
         let blocking = ResourcePoolTrait::try_allocate(pool.as_ref(), &request)
             .unwrap()
@@ -767,9 +1059,8 @@ mod tests {
 
     #[tokio::test]
     async fn queue_scheduling_is_priority_then_fifo() {
-        let pool = Arc::new(
-            ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)]).unwrap(),
-        );
+        let pool =
+            Arc::new(ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)]).unwrap());
         let base_request = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::NORMAL);
         let blocker = ResourcePoolTrait::try_allocate(pool.as_ref(), &base_request)
             .unwrap()
@@ -777,32 +1068,29 @@ mod tests {
 
         let (order_tx, mut order_rx) = mpsc::unbounded_channel::<&'static str>();
 
-        let spawn_waiter = |pool: Arc<ResourcePool>,
-                            request: ResourceRequest,
-                            label: &'static str,
-                            order_tx: mpsc::UnboundedSender<&'static str>| {
-            let (release_tx, release_rx) = oneshot::channel::<()>();
-            let handle = tokio::spawn(async move {
-                let holder = ResourcePoolTrait::allocate(pool.as_ref(), &request)
-                    .await
-                    .unwrap();
-                let _ = order_tx.send(label);
-                let _ = release_rx.await;
-                drop(holder);
-            });
-            (release_tx, handle)
-        };
+        let spawn_waiter =
+            |pool: Arc<ResourcePool>,
+             request: ResourceRequest,
+             label: &'static str,
+             order_tx: mpsc::UnboundedSender<&'static str>| {
+                let (release_tx, release_rx) = oneshot::channel::<()>();
+                let handle = tokio::spawn(async move {
+                    let holder = ResourcePoolTrait::allocate(pool.as_ref(), &request)
+                        .await
+                        .unwrap();
+                    let _ = order_tx.send(label);
+                    let _ = release_rx.await;
+                    drop(holder);
+                });
+                (release_tx, handle)
+            };
 
         let low_request = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::LOW);
         let high_first = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::HIGH);
         let high_second = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::HIGH);
 
-        let (low_release, low_handle) = spawn_waiter(
-            Arc::clone(&pool),
-            low_request,
-            "low",
-            order_tx.clone(),
-        );
+        let (low_release, low_handle) =
+            spawn_waiter(Arc::clone(&pool), low_request, "low", order_tx.clone());
         wait_for_queue_len(pool.as_ref(), 1).await;
 
         let (high_first_release, high_first_handle) = spawn_waiter(
@@ -813,12 +1101,8 @@ mod tests {
         );
         wait_for_queue_len(pool.as_ref(), 2).await;
 
-        let (high_second_release, high_second_handle) = spawn_waiter(
-            Arc::clone(&pool),
-            high_second,
-            "high_second",
-            order_tx,
-        );
+        let (high_second_release, high_second_handle) =
+            spawn_waiter(Arc::clone(&pool), high_second, "high_second", order_tx);
         wait_for_queue_len(pool.as_ref(), 3).await;
 
         drop(blocker);
@@ -851,9 +1135,8 @@ mod tests {
 
     #[tokio::test]
     async fn canceled_waiter_does_not_leak_reservation() {
-        let pool = Arc::new(
-            ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)]).unwrap(),
-        );
+        let pool =
+            Arc::new(ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)]).unwrap());
         let request = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::NORMAL);
         let blocker = ResourcePoolTrait::try_allocate(pool.as_ref(), &request)
             .unwrap()
@@ -862,7 +1145,8 @@ mod tests {
         let pool_for_waiter = Arc::clone(&pool);
         let request_for_waiter = request.clone();
         let waiter = tokio::spawn(async move {
-            let _ = ResourcePoolTrait::allocate(pool_for_waiter.as_ref(), &request_for_waiter).await;
+            let _ =
+                ResourcePoolTrait::allocate(pool_for_waiter.as_ref(), &request_for_waiter).await;
         });
 
         wait_for_queue_len(pool.as_ref(), 1).await;
@@ -880,8 +1164,7 @@ mod tests {
 
     #[test]
     fn explicit_deallocate_and_drop_are_idempotent() {
-        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)])
-            .unwrap();
+        let pool = ResourcePool::new([hard_descriptor(ResourceKey::ThreadCount, 1, 1)]).unwrap();
         let request = exact_request(ResourceKey::ThreadCount, 1, RequestPriority::NORMAL);
 
         let holder = ResourcePoolTrait::try_allocate(&pool, &request)

@@ -1,3 +1,5 @@
+//! Core resource-modeling primitives and traits for `zako_resource`.
+
 #![feature(exact_div)]
 
 use std::fmt::Debug;
@@ -63,14 +65,21 @@ impl ResourceDescriptor {
 pub struct ResourceRange {
     /// Minimum required amount.
     pub min: ResourceUnitShares,
-    /// Maximum preferred amount, must be greater than or equal to `min`.
-    pub max: ResourceUnitShares,
+    /// Optional maximum preferred amount.
+    ///
+    /// - `Some(v)` means the granted value must not exceed `v`.
+    /// - `None` means "no request upper bound", so the allocator should try to
+    ///   grant all currently allocatable remainder for this key.
+    pub max: Option<ResourceUnitShares>,
 }
 
 impl ResourceRange {
     /// Builds a non-elastic range where `min == max`.
     pub fn exact(v: ResourceUnitShares) -> Self {
-        Self { min: v, max: v }
+        Self {
+            min: v,
+            max: Some(v),
+        }
     }
 
     /// Builds a range and validates `min <= max`.
@@ -78,13 +87,26 @@ impl ResourceRange {
         if min > max {
             None
         } else {
-            Some(Self { min, max })
+            Some(Self {
+                min,
+                max: Some(max),
+            })
         }
     }
 
-    /// Returns whether this range is elastic (`min != max`).
+    /// Builds a lower-bounded request with no explicit upper bound.
+    ///
+    /// The allocator interprets this as "allocate all remaining resources",
+    /// constrained by current pool availability and policy limits.
+    pub fn at_least(min: ResourceUnitShares) -> Self {
+        Self { min, max: None }
+    }
+
+    /// Returns whether this range is elastic.
+    ///
+    /// Ranges with `max = None` are always elastic.
     pub fn is_elastic(&self) -> bool {
-        self.min != self.max
+        self.max != Some(self.min)
     }
 }
 
@@ -108,6 +130,7 @@ impl RequestPriority {
 }
 
 impl Default for RequestPriority {
+    /// Returns [`RequestPriority::NORMAL`].
     fn default() -> Self {
         Self::NORMAL
     }
@@ -122,13 +145,30 @@ pub enum ResourcePoolError {
     /// Descriptor granularity must be non-zero.
     #[error("descriptor {key:?} has invalid zero granularity")]
     InvalidGranularity { key: ResourceKey },
+    /// Descriptor total must align with granularity.
+    #[error("descriptor {key:?} total is not divisible by granularity: total={total:?}, granularity={granularity:?}")]
+    DescriptorTotalNotAligned {
+        key: ResourceKey,
+        total: ResourceUnitShares,
+        granularity: ResourceUnitShares,
+    },
+    /// Descriptor soft overcommit must align with granularity.
+    #[error("descriptor {key:?} soft overcommit is not divisible by granularity: overcommit={overcommit:?}, granularity={granularity:?}")]
+    DescriptorOvercommitNotAligned {
+        key: ResourceKey,
+        overcommit: ResourceUnitShares,
+        granularity: ResourceUnitShares,
+    },
+    /// Descriptor policy and total configuration is invalid.
+    #[error("descriptor {key:?} has invalid policy configuration: {reason}")]
+    InvalidDescriptorPolicy { key: ResourceKey, reason: &'static str },
     #[error("unknown resource key: {0:?}")]
     UnknownResourceKey(ResourceKey),
     #[error("invalid range for {key:?}: min={min:?}, max={max:?}")]
     InvalidRange {
         key: ResourceKey,
         min: ResourceUnitShares,
-        max: ResourceUnitShares,
+        max: Option<ResourceUnitShares>,
     },
     #[error(
         "request for {key:?} is below granularity: requested={requested:?}, granularity={granularity:?}"
@@ -158,6 +198,9 @@ pub enum ResourcePoolError {
         requested: ResourceUnitShares,
         limit: ResourceUnitShares,
     },
+    /// Request has no upper bound while descriptor capacity is also unbounded.
+    #[error("request for {key:?} is unbounded, but descriptor capacity is also unbounded")]
+    UnboundedRequestOnUnboundedResource { key: ResourceKey },
     #[error("arithmetic overflow in resource pool")]
     ArithmeticOverflow,
     #[error("internal pool state is inconsistent: {0}")]

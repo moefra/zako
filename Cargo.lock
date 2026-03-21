@@ -7425,6 +7425,7 @@ dependencies = [
  "zako-cancel",
  "zako-digest",
  "zako-interner",
+ "zako-resource",
  "zako-shared",
 ]
 

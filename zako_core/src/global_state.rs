@@ -11,16 +11,15 @@ use crate::{
     intern::{InternedAbsolutePath, InternedString, Interner},
     local_cas::LocalCas,
     package_id::InternedPackageId,
-    resource::{
-        ResourcePool,
-        heuristics::{determine_local_cas_path, determine_tokio_thread_stack_size},
-    },
+    resource::heuristics::{determine_local_cas_path, determine_tokio_thread_stack_size},
     worker::{
         oxc_worker::OxcTranspilerWorker,
         v8worker::V8Worker,
         worker_pool::{PoolConfig, WorkerPool},
     },
 };
+
+use ::zako_resource::pool::ResourcePool;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GlobalStateError {
@@ -73,7 +72,7 @@ impl GlobalState {
         oxc_workers_config: PoolConfig,
         v8_workers_config: PoolConfig,
     ) -> Result<Arc<Self>, GlobalStateError> {
-        let cpu_count = resource_pool.get_cpu_count() as usize;
+        let cpu_count = zako_resource::heuristics::cpu_thread_count(&system).as_shares() as usize;
         let system = Arc::new(system);
         let interner = Arc::new(Interner::new()?);
 

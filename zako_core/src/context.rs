@@ -123,7 +123,7 @@ impl BuildContext {
 
     #[inline]
     #[must_use]
-    pub fn resource_pool(&self) -> &crate::resource::ResourcePool {
+    pub fn resource_pool(&self) -> &zako_resource::pool::ResourcePool {
         self.env.resource_pool()
     }
 

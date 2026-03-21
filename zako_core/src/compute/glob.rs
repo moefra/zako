@@ -11,7 +11,6 @@ use crate::{
     intern::{Internable, Uninternable},
     node::glob::{Glob, GlobRequest, GlobResult},
     path::NeutralPath,
-    resource::ResourceRequest,
 };
 
 /// Compute glob results for a given base path and pattern

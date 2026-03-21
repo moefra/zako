@@ -15,6 +15,7 @@ workspace = true
 
 [dependencies]
 zako-shared.workspace = true
+zako-resource.workspace = true
 
 hone.workspace = true
 semver.workspace = true
